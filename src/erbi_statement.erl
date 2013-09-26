@@ -6,7 +6,16 @@
 -opaque stmt_private() :: #stmt{}.
 -export_type([stmt_private/0]).
 
--export([]).
+-export([bind_params/2,
+         execute/1, execute/2,
+         fetchrow_list/1,
+         fetchrow_proplist/1,
+         fetchrow_dict/1,
+         finish/1,
+         fetchall_list/1,
+         fetchall_proplist/1,
+         fetchall_dict/1
+        ]).
 
 -include("erbi.hrl").
 
@@ -20,6 +29,9 @@
 -spec bind_params( Statement :: erbi_statement(),
                    Params :: erbi_bind_values() ) ->
                          ok | { error, any() }.
+bind_params( Statement, Params ) ->
+    { error, "not implemented" }.
+
 %% --------------------------------------
 %% @doc Begin execution of this statement
 %%   Statement
@@ -27,9 +39,14 @@
 %% @end
 %% --------------------------------------
 -spec execute( Statement :: erbi_statement() ) -> ok | { error, any() }.
+execute( Statement ) ->
+    { error, "not implemented" }.
+
 -spec execute( Statement :: erbi_statement(),
                Params :: erbi_bind_values() ) ->
                      ok | { error, any() }.
+execute( Statement, Params ) ->
+    { error, "not implemented" }.
 
 %% --------------------------------------
 %% @doc Fetch a single record from the result set.
@@ -38,10 +55,18 @@
 %% --------------------------------------
 -spec fetchrow_list( Statement :: erbi_statement() ) ->
                            { ok, [any()] } | { error, any() }.
+fetchrow_list(Statement) ->
+    { error, "not implemented" }.
+
 -spec fetchrow_proplist( Statement :: erbi_statement() ) ->
                            { ok, [{atom(),any()}] } | { error, any() }.
+fetchrow_proplist(Statement) ->
+    { error, "not implemented" }.
+
 -spec fetchrow_dict( Statement :: erbi_statement() ) ->
                            { ok, dict:dict() } | { error, any() }.
+fetchrow_dict(Statement) ->
+    { error, "not implemented" }.
 
 %% --------------------------------------
 %% @doc Complete processing with this statement.
@@ -50,7 +75,10 @@
 %% @end
 %% --------------------------------------
 -spec finish( Statement :: erbi_statement() ) ->
-                    ok | {error, any()}
+                    ok | {error, any()}.
+finish(Statement) ->
+    { error, "not implemented" }.
+
 
 %% --------------------------------------
 %% @doc Fetch all remaining records and return a list.
@@ -59,10 +87,19 @@
 %% --------------------------------------
 -spec fetchall_list( Statement :: erbi_statement() ) ->
                            { ok, [[any()]] } | { error, any() }.
+fetchall_list(Statement) ->
+    { error, "not implemented" }.
+
 -spec fetchall_proplist( Statement :: erbi_statement() ) ->
                            { ok, [[{atom(),any()}]] } | { error, any() }.
+fetchall_proplist(Statement) ->
+    { error, "not implemented" }.
+
 -spec fetchall_dict( Statement :: erbi_statement() ) ->
                            { ok, [dict:dict()] } | { error, any() }.
+fetchall_dict(Statement) ->
+    { error, "not implemented" }.
+
 
 
 %%==== Internals ====%%

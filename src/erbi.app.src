@@ -1,0 +1,9 @@
+{application,erbi,
+ [
+  { description, "Unified Database Wrapper" },
+  { vsn, "0.0.0.1" },
+  { registered, [] },
+  { applications, [kernel,stdlib] },
+  { modules, [erbi,erbi_connection,erbi_statement] }
+ ]
+}.
