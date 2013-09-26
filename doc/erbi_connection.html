@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Module erbi_connection</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module erbi_connection</h1>
+<ul class="index"><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>
+
+
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-conn_private">conn_private()</a></h3>
+<p><b>abstract datatype</b>: <tt>conn_private()</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#begin_work-1">begin_work/1</a></td><td>Begins a transaction, or adds a save-point.</td></tr>
+<tr><td valign="top"><a href="#begin_work-2">begin_work/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#commit-1">commit/1</a></td><td>Completes the current transaction; all changes are written to the database.</td></tr>
+<tr><td valign="top"><a href="#disconnect-1">disconnect/1</a></td><td>Close database connection
+    Connection.</td></tr>
+<tr><td valign="top"><a href="#do-2">do/2</a></td><td>
+ 
+  Same as do(Connection,Statement,[]).</td></tr>
+<tr><td valign="top"><a href="#do-3">do/3</a></td><td>Execute statement which does not return data.</td></tr>
+<tr><td valign="top"><a href="#prepare-2">prepare/2</a></td><td>Prepare query/statement for execution.</td></tr>
+<tr><td valign="top"><a href="#prepare_cached-2">prepare_cached/2</a></td><td>Prepare with cacheing.</td></tr>
+<tr><td valign="top"><a href="#rollback-1">rollback/1</a></td><td>Undoes all changes made during the transaction.</td></tr>
+<tr><td valign="top"><a href="#rollback-2">rollback/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#selectall_dict-2">selectall_dict/2</a></td><td>Execute and return dicts.</td></tr>
+<tr><td valign="top"><a href="#selectall_dict-3">selectall_dict/3</a></td><td>Execute query with bind values and return all records as dicts.</td></tr>
+<tr><td valign="top"><a href="#selectall_list-2">selectall_list/2</a></td><td>Execute and return lists.</td></tr>
+<tr><td valign="top"><a href="#selectall_list-3">selectall_list/3</a></td><td>Execute query with bind values and return all records as lists.</td></tr>
+<tr><td valign="top"><a href="#selectall_proplist-2">selectall_proplist/2</a></td><td>Execute and return proplists.</td></tr>
+<tr><td valign="top"><a href="#selectall_proplist-3">selectall_proplist/3</a></td><td>Execute query with bind values and return all records as proplists.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="begin_work-1">begin_work/1</a></h3>
+<div class="spec">
+<p><tt>begin_work(Connection::<a href="#type-erbi_connection">erbi_connection()</a>) -&gt; ok | {error, any()}</tt><br></p>
+</div><p>Begins a transaction, or adds a save-point.
+    Connection
+    SavePoint  - [optional] name of Save-point</p>
+
+<h3 class="function"><a name="begin_work-2">begin_work/2</a></h3>
+<div class="spec">
+<p><tt>begin_work(Connection::<a href="#type-erbi_connection">erbi_connection()</a>, SavePoint::<a href="#type-erbi_identifier">erbi_identifier()</a>) -&gt; ok | {error, any()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="commit-1">commit/1</a></h3>
+<div class="spec">
+<p><tt>commit(Connection::<a href="#type-erbi_connection">erbi_connection()</a>) -&gt; ok | {error, any()}</tt><br></p>
+</div><p>Completes the current transaction; all changes are written to the database.
+    Connection</p>
+
+<h3 class="function"><a name="disconnect-1">disconnect/1</a></h3>
+<div class="spec">
+<p><tt>disconnect(Connection::<a href="#type-erbi_connection">erbi_connection()</a>) -&gt; ok | {error, any()}</tt><br></p>
+</div><p>Close database connection
+    Connection</p>
+
+<h3 class="function"><a name="do-2">do/2</a></h3>
+<div class="spec">
+<p><tt>do(Connection::<a href="#type-erbi_connection">erbi_connection()</a>, Statement::any()) -&gt; {ok, non_neg_integer()} | {error, any()}</tt><br></p>
+</div><p>
+ 
+  Same as do(Connection,Statement,[])</p>
+
+<h3 class="function"><a name="do-3">do/3</a></h3>
+<div class="spec">
+<p><tt>do(Connection::<a href="#type-erbi_connection">erbi_connection()</a>, Statement::any(), BindValues::<a href="#type-erbi_bind_values">erbi_bind_values()</a>) -&gt; {ok, non_neg_integer()} | {error, any()}</tt><br></p>
+</div><p><p>Execute statement which does not return data.</p>
+ 
+  Returns count of records affected.</p>
+
+<h3 class="function"><a name="prepare-2">prepare/2</a></h3>
+<div class="spec">
+<p><tt>prepare(Connection::<a href="#type-erbi_connection">erbi_connection()</a>, Statement::any()) -&gt; {ok, <a href="#type-erbi_statement">erbi_statement()</a>} | {error, any()}</tt><br></p>
+</div><p><p>Prepare query/statement for execution.</p>
+ 
+  Parses statement and returns a handle which can be used to execute and retrieve rows.</p>
+
+<h3 class="function"><a name="prepare_cached-2">prepare_cached/2</a></h3>
+<div class="spec">
+<p><tt>prepare_cached(Connection::<a href="#type-erbi_connection">erbi_connection()</a>, Statement::any()) -&gt; {ok, <a href="#type-erbi_statement">erbi_statement()</a>} | {error, any()}</tt><br></p>
+</div><p><p>Prepare with cacheing.</p>
+ 
+  This function is the same as prepare/2 except if the statement has been previously
+  prepared on this connection, a cached statement handle may be returned.</p>
+
+<h3 class="function"><a name="rollback-1">rollback/1</a></h3>
+<div class="spec">
+<p><tt>rollback(Connection::<a href="#type-erbi_connection">erbi_connection()</a>) -&gt; ok | {error, any()}</tt><br></p>
+</div><p>Undoes all changes made during the transaction.
+  If savepoint is given, undoes changes after that savepoint.
+    Connection
+    SavePoint  - [optional]</p>
+
+<h3 class="function"><a name="rollback-2">rollback/2</a></h3>
+<div class="spec">
+<p><tt>rollback(Connection::<a href="#type-erbi_connection">erbi_connection()</a>, SavePoint::<a href="#type-erbi_identifier">erbi_identifier()</a>) -&gt; ok | {error, any()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="selectall_dict-2">selectall_dict/2</a></h3>
+<div class="spec">
+<p><tt>selectall_dict(Connection::<a href="#type-erbi_connection">erbi_connection()</a>, Statement::any()) -&gt; {ok, [<a href="dict.html#type-dict">dict:dict()</a>]} | {error, any()}</tt><br></p>
+</div><p><p>Execute and return dicts</p>
+ 
+  See selectall_dict/3.</p>
+
+<h3 class="function"><a name="selectall_dict-3">selectall_dict/3</a></h3>
+<div class="spec">
+<p><tt>selectall_dict(Connection::<a href="#type-erbi_connection">erbi_connection()</a>, Statement::any(), BindValues::<a href="#type-erbi_bind_values">erbi_bind_values()</a>) -&gt; {ok, [<a href="dict.html#type-dict">dict:dict()</a>]} | {error, any()}</tt><br></p>
+</div><p><p>Execute query with bind values and return all records as dicts.</p>
+ 
+  Each record is returned as a dictionary created by the standard "dict" module.
+  See selectall_list/3 for more information.</p>
+
+<h3 class="function"><a name="selectall_list-2">selectall_list/2</a></h3>
+<div class="spec">
+<p><tt>selectall_list(Connection::<a href="#type-erbi_connection">erbi_connection()</a>, Statement::any()) -&gt; {ok, [[any()]]} | {error, any()}</tt><br></p>
+</div><p><p>Execute and return lists.</p>
+ 
+  See selectall_list/3 for details.</p>
+
+<h3 class="function"><a name="selectall_list-3">selectall_list/3</a></h3>
+<div class="spec">
+<p><tt>selectall_list(Connection::<a href="#type-erbi_connection">erbi_connection()</a>, Statement::any(), BindValues::<a href="#type-erbi_bind_values">erbi_bind_values()</a>) -&gt; {ok, [[any()]]} | {error, any()}</tt><br></p>
+</div><p><p>Execute query with bind values and return all records as lists.</p>
+ 
+  Results are returned as a list of lists.  Each list contains the values,
+  in order for that row. This is a convenience method, equivalent to:
+  <pre>
+  Stmt = Connection:prepare( Statement ),
+  Result = Stmt:fetchall_list( BindValues ),
+  Stmt:finish(),
+  Result
+  </pre></p>
+
+<h3 class="function"><a name="selectall_proplist-2">selectall_proplist/2</a></h3>
+<div class="spec">
+<p><tt>selectall_proplist(Connection::<a href="#type-erbi_connection">erbi_connection()</a>, Statement::any()) -&gt; {ok, [[{atom(), any()}]]} | {error, any()}</tt><br></p>
+</div><p><p>Execute and return proplists.</p>
+ 
+  See selectall_proplist/3.</p>
+
+<h3 class="function"><a name="selectall_proplist-3">selectall_proplist/3</a></h3>
+<div class="spec">
+<p><tt>selectall_proplist(Connection::<a href="#type-erbi_connection">erbi_connection()</a>, Statement::any(), BindValues::<a href="#type-erbi_bind_values">erbi_bind_values()</a>) -&gt; {ok, [[{atom(), any()}]]} | {error, any()}</tt><br></p>
+</div><p><p>Execute query with bind values and return all records as proplists.</p>
+ 
+  Each returned record is a proplist; otherwise same as selectall_list/3.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Sep 26 2013, 16:40:43.</i></p>
+</body>
+</html>

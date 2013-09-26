@@ -1,0 +1,4 @@
+%% encoding: UTF-8
+{application,erbi}.
+{packages,[]}.
+{modules,[erbi,erbi_connection,erbi_statement]}.
