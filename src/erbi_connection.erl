@@ -3,6 +3,8 @@
 
 -module(erbi_connection).
 
+-record(conn,
+        {}).
 -opaque conn_private() :: #conn{}.
 -export_type([conn_private/0]).
 
@@ -12,9 +14,9 @@
          selectall_list/2, selectall_list/3,
          selectall_proplist/2, selectall_proplist/3,
          selectall_dict/2, selectall_dict/3,
-         seletrow_list/2, seletrow_list/3,
-         seletrow_proplist/2, seletrow_proplist/3,
-         seletrow_dict/2, seletrow_dict/3,
+         selectrow_list/2, selectrow_list/3,
+         selectrow_proplist/2, selectrow_proplist/3,
+         selectrow_dict/2, selectrow_dict/3,
          begin_work/1, begin_work/2,
          commit/1,
          rollback/1, rollback/2,
@@ -126,7 +128,7 @@ selectall_proplist( Connection, Statement, BindValues ) ->
 %% See selectall_dict/3.
 -spec selectall_dict( Connection :: erbi_connection(),
                       Statement :: any() ) ->
-                            { ok, [dict:dict()] } | { error, any() }.
+                            { ok, [dict()] } | { error, any() }.
 selectall_dict( Connection, Statement ) ->
     {error,"not implemented"}.
 
@@ -137,7 +139,7 @@ selectall_dict( Connection, Statement ) ->
 -spec selectall_dict( Connection :: erbi_connection(),
                       Statement :: any(),
                       BindValues :: erbi_bind_values() ) ->
-                            { ok, [dict:dict()] } | { error, any() }.
+                            { ok, [dict()] } | { error, any() }.
 selectall_dict( Connection, Statement, BindValues ) ->
     {error,"not implemented"}.
 
@@ -177,14 +179,14 @@ selectrow_proplist( Connection, Statement, BindValues  ) ->
 
 -spec selectrow_dict( Connection :: erbi_connection(),
                       Statement :: any() ) ->
-                            { ok, dict:dict() } | { error, any() }.
+                            { ok, dict() } | { error, any() }.
 selectrow_dict( Connection, Statement ) ->
     {error,"not implemented"}.
 
 -spec selectrow_dict( Connection :: erbi_connection(),
                       Statement :: any(),
                       BindValues :: erbi_bind_values() ) ->
-                            { ok, dict:dict() } | { error, any() }.
+                            { ok, dict() } | { error, any() }.
 selectrow_dict( Connection, Statement, BindValues  ) ->
     {error,"not implemented"}.
 
@@ -238,5 +240,3 @@ disconnect( Connection ) ->
 
 
 %%==== Internals ====%%
--record(conn,
-        {}).

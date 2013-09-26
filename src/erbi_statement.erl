@@ -2,7 +2,8 @@
 %%% ex: set softtabstop=4 tabstop=4 shiftwidth=4 expandtab fileencoding=utf-8:
 
 -module(erbi_statement).
-
+-record(stmt,
+        {}).
 -opaque stmt_private() :: #stmt{}.
 -export_type([stmt_private/0]).
 
@@ -64,7 +65,7 @@ fetchrow_proplist(Statement) ->
     { error, "not implemented" }.
 
 -spec fetchrow_dict( Statement :: erbi_statement() ) ->
-                           { ok, dict:dict() } | { error, any() }.
+                           { ok, dict() } | { error, any() }.
 fetchrow_dict(Statement) ->
     { error, "not implemented" }.
 
@@ -96,12 +97,11 @@ fetchall_proplist(Statement) ->
     { error, "not implemented" }.
 
 -spec fetchall_dict( Statement :: erbi_statement() ) ->
-                           { ok, [dict:dict()] } | { error, any() }.
+                           { ok, [dict()] } | { error, any() }.
 fetchall_dict(Statement) ->
     { error, "not implemented" }.
 
 
 
 %%==== Internals ====%%
--record(stmt,
-        {}).
+
