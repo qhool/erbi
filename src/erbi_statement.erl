@@ -23,8 +23,8 @@
 %% --------------------------------------
 %% @doc Bind given parameters to this statement.
 %% May be supplied as a positional list, or by name (contingent on driver support).
-%%   Statement  - erbi statement handle
-%%   BindValues - List of parameter values 
+%% - Statement  - erbi statement handle
+%% - BindValues - List of parameter values 
 %% @end
 %% --------------------------------------
 -spec bind_params( Statement :: erbi_statement(),
@@ -35,8 +35,6 @@ bind_params( Statement, Params ) ->
 
 %% --------------------------------------
 %% @doc Begin execution of this statement
-%%   Statement
-%%   BindValues - [optional] parameter values
 %% @end
 %% --------------------------------------
 -spec execute( Statement :: erbi_statement() ) -> ok | { error, any() }.
@@ -51,7 +49,6 @@ execute( Statement, Params ) ->
 
 %% --------------------------------------
 %% @doc Fetch a single record from the result set.
-%%   Statement
 %% @end
 %% --------------------------------------
 -spec fetchrow_list( Statement :: erbi_statement() ) ->
@@ -72,7 +69,6 @@ fetchrow_dict(Statement) ->
 %% --------------------------------------
 %% @doc Complete processing with this statement.
 %% Closes associated cursor.
-%%   Statement
 %% @end
 %% --------------------------------------
 -spec finish( Statement :: erbi_statement() ) ->
@@ -82,8 +78,8 @@ finish(Statement) ->
 
 
 %% --------------------------------------
-%% @doc Fetch all remaining records and return a list.
-%%   Statement
+%% @doc 
+%% Fetch all remaining records and return a list.
 %% @end
 %% --------------------------------------
 -spec fetchall_list( Statement :: erbi_statement() ) ->

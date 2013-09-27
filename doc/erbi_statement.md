@@ -24,16 +24,8 @@ __abstract datatype__: `stmt_private()`
 ## Function Index ##
 
 
-<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#bind_params-2">bind_params/2</a></td><td><p>Bind given parameters to this statement.
-May be supplied as a positional list, or by name (contingent on driver support).
-Statement  - erbi statement handle
-BindValues - List of parameter values</p>.</td></tr><tr><td valign="top"><a href="#execute-1">execute/1</a></td><td><p>Begin execution of this statement
-Statement
-BindValues - [optional] parameter values</p>.</td></tr><tr><td valign="top"><a href="#execute-2">execute/2</a></td><td></td></tr><tr><td valign="top"><a href="#fetchall_dict-1">fetchall_dict/1</a></td><td></td></tr><tr><td valign="top"><a href="#fetchall_list-1">fetchall_list/1</a></td><td><p>Fetch all remaining records and return a list.
-Statement</p>.</td></tr><tr><td valign="top"><a href="#fetchall_proplist-1">fetchall_proplist/1</a></td><td></td></tr><tr><td valign="top"><a href="#fetchrow_dict-1">fetchrow_dict/1</a></td><td></td></tr><tr><td valign="top"><a href="#fetchrow_list-1">fetchrow_list/1</a></td><td><p>Fetch a single record from the result set.
-Statement</p>.</td></tr><tr><td valign="top"><a href="#fetchrow_proplist-1">fetchrow_proplist/1</a></td><td></td></tr><tr><td valign="top"><a href="#finish-1">finish/1</a></td><td><p>Complete processing with this statement.
-Closes associated cursor.
-Statement</p>.</td></tr></table>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#bind_params-2">bind_params/2</a></td><td>Bind given parameters to this statement.</td></tr><tr><td valign="top"><a href="#execute-1">execute/1</a></td><td>Begin execution of this statement.</td></tr><tr><td valign="top"><a href="#execute-2">execute/2</a></td><td></td></tr><tr><td valign="top"><a href="#fetchall_dict-1">fetchall_dict/1</a></td><td></td></tr><tr><td valign="top"><a href="#fetchall_list-1">fetchall_list/1</a></td><td>
+Fetch all remaining records and return a list.</td></tr><tr><td valign="top"><a href="#fetchall_proplist-1">fetchall_proplist/1</a></td><td></td></tr><tr><td valign="top"><a href="#fetchrow_dict-1">fetchrow_dict/1</a></td><td></td></tr><tr><td valign="top"><a href="#fetchrow_list-1">fetchrow_list/1</a></td><td>Fetch a single record from the result set.</td></tr><tr><td valign="top"><a href="#fetchrow_proplist-1">fetchrow_proplist/1</a></td><td></td></tr><tr><td valign="top"><a href="#finish-1">finish/1</a></td><td>Complete processing with this statement.</td></tr></table>
 
 
 <a name="functions"></a>
@@ -52,11 +44,10 @@ bind_params(Statement::<a href="#type-erbi_statement">erbi_statement()</a>, Para
 <br></br>
 
 
-<p>Bind given parameters to this statement.
+Bind given parameters to this statement.
 May be supplied as a positional list, or by name (contingent on driver support).
-Statement  - erbi statement handle
-BindValues - List of parameter values</p>
-
+- Statement  - erbi statement handle
+- BindValues - List of parameter values
 <a name="execute-1"></a>
 
 ### execute/1 ###
@@ -69,10 +60,7 @@ execute(Statement::<a href="#type-erbi_statement">erbi_statement()</a>) -&gt; ok
 <br></br>
 
 
-<p>Begin execution of this statement
-Statement
-BindValues - [optional] parameter values</p>
-
+Begin execution of this statement
 <a name="execute-2"></a>
 
 ### execute/2 ###
@@ -111,9 +99,8 @@ fetchall_list(Statement::<a href="#type-erbi_statement">erbi_statement()</a>) -&
 <br></br>
 
 
-<p>Fetch all remaining records and return a list.
-Statement</p>
 
+Fetch all remaining records and return a list.
 <a name="fetchall_proplist-1"></a>
 
 ### fetchall_proplist/1 ###
@@ -152,9 +139,7 @@ fetchrow_list(Statement::<a href="#type-erbi_statement">erbi_statement()</a>) -&
 <br></br>
 
 
-<p>Fetch a single record from the result set.
-Statement</p>
-
+Fetch a single record from the result set.
 <a name="fetchrow_proplist-1"></a>
 
 ### fetchrow_proplist/1 ###
@@ -180,7 +165,5 @@ finish(Statement::<a href="#type-erbi_statement">erbi_statement()</a>) -&gt; ok 
 <br></br>
 
 
-<p>Complete processing with this statement.
+Complete processing with this statement.
 Closes associated cursor.
-Statement</p>
-

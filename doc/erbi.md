@@ -1,33 +1,16 @@
 
 
 # Module erbi #
-* [Description](#description)
 * [Function Index](#index)
 * [Function Details](#functions)
 
 
-
-
-<pre><tt>== ERBI ERlang unified dataBase Interface ==
-This package intends to provide a simple database interface for erlang code,
-making it possible to move existing code to a different database engine with
-at worst only a change of any embedded queries.  It is strongly inspired by Perl's excellent
-DBI.pm</tt></pre>
-.
-__Version:__ Sep 26 2013 17:23:17
-
-__Authors:__ Josh Burroughs ([`jburroughs@voalte.com`](mailto:jburroughs@voalte.com)).
 <a name="index"></a>
 
 ## Function Index ##
 
 
-<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#connect-3">connect/3</a></td><td><p>Connect to a database.
-<ul>
-<li>Connect  - DB connect term or string "erbi:Driver:params"</li>
-<li>Username</li>
-<li>Password</li>
-</ul></p>.</td></tr></table>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#connect-3">connect/3</a></td><td>Connect to a database.</td></tr></table>
 
 
 <a name="functions"></a>
@@ -46,10 +29,14 @@ connect(ConnectDescriptor::string() | [{atom(), any()}], Username::string(), Pas
 <br></br>
 
 
-<p>Connect to a database.
-<ul>
-<li>Connect  - DB connect term or string "erbi:Driver:params"</li>
-<li>Username</li>
-<li>Password</li>
-</ul></p>
+
+Connect to a database.
+
+
+* Connect  - DB connect term or string "erbi:Driver:params"
+
+* Username
+
+* Password
+
 
