@@ -120,7 +120,7 @@ fetchall_proplist(Statement::<a href="#type-erbi_statement">erbi_statement()</a>
 
 
 <pre><code>
-fetchrow_dict(Statement::<a href="#type-erbi_statement">erbi_statement()</a>) -&gt; {ok, dict()} | {error, any()}
+fetchrow_dict(Statement::<a href="#type-erbi_statement">erbi_statement()</a>) -&gt; {ok, dict()} | exhausted | {error, any()}
 </code></pre>
 
 <br></br>
@@ -133,7 +133,7 @@ fetchrow_dict(Statement::<a href="#type-erbi_statement">erbi_statement()</a>) -&
 
 
 <pre><code>
-fetchrow_list(Statement::<a href="#type-erbi_statement">erbi_statement()</a>) -&gt; {ok, [any()]} | {error, any()}
+fetchrow_list(Statement::<a href="#type-erbi_statement">erbi_statement()</a>) -&gt; {ok, [any()]} | exhausted | {error, any()}
 </code></pre>
 
 <br></br>
@@ -146,7 +146,7 @@ Fetch a single record from the result set.
 
 
 <pre><code>
-fetchrow_proplist(Statement::<a href="#type-erbi_statement">erbi_statement()</a>) -&gt; {ok, [{atom(), any()}]} | {error, any()}
+fetchrow_proplist(Statement::<a href="#type-erbi_statement">erbi_statement()</a>) -&gt; {ok, [{atom(), any()}]} | exhausted | {error, any()}
 </code></pre>
 
 <br></br>

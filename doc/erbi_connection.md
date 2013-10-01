@@ -19,6 +19,138 @@
 
 __abstract datatype__: `conn_private()`
 
+
+
+
+### <a name="type-erbi_bind_value">erbi_bind_value()</a> ###
+
+
+
+<pre><code>
+erbi_bind_value() = <a href="#type-erbi_bind_value_typed">erbi_bind_value_typed()</a> | <a href="#type-erbi_bind_value_untyped">erbi_bind_value_untyped()</a>
+</code></pre>
+
+
+
+
+
+### <a name="type-erbi_bind_value_named">erbi_bind_value_named()</a> ###
+
+
+
+<pre><code>
+erbi_bind_value_named() = <a href="#type-erbi_bind_value_named_typed">erbi_bind_value_named_typed()</a> | <a href="#type-erbi_bind_value_named_untyped">erbi_bind_value_named_untyped()</a>
+</code></pre>
+
+
+
+
+
+### <a name="type-erbi_bind_value_named_typed">erbi_bind_value_named_typed()</a> ###
+
+
+
+<pre><code>
+erbi_bind_value_named_typed() = {<a href="#type-erbi_identifier">erbi_identifier()</a>, <a href="#type-erbi_value_type">erbi_value_type()</a>, any()}
+</code></pre>
+
+
+
+
+
+### <a name="type-erbi_bind_value_named_untyped">erbi_bind_value_named_untyped()</a> ###
+
+
+
+<pre><code>
+erbi_bind_value_named_untyped() = {<a href="#type-erbi_identifier">erbi_identifier()</a>, any()}
+</code></pre>
+
+
+
+
+
+### <a name="type-erbi_bind_value_typed">erbi_bind_value_typed()</a> ###
+
+
+
+<pre><code>
+erbi_bind_value_typed() = {<a href="#type-erbi_value_type">erbi_value_type()</a>, any()}
+</code></pre>
+
+
+
+
+
+### <a name="type-erbi_bind_value_untyped">erbi_bind_value_untyped()</a> ###
+
+
+
+<pre><code>
+erbi_bind_value_untyped() = any()
+</code></pre>
+
+
+
+
+
+### <a name="type-erbi_bind_values">erbi_bind_values()</a> ###
+
+
+
+<pre><code>
+erbi_bind_values() = [<a href="#type-erbi_bind_value">erbi_bind_value()</a>] | [<a href="#type-erbi_bind_value_named">erbi_bind_value_named()</a>]
+</code></pre>
+
+
+
+
+
+### <a name="type-erbi_connection">erbi_connection()</a> ###
+
+
+
+<pre><code>
+erbi_connection() = {erbi_connection, <a href="erbi_connection.md#type-conn_private">erbi_connection:conn_private()</a>}
+</code></pre>
+
+
+
+
+
+### <a name="type-erbi_identifier">erbi_identifier()</a> ###
+
+
+
+<pre><code>
+erbi_identifier() = atom() | string() | binary()
+</code></pre>
+
+
+
+
+
+### <a name="type-erbi_statement">erbi_statement()</a> ###
+
+
+
+<pre><code>
+erbi_statement() = {erbi_statement, <a href="erbi_statement.md#type-stmt_private">erbi_statement:stmt_private()</a>}
+</code></pre>
+
+
+
+
+
+### <a name="type-erbi_value_type">erbi_value_type()</a> ###
+
+
+
+<pre><code>
+erbi_value_type() = atom()
+</code></pre>
+
+
 <a name="index"></a>
 
 ## Function Index ##
