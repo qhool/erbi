@@ -52,17 +52,17 @@ execute( Statement, Params ) ->
 %% @end
 %% --------------------------------------
 -spec fetchrow_list( Statement :: erbi_statement() ) ->
-                           { ok, [any()] } | { error, any() }.
+                           { ok, [any()] } | exhausted | { error, any() }.
 fetchrow_list(Statement) ->
     { error, "not implemented" }.
 
 -spec fetchrow_proplist( Statement :: erbi_statement() ) ->
-                           { ok, [{atom(),any()}] } | { error, any() }.
+                           { ok, [{atom(),any()}] } | exhausted | { error, any() }.
 fetchrow_proplist(Statement) ->
     { error, "not implemented" }.
 
 -spec fetchrow_dict( Statement :: erbi_statement() ) ->
-                           { ok, dict() } | { error, any() }.
+                           { ok, dict() } | exhausted | { error, any() }.
 fetchrow_dict(Statement) ->
     { error, "not implemented" }.
 

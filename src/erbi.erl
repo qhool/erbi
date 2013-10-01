@@ -2,7 +2,7 @@
 %%% ex: set softtabstop=4 tabstop=4 shiftwidth=4 expandtab fileencoding=utf-8:
 
 -module(erbi).
--export([connect/3]).
+-export([connect/3,parse_data_source/1]).
 -include("erbi.hrl").
 
 %% --------------------------------------
@@ -14,18 +14,29 @@
 %% </ul>
 %% @end
 %% --------------------------------------
--spec connect( ConnectDescriptor :: string() | list(tuple(atom(),any())),
-               Username :: string(),
-               Password :: string() ) -> 
+-spec connect( DataSource :: string() | erbi_data_source(),
+               Username :: string() | atom() ,
+               Password :: string() | atom() ) -> 
                      { ok, erbi_connection() } | { error, any() }.
-connect( ConnectDescriptor, UserName, Password ) ->                    
+connect( DataSource, UserName, Password ) ->                    
     { error, "not implemented" }.
 
-%%-------------
-%% conn handle, stmt handle are records -- { erbi_connection, stuff... }
-%% { erbi_statement, ... }
-%% so you can do:
-%% Conn = erbi:connect(...),
-%% Statement = Conn:prepare(...),
+%% --------------------------------------
+%% @doc Parse data source string.
 %%
-%% Return values:
+%% Takes a data source descriptor in the form "erbi:driver:arg=val;arg=val[...]"
+%% and returns an erbi_data_source() value.
+%% @end
+%% --------------------------------------
+-spec parse_data_source( DataSource :: string() ) ->
+                               { ok, erbi_data_source() } | { error, any() }.
+
+parse_data_source( DataSource ) ->
+    { error, "not implemented" }.
+
+%% @headerfile "erbi.hrl"
+
+%%==== Internals ====%%
+
+
+

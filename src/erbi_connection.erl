@@ -24,6 +24,7 @@
         ]).
 
 -include("erbi.hrl").
+%% @headerfile "erbi.hrl"
 
 %% --------------------------------------
 %% @doc Prepare query/statement for execution.
