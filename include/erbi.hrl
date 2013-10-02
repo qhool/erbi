@@ -20,7 +20,8 @@
 
 -record(erbi,
         { driver :: atom(),
-          args :: [any()]
+          properties = [] :: [proplist:property()],
+          args = [] :: [any()]
         }).
 -type erbi_data_source() :: #erbi{}.
 -endif.

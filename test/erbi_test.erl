@@ -11,8 +11,14 @@ basic_test_() ->
     ].
 
 parse_datasource_test_() ->
-    [ ?_assertEqual( #erbi{ driver = test, args = [ {database,"foo"},{host, "bar"} ] },
+    [ ?_assertEqual( #erbi{ driver = test, properties = [ {database,"foo"},{host, "bar"} ] },
                      erbi:parse_data_source( "erbi:test:database=foo;host=bar" ) ),
-      ?_assertEqual( #erbi{ driver = test, args = [ "generic arg", "another arg" ] },
-                     erbi:parse_data_source( "erbi:test:generic arg:another arg" ) )
+      ?_assertEqual( #erbi{ driver = test, args = [ "generic arg", "another_arg", "7" ] },
+                     erbi:parse_data_source( "erbi:test::\"generic arg\":another_arg:7" ) ),
+      ?_assertEqual( #erbi{ driver = 'foo:bar', properties = [ {database,"my database name"} ], args = ["","a"] },
+                     erbi:parse_data_source( "erbi:foo\\:bar:database=\"my database name\"::a" ) ),
+      ?_test( {error,_} = erbi:parse_data_source( "test:database=\"foo bar\"" ) ),
+      ?_test( {error,_} = erbi:parse_data_source( "erbi::" ) ),
+      ?_test( {error,_} = erbi:parse_data_source( "erbi:test:database=\"foo\"host=bat" ) ),
+      ?_test( {error,_} = erbi:parse_data_source( "erbi:test:database=foohost=bat" ) )
     ].
