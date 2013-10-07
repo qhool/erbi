@@ -24,7 +24,7 @@
 %% --------------------------------------
 %% @doc Connect to a database.
 %% 
-%% <ul><li>Connect  - DB connect term or string "erbi:Driver:params"</li>
+%% <ul><li>DataSource  - DB connect term or string "erbi:Driver:params"</li>
 %% <li>Username</li>
 %% <li>Password</li>
 %% </ul>
