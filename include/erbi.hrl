@@ -34,10 +34,22 @@
 -type erbi_identifier() :: atom() | string() | binary().
 -type erbi_value_type() :: atom().
 
+-type property() :: atom() | {atom(),any()}.
+
 -record(erbi,
         { driver :: atom(),
-          properties = [] :: [proplist:property()],
+          properties = [] :: [property()],
           args = [] :: [any()]
         }).
 -type erbi_data_source() :: #erbi{}.
+
+-record(erbi_driver_info,
+        { driver :: atom(),
+          preparse_support :: boolean(),
+          cursor_support :: boolean(),
+          transaction_support :: boolean()
+        }).
+
+-type erbi_driver_info() :: #erbi_driver_info{}.
+          
 -endif.
