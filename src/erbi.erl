@@ -20,6 +20,7 @@
 -module(erbi).
 -export([connect/3,parse_data_source/1]).
 -include("erbi.hrl").
+-include("erbi_private.hrl").
 
 %% --------------------------------------
 %% @doc Connect to a database.

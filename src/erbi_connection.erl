@@ -19,8 +19,7 @@
 %% @end 
 -module(erbi_connection).
 
--record(conn,
-        {}).
+-include("erbi_private.hrl").
 -opaque conn_private() :: #conn{}.
 -export_type([conn_private/0]).
 
