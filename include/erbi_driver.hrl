@@ -68,5 +68,13 @@
         }).
 -type erbdrv_return() :: #erbdrv{}.
 
+-record(erbdrv_stmt_counters,
+        { first :: integer(),
+          current :: integer(),
+          last :: integer(),
+          is_final :: boolean()
+        }).
+-type erbdrv_stmt_counters() :: #erbdrv_stmt_counters{}.
+
 -endif.
           
