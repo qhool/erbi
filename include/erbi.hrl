@@ -17,8 +17,9 @@
 
 -ifndef(ERBI_HRL).
 -define(ERBI_HRL,true).
-
--type erbi_connection() :: {erbi_connection, erbi_connection:conn_private()}.
+-record(erbi_connection,
+        { conn :: erbi_connection:conn_private() }).
+-type erbi_connection() :: #erbi_connection{}.
 % Opaque connection handle
 
 -type erbi_statement() :: {erbi_statement, erbi_statement:stmt_private()}.
@@ -42,6 +43,7 @@
           args = [] :: [any()]
         }).
 -type erbi_data_source() :: #erbi{}.
+-type erbi_connect_tuple() :: {erbi,atom()} | {erbi,atom(),[property()]}.
 
 -record(erbi_driver_info,
         { driver :: atom(),

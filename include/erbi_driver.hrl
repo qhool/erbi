@@ -61,12 +61,12 @@
 
 -record(erbdrv,
         { status = error    :: erbdrv_call_status(),
-          conn              :: erbdrv_connection() | undefined | same,
-          stmt              :: erbdrv_statement() | undefined | same,
-          data              :: erbdrv_error() | erbdrv_columns() | erbdrv_rows() | 
+          conn = same       :: erbdrv_connection() | undefined | same,
+          stmt = same       :: erbdrv_statement() | undefined | same,
+          data = nothing    :: nothing | erbdrv_error() | erbdrv_columns() | erbdrv_rows() | 
                                { erbdrv_columns(), erbdrv_rows() }
         }).
--type erbdrv_return() :: #erbdrv{}.
+-type erbdrv_return() :: #erbdrv{} | declined.
 
 -record(erbdrv_stmt_counters,
         { first :: integer(),
