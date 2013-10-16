@@ -18,10 +18,6 @@
 %% Erbi statement handle functions: perform queries, fetch rows, etc. 
 %% @end 
 -module(erbi_statement).
--record(stmt,
-        {}).
--opaque stmt_private() :: #stmt{}.
--export_type([stmt_private/0]).
 
 -export([bind_params/2,
          execute/1, execute/2,
@@ -35,6 +31,9 @@
         ]).
 
 -include("erbi.hrl").
+-include("erbi_private.hrl").
+
+-define(STMT(StmtID),{erbi_statement,_,#stmt{ id = StmtID }}).
 
 %% --------------------------------------
 %% @doc Bind given parameters to this statement.
@@ -46,8 +45,8 @@
 -spec bind_params( Statement :: erbi_statement(),
                    Params :: erbi_bind_values() ) ->
                          ok | { error, any() }.
-bind_params( Statement, Params ) ->
-    { error, "not implemented" }.
+bind_params( ?STMT(StmtID)=Statement, Params ) ->
+    erbi_driver:call(Statement,{bind,StmtID}).
 
 %% --------------------------------------
 %% @doc Begin execution of this statement
@@ -55,13 +54,13 @@ bind_params( Statement, Params ) ->
 %% --------------------------------------
 -spec execute( Statement :: erbi_statement() ) -> {ok,erbi_row_count()} | { error, any() }.
 execute( Statement ) ->
-    { error, "not implemented" }.
+    execute(Statement,[]).
 
 -spec execute( Statement :: erbi_statement(),
                Params :: erbi_bind_values() ) ->
                      {ok,erbi_row_count()} | { error, any() }.
-execute( Statement, Params ) ->
-    { error, "not implemented" }.
+execute( ?STMT(StmtID)=Statement, Params ) ->
+    erbi_driver:call(Statement,{execute,StmtID,Params}).
 
 %% --------------------------------------
 %% @doc Fetch a single record from the result set.
@@ -89,8 +88,8 @@ fetchrow_dict(Statement) ->
 %% --------------------------------------
 -spec finish( Statement :: erbi_statement() ) ->
                     ok | {error, any()}.
-finish(Statement) ->
-    { error, "not implemented" }.
+finish(?STMT(StmtID) = Statement) ->
+    erbi_driver:call(Statement,{finish,StmtID}).
 
 
 %% --------------------------------------

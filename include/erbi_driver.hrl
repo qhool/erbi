@@ -17,6 +17,7 @@
 
 -ifndef(ERBI_DRIVER_HRL).
 -define(ERBI_DRIVER_HRL,true).
+-include("erbi.hrl").
 
 -type erbdrv_call_status() :: ok | error | declined.
 -type erbdrv_connection() :: any().

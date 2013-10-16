@@ -20,5 +20,7 @@
 
 -record(conn,
         { pid :: pid() }).
+-record(stmt,
+        { id :: pos_integer() }).
 
 -endif.

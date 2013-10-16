@@ -22,7 +22,8 @@
 %% @end
 
 -module(erbi_driver).
--export([init/1,
+-export([call/2,call/3,
+         init/1,
          terminate/2,
          handle_call/3,
          handle_cast/2,
@@ -31,7 +32,7 @@
         ]).
 
 -include("erbi.hrl").
-
+-include("erbi_private.hrl").
 -include("erbi_driver.hrl").
 
 -behaviour(gen_server).
@@ -199,6 +200,35 @@
                  Statement :: erbdrv_statement() ) ->
     erbdrv_return().
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% ERBI-Internal convenience functions %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% convenience wrapper for gen_server
+-spec call( ConnOrStmt :: erbi_connection() | erbi_statement(),
+            Message :: any() ) ->
+                  any() | {error,any()}.
+call({erbi_connection,#conn{ pid = Pid}},Message) ->
+    gen_server:call(Pid,Message);
+call({erbi_statement,#conn{pid = Pid},_},Message) ->
+    gen_server:call(Pid,Message).
+
+-spec call( ConnOrStmt :: erbi_connection() | erbi_statement() | pid(),
+            Message :: any(),
+            Handler :: fun((any()) -> any()) % any unary
+                       ) ->
+                  any() | {error,any()}.
+call({erbi_connection,#conn{ pid = Pid}},Message,Handler) ->
+    call(Pid,Message,Handler);
+call({erbi_statement,#conn{pid=Pid},_},Message,Handler) ->
+    call(Pid,Message,Handler);
+call(Pid,Message,Handler) ->
+    case gen_server:call(Pid,Message) of
+        {error,Reason} ->
+            {error,Reason};
+        Return ->
+            Handler(Return)
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Driver-connection gen-server. %%

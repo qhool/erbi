@@ -37,9 +37,6 @@
         ]).
 
 -include("erbi.hrl").
-% in case the format of the connection record changes
--define(CONN(P),{erbi_connection,#conn{ pid = P }}).
-
 %% @headerfile "erbi.hrl"
 
 %% --------------------------------------
@@ -51,8 +48,11 @@
 -spec prepare( Connection :: erbi_connection(),
                Statement :: any() ) -> 
                      { ok, erbi_statement() } | { error, any() }.
-prepare(?CONN(Pid) = Connection,Statement) ->
-    gen_server:call(Pid,{prepare,Statement}).
+prepare({erbi_connection,Conn}=Connection,Statement) ->
+    erbi_driver:call(Connection,{prepare,Statement},
+                     fun({ok,StmtID}) ->
+                             {ok,{erbi_statement,Conn,#stmt{ id = StmtID }}}
+                     end).
 
 %% --------------------------------------
 %% @doc Prepare with cacheing.
@@ -250,7 +250,7 @@ rollback( Connection, SavePoint ) ->
 %% @end
 %% --------------------------------------
 -spec disconnect( Connection :: erbi_connection() ) -> ok | { error, any() }.
-disconnect( ?CONN(Pid) = Connection ) ->
+disconnect( {erbi_connection,#conn{pid=Pid}} ) ->
     gen_server:cast(Pid,disconnect).
 
 
