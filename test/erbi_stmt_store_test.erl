@@ -41,8 +41,7 @@ add_rows_and_reset(Store) ->
     Stmt = ?debugVal(erbi_stmt_store:add_statement(Store,fake)),
     fake = check_init_state(Store,Stmt),
     {ok,#erbdrv_stmt_counters{last=0},Store} =
-        ?debugVal(erbi_stmt_store:add_rows( Store, Stmt, {[a,b,c],[[0,0,0]]} )),
-    [a,b,c] = ?debugVal(erbi_stmt_store:get_cols(Store,Stmt)),
+        ?debugVal(erbi_stmt_store:add_rows( Store, Stmt, [[0,0,0]] )),
     [0,0,0] = ?debugVal(erbi_stmt_store:get(Store,Stmt,0)),
     1 = Curr = ?debugVal(erbi_stmt_store:incr( Store, Stmt, current, 1 )),
     {ok,#erbdrv_stmt_counters{last=3},Store} = 
