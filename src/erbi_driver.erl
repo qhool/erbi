@@ -168,6 +168,8 @@
 %% Should return a statement handle, and may return column info and/or 
 %% any rows which are ready immediately. If no rows are ready, that's fine --
 %% the intent is only to prevent the driver from needing to implement caching of complete rows.
+%%
+%% Should also populate 'rows' (affected) in returned record, if known.
 %% 
 %% If driver does not indicate support for pre-parsing, statement will
 %% be a string.  If driver doesn't support cursors, data will be assumed to contain all
@@ -285,12 +287,12 @@ handle_call({execute,StmtID,Params},_From,#connect_state{statements=Tbl}=State)
         undefined -> % no handle; execute stored query text
             Query = erbi_stmt_store:get(Tbl,StmtID,raw_query),
             Params1 = Params ++ erbi_stmt_store:lookup(Tbl,StmtID,params,[]),
-            proc_return(call_driver(State,execute,Query,Params1), State, StmtID,fun add_rows/3);
+            do_exec(State,StmtID,Query,Params1);
         Handle ->
-            proc_return(call_driver(State,execute,Handle,Params),State,StmtID,fun add_rows/3)
+            do_exec(State,StmtID,Handle,Params)
     end;
 handle_call({execute,Query,Params},_From,State) ->
-    proc_return(call_driver(State,execute,Query,Params), State, undefined, fun add_rows/3);
+    do_exec(State,undefined,Query,Params);
 handle_call({start_fetch,StatementID,Amount},_From,State) ->
     do_fetch(State,StatementID,Amount);
 handle_call({continue_fetch,StatementID,Amount,RowsRead},_From,#connect_state{statements=Tbl}=State) ->
@@ -334,6 +336,16 @@ do_fetch( #connect_state{statements=Tbl} = State,StatementID,Amount) ->
             proc_return(call_driver(State,fetch_rows,Handle,Amount),State,StatementID,fun add_rows/3);
         Counters -> {reply,{ok,Counters,Tbl},State}
     end.
+
+do_exec( State, StmtID, QueryOrHandle, Params ) ->
+    #erbdrv{ rows = Rows } = 
+        DriverReturn = call_driver( State, execute, QueryOrHandle, Params ),
+    proc_return( DriverReturn, State, StmtID, 
+                 fun(State1,StmtID1,Data) ->
+                         {reply,{ok,_Counters,_Tbl},State2} = add_rows(State1,StmtID1,Data),
+                         {reply,{ok,Rows},State2}
+                 end ).
+                                     
 opt_cols( State,StmtID,undefined ) ->
     {reply,{ok,StmtID},State};
 opt_cols( #connect_state{statements=Tbl}=State,StmtID,Cols ) ->

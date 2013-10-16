@@ -67,6 +67,7 @@
         { status = error    :: erbdrv_call_status(),
           conn = same       :: erbdrv_connection() | undefined | same,
           stmt = same       :: erbdrv_statement() | undefined | same,
+          rows = unknown    :: erbi_row_count(),
           data = nothing    :: nothing | erbdrv_error() | erbdrv_row_col_data()
         }).
 -type erbdrv_return() :: #erbdrv{} | declined.

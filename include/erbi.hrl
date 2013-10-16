@@ -32,6 +32,7 @@
 -type erbi_bind_value_named_untyped() :: {erbi_identifier(), any()}.
 -type erbi_identifier() :: atom() | string() | binary().
 -type erbi_value_type() :: atom().
+-type erbi_row_count() :: unknown | non_neg_integer().
 
 -type property() :: atom() | {atom(),any()}.
 

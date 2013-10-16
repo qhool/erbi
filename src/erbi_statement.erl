@@ -53,13 +53,13 @@ bind_params( Statement, Params ) ->
 %% @doc Begin execution of this statement
 %% @end
 %% --------------------------------------
--spec execute( Statement :: erbi_statement() ) -> ok | { error, any() }.
+-spec execute( Statement :: erbi_statement() ) -> {ok,erbi_row_count()} | { error, any() }.
 execute( Statement ) ->
     { error, "not implemented" }.
 
 -spec execute( Statement :: erbi_statement(),
                Params :: erbi_bind_values() ) ->
-                     ok | { error, any() }.
+                     {ok,erbi_row_count()} | { error, any() }.
 execute( Statement, Params ) ->
     { error, "not implemented" }.
 
