@@ -313,6 +313,8 @@ handle_call(reset,_From,#connect_state{statements=Tbl}=State) ->
                          proc_return(call_driver(State1,finish,H),State1,ID)
                  end, {reply,ok,State}, IDHandles ).
 
+handle_cast(disconnect,State) ->
+    {stop,normal,State};
 handle_cast(_,State) ->
     {noreply,State}.
 

@@ -37,6 +37,9 @@
         ]).
 
 -include("erbi.hrl").
+% in case the format of the connection record changes
+-define(CONN(P),{erbi_connection,#conn{ pid = P }}).
+
 %% @headerfile "erbi.hrl"
 
 %% --------------------------------------
@@ -48,8 +51,8 @@
 -spec prepare( Connection :: erbi_connection(),
                Statement :: any() ) -> 
                      { ok, erbi_statement() } | { error, any() }.
-prepare(Connection,Statement) ->
-    {error,"not implemented"}.
+prepare(?CONN(Pid) = Connection,Statement) ->
+    gen_server:call(Pid,{prepare,Statement}).
 
 %% --------------------------------------
 %% @doc Prepare with cacheing.
@@ -84,9 +87,7 @@ do( Connection, Statement, BindValues ) ->
           Statement :: any() ) ->
                 { ok, non_neg_integer() } | { error, any() }.
 do( Connection, Statement ) ->
-    {error,"not implemented"}.
-
-
+    do( Connection, Statement, [] ).
 
 %% --------------------------------------
 %% @doc Execute query with bind values and return all records as lists.
@@ -249,8 +250,9 @@ rollback( Connection, SavePoint ) ->
 %% @end
 %% --------------------------------------
 -spec disconnect( Connection :: erbi_connection() ) -> ok | { error, any() }.
-disconnect( Connection ) ->
-    {error,"not implemented"}.
+disconnect( ?CONN(Pid) = Connection ) ->
+    gen_server:cast(Pid,disconnect).
 
 
 %%==== Internals ====%%
+

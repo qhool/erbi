@@ -35,8 +35,32 @@
                Username :: undefined | unicode:chardata() ,
                Password :: undefined | unicode:chardata() ) -> 
                      { ok, erbi_connection() } | { error, any() }.
-connect( DataSource, UserName, Password ) ->                    
-    { error, "not implemented" }.
+connect( DataSource, Username, Password ) when is_list(DataSource) ->                    
+    connect( parse_data_source( DataSource ), Username, Password );
+connect( {erbi,Driver}, Username, Password ) ->
+    connect( #erbi{ driver = Driver }, Username, Password );
+connect( {erbi,Driver,Props}, Username, Password ) ->
+    connect( #erbi{ driver = Driver, properties = Props }, Username, Password );
+connect( DataSource, Username, Password ) -> 
+    Module = get_driver_module(DataSource),
+    case normalize_data_source(Module,DataSource) of
+        {error,_}=E -> E;
+        DataSource1 ->
+            Info = Module:driver_info(),
+            ConnectReq = {Module,Info,DataSource1,Username,Password},
+            io:format( user, "About to start: DS = ~n~p~n", [DataSource1] ),
+            try gen_server:start(erbi_driver,ConnectReq,[]) of
+                {ok,Pid} ->
+                    Connection = {erbi_connection,#conn{ pid = Pid }},
+                    {ok, Connection};
+                ignore -> {error,ignore};
+                {error,Reason} -> {error,Reason}
+            catch
+                Ex ->
+                    io:format(user, "got exception: ~n~p~n", [Ex] ),
+                    {error,exception}
+            end
+    end.
 
 %% --------------------------------------
 %% @doc Connect without supplying username/password
