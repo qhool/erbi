@@ -46,7 +46,8 @@
                              erbdrv_statement_error() | erbdrv_execution_error().
                                    
 -type erbdrv_error() :: { erbdrv_error_code(), any() }.
--type erbdrv_rows() :: list(list(any())).
+
+-type erbdrv_rows() :: final | list(list(any())) | {final,list(list(any()))}.
 
 -record(erbdrv_field,
         { name              :: string(),
@@ -59,12 +60,14 @@
 
 -type erbdrv_columns() :: list(erbdrv_field()).
 
+-type erbdrv_row_col_data() :: erbdrv_columns() | erbdrv_rows() | 
+                               { erbdrv_columns(), erbdrv_rows() }.
+
 -record(erbdrv,
         { status = error    :: erbdrv_call_status(),
           conn = same       :: erbdrv_connection() | undefined | same,
           stmt = same       :: erbdrv_statement() | undefined | same,
-          data = nothing    :: nothing | erbdrv_error() | erbdrv_columns() | erbdrv_rows() | 
-                               { erbdrv_columns(), erbdrv_rows() }
+          data = nothing    :: nothing | erbdrv_error() | erbdrv_row_col_data()
         }).
 -type erbdrv_return() :: #erbdrv{} | declined.
 

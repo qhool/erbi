@@ -153,9 +153,6 @@ add_rows( Tbl, StmtID, Data ) ->
     Counters = counters( Tbl, StmtID ),
     add_rows(Tbl,StmtID,Data,Counters).
 
-add_rows( Tbl, StmtID, {Cols,Rows}, Counters ) ->
-    set_cols(Tbl,StmtID, Cols),
-    add_rows(Tbl,StmtID, Rows, Counters);
 add_rows( Tbl, StmtID, Rows, 
           #erbdrv_stmt_counters{last=Last} = Counters ) ->
     NewLast = Last + length(Rows),

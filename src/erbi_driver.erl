@@ -292,8 +292,24 @@ opt_cols( #connect_state{statements=Tbl}=State,StmtID,Cols ) ->
     erbi_stmt_store:set_cols(Tbl,StmtID,Cols),
     {reply,{ok,StmtID},State}.
 
-add_rows( #connect_state{statements=Tbl}=State,StmtID,Data ) ->
-    {ok,Counters,Tbl} = erbi_stmt_store:add_rows(Tbl,StmtID,Data),
+add_rows( #connect_state{statements=Tbl}=State,StmtID,
+          {Cols,Rows} ) when is_list(Cols)->
+    erbi_stmt_store:set_cols(Tbl,StmtID,Cols),
+    add_rows(State,StmtID,Rows);
+add_rows( #connect_state{statements=Tbl}=State,StmtID,
+          [#erbdrv_field{}|_]=Cols ) ->
+    erbi_stmt_store:set_cols(Tbl,StmtID,Cols),
+    Counters = erbi_stmt_store:counters(Tbl,StmtID),
+    {reply,{ok,Counters,Tbl},State};
+add_rows( #connect_state{statements=Tbl}=State,StmtID,final ) ->
+    erbi_stmt_store:set( Tbl, StmtID, is_final, true ),
+    Counters = erbi_stmt_store:counters(Tbl,StmtID),
+    {reply,{ok,Counters,Tbl},State};
+add_rows( #connect_state{statements=Tbl}=State,StmtID,{final,Rows} ) ->
+    erbi_stmt_store:set( Tbl, StmtID, is_final, true ),
+    add_rows(State,StmtID,Rows);
+add_rows( #connect_state{statements=Tbl}=State,StmtID,Rows ) ->
+    {ok,Counters,Tbl} = erbi_stmt_store:add_rows(Tbl,StmtID,Rows),
     {reply,{ok,Counters,Tbl},State}.
         
 get_stmt_handle(#connect_state{statements=Tbl},StmtID) ->
