@@ -44,6 +44,52 @@
 %% @end
 -callback driver_info() -> erbi_driver_info().
 
+%% @doc Arbitrary preprocessing/validation of properties
+%%
+%% Called once for each property supplied in the datasource,
+%% allows the driver to validate or transform the property.
+%% This will be called after any aliases are expanded, but before other
+%% normalization steps.
+%% Return values:
+%% <dl>
+%% <dt>ok</dt>
+%%   <dd>property is valid</dd>
+%% <dt>{error,Reason}</dt>
+%%   <dd>property is not valid; Reason should indicate the problem. 
+%%       You do not need to check for unsupported properties here;
+%%       instead supply a complete list of supported properties from
+%%       {@link property_info/0}.
+%%   </dd>
+%% <dt>{ok,Properties}</dt>
+%%   <dd>Use this to update property.  Original property will be replaced
+%%       with those in the list 'Properties'; [] will cause it to be deleted.
+%%   </dd>
+%% </dl> 
+-callback validate_property( atom(), any() ) ->
+    ok | {ok,[property()]} | {error,any()}.
+
+%% @doc Return normalizations for the properties
+%%
+%% This function should return a set of normalizations for the connect
+%% properties.  These are the same as the operations supported by 
+%% {@link proplists:normalize/2}, with the addition of: 'default',
+%% which should be a list of optional arguments, with default values; and
+%% 'required', a list of arguments which must be present.
+%% @end
+-callback property_info() -> [{atom(),any()}].
+
+%% @doc Parse free-form arguments
+%% 
+%% If the driver supports free-form arguments, this function
+%% should take those arguments, parse them, and return a
+%% normalized representation (such that effectively equivalent
+%% arguments will compare as equal when normalized).
+%% 
+%% If free-form arguments are not supported, return 'declined'.
+%% @end.
+-callback parse_args([any()]) ->
+    declined | {error,any()} | term().
+
 %% @doc Establish a new connection to the database
 %% @end
 -callback connect( DS :: erbi_data_source(),

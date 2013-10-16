@@ -38,7 +38,7 @@
 -record(erbi,
         { driver :: atom(),
           properties = [] :: [property()],
-          args = [] :: [any()]
+          args = [] :: undefined | term() | [any()]
         }).
 -type erbi_data_source() :: #erbi{}.
 -type erbi_connect_tuple() :: {erbi,atom()} | {erbi,atom(),[property()]}.

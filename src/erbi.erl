@@ -18,7 +18,7 @@
 %% Main erbi module.
 %% @end 
 -module(erbi).
--export([connect/3,parse_data_source/1]).
+-export([connect/3,connect/1,normalize_data_source/1,parse_data_source/1]).
 -include("erbi.hrl").
 -include("erbi_private.hrl").
 
@@ -31,13 +31,45 @@
 %% </ul>
 %% @end
 %% --------------------------------------
--spec connect( DataSource :: unicode:chardata() | erbi_data_source(),
-               Username :: unicode:chardata() ,
-               Password :: unicode:chardata() ) -> 
+-spec connect( DataSource :: unicode:chardata() | erbi_data_source() | erbi_connect_tuple(),
+               Username :: undefined | unicode:chardata() ,
+               Password :: undefined | unicode:chardata() ) -> 
                      { ok, erbi_connection() } | { error, any() }.
 connect( DataSource, UserName, Password ) ->                    
     { error, "not implemented" }.
 
+%% --------------------------------------
+%% @doc Connect without supplying username/password
+%%
+%% Same as {@link connect/3} with undefined for the 2nd and 3rd args.
+%% @end
+%% --------------------------------------
+-spec connect( DataSource :: unicode:chardata() | erbi_data_source() ) -> 
+                     { ok, erbi_connection() } | { error, any() }.
+connect( DataSource ) ->         
+    connect( DataSource, undefined, undefined ).
+
+%% --------------------------------------
+%% @doc normalize data source.
+%%
+%% Takes a data source descriptor (as a string or tuple),
+%% and produces a normalized version.  This function uses
+%% driver-specific callbacks, so it will fail if the specified
+%% driver cannot be found.
+%% @end
+%% --------------------------------------
+-spec normalize_data_source( DataSource :: unicode:chardata() | erbi_data_source() ) ->
+                                   erbi_data_source().
+
+%% normalize_data_source( DataSource ) when is_list(DataSource) ->
+%%     case parse_data_source(DataSource) of
+%%         {error,_}=E -> E;
+%%         DS -> normalize_data_source(DS)
+%%     end;
+normalize_data_source( DataSource ) ->
+    Module = get_driver_module(DataSource),
+    normalize_data_source( Module, DataSource ).
+             
 %% --------------------------------------
 %% @doc Parse data source string.
 %%
@@ -46,7 +78,7 @@ connect( DataSource, UserName, Password ) ->
 %% @end
 %% --------------------------------------
 -spec parse_data_source( DataSource :: unicode:chardata() ) ->
-                               { ok, erbi_data_source() } | { error, any() }.
+                               erbi_data_source() | { error, any() }.
 
 
 parse_data_source( DataSource ) ->
@@ -58,8 +90,105 @@ parse_data_source( DataSource ) ->
 
 %%==== Internals ====%%
 
+-spec get_driver_module( erbi_data_source() ) -> atom().
+
+get_driver_module( #erbi{driver=DriverAtom} ) ->
+    Module = list_to_atom("erbdrv_" ++ atom_to_list(DriverAtom)),
+    {module,Module} = code:ensure_loaded(Module),
+    Module.
+
+-spec normalize_data_source( Module :: atom(), erbi_data_source() ) ->
+                                   erbi_data_source() | {error,any()}.
+normalize_data_source(Module,#erbi{properties=Props,args=Args}=DataSource ) ->
+    case normalize_properties( Module, Props ) of
+        {error,_}=E -> E;
+        Props1 ->
+            case normalize_args( Module, Args ) of
+                {error,_}=E -> E;
+                Args1 ->
+                    DataSource#erbi{properties = Props1, args=Args1}
+            end
+    end.
+    
+-spec normalize_args( Module :: atom(), Args :: [any()] ) ->
+                            undefined | {error,any()} | term().
+normalize_args( Module, Args ) ->
+    case {Args,Module:parse_args(Args)} of
+        {[],declined} ->
+            undefined;
+        {_,declined} ->
+            {error,{invalid_datasource,args_not_supported}};
+        {_,{error,Reason}} ->
+            {error,{invalid_datasource,Reason}};
+        {_,A} ->
+            A
+    end.
+          
+%normalize the driver properties;
+%uses driver callbacks property_info; does similar 
+-spec normalize_properties( Module :: atom(), Props :: [property()] ) ->
+                                  [property()] | {error,any()}.
+                                     
+normalize_properties(Module,Props) ->
+    PropInfo = Module:property_info(),
+    %decompose PropInfo:
+    Aliases = proplists:get_value(aliases,PropInfo,[]),
+    Negations = proplists:get_value(negations,PropInfo,[]),
+    Expands = proplists:lookup_all(expand,PropInfo),
+    Defaults = proplists:get_value(defaults,PropInfo,[]),
+    Required = proplists:get_value(required,PropInfo,[]),
+    %processing phases:
+    Props1 = proplists:substitute_aliases(Aliases,Props),
+    case validate_properties( Module, Props1 ) of
+        {error,Reason} ->
+            {error,{invalid_datasource,Reason}};
+        {ok,Props2} ->
+            Props3 = proplists:normalize(Props2,[{negations,Negations}|Expands]),
+            % get the list of default values which are not present
+            NeedDefaults = 
+                lists:filter(fun({DefK,_Val}) ->
+                                     case proplists:lookup(DefK,Props3) of
+                                         none -> true;
+                                         _ -> false
+                                     end
+                              end, proplist_uncompact(Defaults)),
+            case lists:filter(fun(Req) ->
+                                      case proplists:lookup(Req,Props3) of
+                                          none -> true;
+                                          _ -> false
+                                      end
+                              end, Required) of
+                [] -> %nothing missing
+                    lists:sort( proplists:compact(Props3++NeedDefaults) );
+                Missing ->
+                    {error,{invalid_datasource,{missing_properties,Missing}}}
+            end
+    end.
+
+-spec validate_properties( Module :: atom(), Props :: [property()] ) ->
+                                 [property()] | {error,any()}.
+validate_properties(Module,Props) ->
+    lists:foldl( fun(_,{error,R}) ->
+                         {error,R}; % short-circuit after error
+                    ({P,V},{ok,Properties}) ->
+                         case Module:validate_property(P,V) of
+                             ok ->
+                                 {ok,Properties++[{P,V}]};
+                             {ok,VProps} ->
+                                 {ok,Properties++VProps};
+                             {error,Reason} -> {error,Reason}
+                         end
+                 end, {ok,[]}, proplist_uncompact(Props) ).
+
+proplist_uncompact(Props) ->
+    lists:map( fun(P) when is_atom(P) ->
+                       {P,true};
+                  ({P,V}) -> {P,V}
+               end, Props ).
+                                  
+
 -spec parse_ds( Tokens :: list(string()) ) ->
-                      { ok, erbi_data_source() } | { error, any() }.
+                      erbi_data_source() | { error, any() }.
 
 parse_ds( [ "erbi", ":", Driver, ":" | Tokens ] ) ->
     DriverAtom = list_to_atom(Driver),
@@ -70,7 +199,7 @@ parse_ds( [ "erbi", ":", Driver, ":" | Tokens ] ) ->
     end;
 parse_ds( [ "erbi", ":" | _ ] ) ->
     { error, { expected, driver_name } };
-parse_ds( Tokens ) ->
+parse_ds( _Tokens ) ->
     { error, { expected, erbi } }.
 
 
@@ -97,7 +226,7 @@ parse_ds_prop_sep( [ ";" | Tokens ], Props ) ->
 parse_ds_prop_sep( [ ":" | Tokens ], Props ) ->
     Args = parse_ds_args( Tokens,[],[] ),
     {lists:reverse(Props),Args};
-parse_ds_prop_sep( [SomethingElse|Tokens], Props ) ->
+parse_ds_prop_sep( [SomethingElse|_Tokens], _Props ) ->
     {error, {unexpected, SomethingElse}};
 parse_ds_prop_sep( [], Props ) ->
     {lists:reverse(Props),[]}.
@@ -146,7 +275,7 @@ scan_ds( [P|Chars], Accum, Tokens )
               end,
     scan_ds( Chars, [], [[P]|Tokens1] );
 %%anything besides punctuation after a close-quote is an error
-scan_ds( [_|_], quote_end, Tokens ) ->
+scan_ds( [_|_], quote_end, _Tokens ) ->
     {error,{expected, [delimiter,end_of_string]}};
 %%normal case -- add current character to token
 scan_ds( [C|Chars], Accum, Tokens ) ->
