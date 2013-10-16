@@ -20,8 +20,6 @@
 -module(erbi_connection).
 
 -include("erbi_private.hrl").
--opaque conn_private() :: #conn{}.
--export_type([conn_private/0]).
 
 -export([prepare/2,
          prepare_cached/2,

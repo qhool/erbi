@@ -17,13 +17,11 @@
 
 -ifndef(ERBI_HRL).
 -define(ERBI_HRL,true).
--record(erbi_connection,
-        { conn :: erbi_connection:conn_private() }).
--type erbi_connection() :: #erbi_connection{}.
 % Opaque connection handle
+-type erbi_connection() :: {erbi_connection,any()}.
 
--type erbi_statement() :: {erbi_statement, erbi_statement:stmt_private()}.
 % Opaque statement handle
+-type erbi_statement() :: {erbi_statement, any(), any()}.
 
 -type erbi_bind_values() :: [erbi_bind_value()] | [erbi_bind_value_named()].
 -type erbi_bind_value() :: erbi_bind_value_typed() | erbi_bind_value_untyped().
