@@ -140,7 +140,7 @@ execute( Props, Q, Params ) ->
                         #erbdrv{status=ok,stmt=Stmt,data=Data}
                 end ).
 
-fetch_rows( Props, {Query,Params,Rows}, Amount ) ->
+fetch_rows( Props, {Query,_Params,Rows}, Amount ) ->
     on_success( Props, fetch,
                 fun() ->
                         RowsOnExec = proplists:get_value(rows_on_execute,Props),
@@ -175,7 +175,7 @@ finish( Props, {Query,_,_} ) ->
 %%  {ok,Params} = erbi_statement:driver_call(Statement,params,[])
 %% </pre>
 %% -----------------------------------
-params( Props, {_Q,Params,_} ) ->
+params( _Props, {_Q,Params,_} ) ->
     #erbdrv{status=ok,data=Params}.
 
 
