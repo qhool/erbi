@@ -10,7 +10,7 @@ dataset(Name) ->
             [Cols|Rows]=Terms,
             {Cols,Rows};
         {error,Reason} ->
-            ?debugFmt("Can't read ~w: ~p~n",[FileName,Reason]),
+            ?debugFmt("Can't read ~p: ~p~n",[FileName,Reason]),
             {error,Reason}
     end.
 

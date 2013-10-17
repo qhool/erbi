@@ -60,7 +60,7 @@ keys_vals(Store) ->
     {whatever,thing} = ?debugVal(erbi_stmt_store:lookup(Store,Stmt,blarg,default)),
     {whatever,thing} = ?debugVal(erbi_stmt_store:get(Store,Stmt,blarg)),
     %% cols
-    [] = ?debugVal(erbi_stmt_store:get_cols(Store,Stmt)),
+    undefined = ?debugVal(erbi_stmt_store:get_cols(Store,Stmt)),
     ?debugVal(erbi_stmt_store:set_cols(Store,Stmt,[one,two,three])),
     [one,two,three] = ?debugVal(erbi_stmt_store:get_cols(Store,Stmt)).
 reset_all(Store) ->

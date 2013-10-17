@@ -145,7 +145,7 @@ counters( Tbl, StatementID ) ->
 set_cols( Tbl, StmtID, Cols ) ->
     set( Tbl, StmtID, metadata, Cols ).
 get_cols( Tbl, StmtID ) ->
-    lookup( Tbl, StmtID, metadata, [] ).
+    lookup( Tbl, StmtID, metadata, undefined ).
 
 
 %TODO: remove old rows

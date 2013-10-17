@@ -9,7 +9,7 @@ bind_params_test() ->
     ok = "need to figure out how to test this".
 
 finish_test() ->
-    Stmt = get_stmt(test),
+    Stmt = get_stmt(test,[]),
     ok = Stmt:finish(),
     %% should error second time
     {error,_} = Stmt:finish().
@@ -34,22 +34,25 @@ fetchrow_meta(Dataset,EqualFunc,FetchFunc) ->
                         end
                 end,
     fun() ->
-            Rows = Rowgetter(Rowgetter,get_stmt(Dataset),[]),
+            Rows = Rowgetter(Rowgetter,get_stmt(Dataset,[]),[]),
             ?_assert( erbi_test_util:EqualFunc(Dataset,Rows) )
     end.
 
 exec_on_stmt(Dataset,Fun) ->
-    Stmt = get_stmt(Dataset),
+    Stmt = get_stmt(Dataset,[]),
     {ok,Res} = Stmt:Fun(),
     Res.
 
-get_stmt(Dataset) ->
+get_stmt(Dataset,Props) ->
     {Cols,Rows} = erbi_test_util:dataset(Dataset),
-     { ok, Conn } = erbi:connect( { erbi, dummy,
-                                   [{connect,success},
-                                    {prepare,success},
-                                    {fetch,[{columns,Cols},
-                                            {rows,Rows}]}]
-                                 } ),
-    {ok,Stmt} = Conn:prepare("whatever").
+     { ok, Conn } = erbi:connect( #erbi{ driver = dummy,
+                                         properties = Props++ 
+                                             [{queries,
+                                               [{".*",Cols,Rows}
+                                               ]
+                                              }
+                                             ]
+                                       } ),
+    {ok,Stmt} = Conn:prepare("whatever"),
+    Stmt.
 

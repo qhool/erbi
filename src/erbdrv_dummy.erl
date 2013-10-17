@@ -46,9 +46,11 @@ driver_info() ->
         }.
 
 validate_property(queries,Queries) ->
-    lists:map( fun({Re,Cols,Rows}) ->
-                       {re:compile(Re),Cols,Rows}
-               end, Queries );    
+    {ok,[{queries,lists:map( fun({Re,Cols,Rows}) ->
+                                    {ok,Pattern} = re:compile(Re),
+                                    {Pattern,Cols,Rows}
+                            end, Queries )
+        }]};    
 validate_property(Prop,Val) when is_list(Val) ->
     [{Prop,list_to_atom(Val)}];
 validate_property(_,_) ->

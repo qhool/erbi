@@ -5,16 +5,16 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("erbi.hrl").
 
-prepare1_test_() ->
+prepare1_test() ->
     { ok, Conn } = erbi:connect( { erbi, dummy, 
                                    [{connect,success},
                                     {prepare,failure}] }, undefined, undefined ),
-    { error, _ } = Conn:prepare( "anything" ).
+    { error, _ } = erbi_connection:prepare( Conn, "anything" ).
 prepare2_test() ->
     { ok, Conn } = erbi:connect( { erbi, dummy, 
                                    [{connect,success},
                                     {prepare,success}] }, undefined, undefined ),
-    { ok, _ } = Conn:prepare( "anything" ).
+    { ok, _ } = erbi_connection:prepare( Conn, "anything" ).
 
 selectall_test_() ->
     [ ?_assert( erbi_test_util:equal_rows_dict(test,get_select(test,selectall_dict)) ),
@@ -31,20 +31,20 @@ selectrow_test_() ->
 transaction_test() ->
     Conn = { ok, Conn } = erbi:connect( { erbi, dummy,
                                           [{default,success}] } ),
-    ok = Conn:begin_work(),
-    ok = Conn:rollback(),
-    ok = Conn:begin_work(),
-    ok = Conn:commit().
+    ok = erbi_connection:begin_work(Conn),
+    ok = erbi_connection:rollback(Conn),
+    ok = erbi_connection:begin_work(Conn),
+    ok = erbi_connection:commit(Conn).
 
 disconnect_test() ->
     Conn = { ok, Conn } = erbi:connect( { erbi, dummy,
                                           [{default,success}] } ),
-    ok = Conn:disconnect(),
-    {error,_} = Conn:selectall_list("foo").
+    ok = erbi_connection:disconnect(Conn),
+    {error,_} = erbi_connection:selectall_list(Conn,"foo").
 
 get_select(Dataset,Func) ->
     Conn = fetch_conn(Dataset),
-    { ok, Result } = Conn:Func("whatever"),
+    { ok, Result } = erbi_connection:Func(Conn,"whatever"),
     Result.
 
 fetch_conn(Dataset) ->

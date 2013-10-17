@@ -31,6 +31,7 @@
         ]).
 
 -include("erbi.hrl").
+-include("erbi_driver.hrl").
 -include("erbi_private.hrl").
 
 -define(STMT(StmtID),{erbi_statement,_,#stmt{ id = StmtID }}).
@@ -46,7 +47,7 @@
                    Params :: erbi_bind_values() ) ->
                          ok | { error, any() }.
 bind_params( ?STMT(StmtID)=Statement, Params ) ->
-    erbi_driver:call(Statement,{bind,StmtID}).
+    erbi_driver:call(Statement,{bind,StmtID,Params}).
 
 %% --------------------------------------
 %% @doc Begin execution of this statement
@@ -69,17 +70,17 @@ execute( ?STMT(StmtID)=Statement, Params ) ->
 -spec fetchrow_list( Statement :: erbi_statement() ) ->
                            { ok, [any()] } | exhausted | { error, any() }.
 fetchrow_list(Statement) ->
-    { error, "not implemented" }.
-
+    get_row_as(list,Statement).
+             
 -spec fetchrow_proplist( Statement :: erbi_statement() ) ->
-                           { ok, [{atom(),any()}] } | exhausted | { error, any() }.
+                           { ok, [property()] } | exhausted | { error, any() }.
 fetchrow_proplist(Statement) ->
-    { error, "not implemented" }.
+    get_row_as(proplist,Statement).
 
 -spec fetchrow_dict( Statement :: erbi_statement() ) ->
                            { ok, dict() } | exhausted | { error, any() }.
 fetchrow_dict(Statement) ->
-    { error, "not implemented" }.
+    get_row_as(dict,Statement).
 
 %% --------------------------------------
 %% @doc Complete processing with this statement.
@@ -100,19 +101,72 @@ finish(?STMT(StmtID) = Statement) ->
 -spec fetchall_list( Statement :: erbi_statement() ) ->
                            { ok, [[any()]] } | { error, any() }.
 fetchall_list(Statement) ->
-    { error, "not implemented" }.
+    get_rows_as(list,Statement,all).
 
 -spec fetchall_proplist( Statement :: erbi_statement() ) ->
-                           { ok, [[{atom(),any()}]] } | { error, any() }.
+                           { ok, [[property()]] } | { error, any() }.
 fetchall_proplist(Statement) ->
-    { error, "not implemented" }.
-
+    get_rows_as(proplist,Statement,all).
+           
 -spec fetchall_dict( Statement :: erbi_statement() ) ->
                            { ok, [dict()] } | { error, any() }.
 fetchall_dict(Statement) ->
-    { error, "not implemented" }.
-
-
+    get_rows_as(dict,Statement,all).
 
 %%==== Internals ====%%
+get_row_as(Type,Statement) ->
+    case get_rows_as(Type,Statement,one) of
+        {error,_}=E -> E;
+        {ok,[]} -> exhausted;
+        {ok,[Row]} -> {ok,Row}
+    end.
+            
+get_rows_as(Type,?STMT(StmtID)=Statement,Amount) ->
+    case get_rows(Statement,Amount,[],
+                  erbi_driver:call(Statement,{start_fetch,StmtID,Amount})) of
+        {error,Reason} ->
+            {error,Reason};
+        {Store,Acc} ->
+            Rows = lists:concat(lists:reverse(Acc)),
+            case Type of
+                list ->
+                    {ok,Rows};
+                _ ->
+                    case erbi_stmt_store:get_cols(Store,StmtID) of
+                        undefined ->
+                            {error, no_metadata};
+                        Cols ->
+                            ColNames = lists:map( fun(Col) -> Col#erbdrv_field.name end, Cols ),
+                            Proplists = lists:map( fun(Row) -> lists:zip(ColNames,Row) end, Rows ),
+                            case Type of
+                                proplist ->
+                                    {ok,Proplists};
+                                dict ->
+                                    {ok,lists:map( fun dict:from_list/1, Proplists )}
+                            end
+                    end
+            end
+    end.
 
+get_rows(_,_,_,{error,Reason}) ->
+    {error,Reason};
+get_rows(?STMT(StmtID)=Statement,_,Acc,{ok,#erbdrv_stmt_counters{current=C,last=L},Store}) 
+  when C > L ->
+    erbi_driver:call(Statement,{end_fetch,StmtID,0},{Store,Acc});
+get_rows(?STMT(StmtID)=Statement,one,Acc,{ok,#erbdrv_stmt_counters{current=Current},Store}) ->
+    Row = erbi_stmt_store:get(Store,StmtID,Current),
+    erbi_driver:call(Statement,{end_fetch,StmtID,1},{Store,[[Row]|Acc]});
+get_rows(?STMT(StmtID)=Statement,all,Acc,
+         {ok,#erbdrv_stmt_counters{current=Current,last=Last,is_final=IsFinal},Store}) ->
+    Rows = lists:map( fun(N) -> erbi_stmt_store:get(Store,StmtID,N) end, lists:seq(Current,Last) ),
+    NumRead = Last-Current+1,
+    case IsFinal of
+        true ->
+            erbi_driver:call(Statement,{end_fetch,StmtID,NumRead},{Store,[Rows|Acc]});
+        false ->
+            get_rows(Statement,all,Acc,
+                     erbi_driver:call(Statement,{continue_fetch,StmtID,NumRead}))
+    end.
+
+
+                               

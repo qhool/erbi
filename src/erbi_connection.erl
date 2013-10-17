@@ -46,10 +46,10 @@
 %% @end
 %% --------------------------------------
 -spec prepare( Connection :: erbi_connection(),
-               Statement :: any() ) -> 
+               Query :: any() ) -> 
                      { ok, erbi_statement() } | { error, any() }.
-prepare({erbi_connection,Conn}=Connection,Statement) ->
-    erbi_driver:call(Connection,{prepare,Statement},
+prepare({erbi_connection,Conn}=Connection,Query) ->
+    erbi_driver:call(Connection,{prepare,Query},
                      fun({ok,StmtID}) ->
                              {ok,{erbi_statement,Conn,#stmt{ id = StmtID }}}
                      end).
@@ -62,9 +62,9 @@ prepare({erbi_connection,Conn}=Connection,Statement) ->
 %% @end
 %% --------------------------------------
 -spec prepare_cached( Connection :: erbi_connection(),
-                      Statement :: any() ) -> 
+                      Query :: any() ) -> 
                             { ok, erbi_statement() } | { error, any() }.
-prepare_cached(Connection,Statement) ->
+prepare_cached(_Connection,_Query) ->
     {error,"not implemented"}.
 
 %% --------------------------------------
@@ -74,20 +74,20 @@ prepare_cached(Connection,Statement) ->
 %% @end
 %% --------------------------------------
 -spec do( Connection :: erbi_connection(),
-          Statement :: any(),
+          Query :: any(),
           BindValues :: erbi_bind_values() ) ->
-                { ok, non_neg_integer() } | { error, any() }.
-do( Connection, Statement, BindValues ) ->
-    {error,"not implemented"}.
+                { ok, erbi_row_count() } | { error, any() }.
+do( Connection, Query, BindValues ) ->
+    prep_exec_and(return,Connection,Query,BindValues).
 
 %% @doc
 %%
-%% Same as do(Connection,Statement,[])
+%% Same as do(Connection,Query,[])
 -spec do( Connection :: erbi_connection(),
-          Statement :: any() ) ->
-                { ok, non_neg_integer() } | { error, any() }.
-do( Connection, Statement ) ->
-    do( Connection, Statement, [] ).
+          Query :: any() ) ->
+                { ok, erbi_row_count() } | { error, any() }.
+do( Connection, Query ) ->
+    do( Connection, Query, [] ).
 
 %% --------------------------------------
 %% @doc Execute query with bind values and return all records as lists.
@@ -95,7 +95,7 @@ do( Connection, Statement ) ->
 %% Results are returned as a list of lists.  Each list contains the values, 
 %% in order for that row. This is a convenience method, equivalent to:
 %% <pre>
-%% Stmt = Connection:prepare( Statement ),
+%% Stmt = Connection:prepare( Query ),
 %% Result = Stmt:fetchall_list( BindValues ),
 %% Stmt:finish(),
 %% Result
@@ -103,107 +103,107 @@ do( Connection, Statement ) ->
 %% @end
 %% --------------------------------------
 -spec selectall_list( Connection :: erbi_connection(),
-                      Statement :: any(),
+                      Query :: any(),
                       BindValues :: erbi_bind_values() ) ->
                             { ok, [[any()]] } | { error, any() }.
-selectall_list( Connection, Statement, BindValues ) ->
-    {error,"not implemented"}.
+selectall_list( Connection, Query, BindValues ) ->
+    prep_exec_and(fetchall_list,Connection,Query,BindValues).
 
 %% @doc Execute and return lists.
 %%
 %% See selectall_list/3 for details.
 -spec selectall_list( Connection :: erbi_connection(),
-                      Statement :: any() ) ->
+                      Query :: any() ) ->
                             { ok, [[any()]] } | { error, any() }.
-selectall_list( Connection, Statement ) ->
-    {error,"not implemented"}.
+selectall_list( Connection, Query ) ->
+    selectall_list(Connection,Query,[]).
 
 %% @doc Execute and return proplists.
 %%
 %% See selectall_proplist/3.
 -spec selectall_proplist( Connection :: erbi_connection(),
-                          Statement :: any() ) ->
+                          Query :: any() ) ->
                             { ok, [[{atom(),any()}]] } | { error, any() }.
-selectall_proplist( Connection, Statement ) ->
-    {error,"not implemented"}.
+selectall_proplist( Connection, Query ) ->
+    selectall_proplist(Connection,Query,[]).
 
 %% @doc Execute query with bind values and return all records as proplists.
 %%
 %% Each returned record is a proplist; otherwise same as selectall_list/3.
 -spec selectall_proplist( Connection :: erbi_connection(),
-                          Statement :: any(),
+                          Query :: any(),
                           BindValues :: erbi_bind_values() ) ->
                                 { ok, [[{atom(),any()}]] } | { error, any() }.
-selectall_proplist( Connection, Statement, BindValues ) ->
-    {error,"not implemented"}.
-
+selectall_proplist( Connection, Query, BindValues ) ->
+    prep_exec_and(fetchall_proplist,Connection,Query,BindValues).
 
 %% @doc Execute and return dicts
 %%
 %% See selectall_dict/3.
 -spec selectall_dict( Connection :: erbi_connection(),
-                      Statement :: any() ) ->
+                      Query :: any() ) ->
                             { ok, [dict()] } | { error, any() }.
-selectall_dict( Connection, Statement ) ->
-    {error,"not implemented"}.
+selectall_dict( Connection, Query ) ->
+    selectall_dict(Connection,Query,[]).
 
 %% @doc Execute query with bind values and return all records as dicts.
 %%
 %% Each record is returned as a dictionary created by the standard "dict" module.
 %% See selectall_list/3 for more information.
 -spec selectall_dict( Connection :: erbi_connection(),
-                      Statement :: any(),
+                      Query :: any(),
                       BindValues :: erbi_bind_values() ) ->
                             { ok, [dict()] } | { error, any() }.
-selectall_dict( Connection, Statement, BindValues ) ->
-    {error,"not implemented"}.
+selectall_dict( Connection, Query, BindValues ) ->
+    prep_exec_and(fetchall_dict,Connection,Query,BindValues).
 
 %% --------------------------------------
-%% @doc Execute Statement and return one record.  
-%% Statement is closed and remaining data discarded.
+%% @doc Execute Query and return one record.  
+%% Query is closed and remaining data discarded.
 %%   Connection
-%%   Statement   - Statement to execute
+%%   Query   - Query to execute
 %%   BindValues  - [Optional] parameters.
 %% @end
 %% --------------------------------------
 -spec selectrow_list( Connection :: erbi_connection(),
-                      Statement :: any(),
+                      Query :: any(),
                       BindValues :: erbi_bind_values() ) ->
                             { ok, [any()] } | { error, any() }.
-selectrow_list( Connection, Statement, BindValues ) ->
-    {error,"not implemented"}.
+selectrow_list( Connection, Query, BindValues ) ->
+    prep_exec_and(fetchrow_list,Connection,Query,BindValues).
 
 -spec selectrow_list( Connection :: erbi_connection(),
-                      Statement :: any() ) ->
+                      Query :: any() ) ->
                             { ok, [any()] } | { error, any() }.
-selectrow_list( Connection, Statement ) ->
-    {error,"not implemented"}.
+selectrow_list( Connection, Query ) ->
+    selectrow_list( Connection, Query, []).
 
 -spec selectrow_proplist( Connection :: erbi_connection(),
-                          Statement :: any() ) ->
+                          Query :: any() ) ->
                             { ok, [{atom(),any()}] } | { error, any() }.
-selectrow_proplist( Connection, Statement ) ->
-    {error,"not implemented"}.
+selectrow_proplist( Connection, Query ) ->
+    selectrow_proplist( Connection, Query, [] ).
 
 -spec selectrow_proplist( Connection :: erbi_connection(),
-                          Statement :: any(),
+                          Query :: any(),
                           BindValues :: erbi_bind_values() ) ->
                                 { ok, [{atom(),any()}] } | { error, any() }.
-selectrow_proplist( Connection, Statement, BindValues  ) ->
-    {error,"not implemented"}.
+selectrow_proplist( Connection, Query, BindValues  ) ->
+    prep_exec_and(fetchrow_proplist,Connection,Query,BindValues).
+
 
 -spec selectrow_dict( Connection :: erbi_connection(),
-                      Statement :: any() ) ->
+                      Query :: any() ) ->
                             { ok, dict() } | { error, any() }.
-selectrow_dict( Connection, Statement ) ->
-    {error,"not implemented"}.
+selectrow_dict( Connection, Query ) ->
+    selectrow_dict( Connection, Query, [] ).
 
 -spec selectrow_dict( Connection :: erbi_connection(),
-                      Statement :: any(),
+                      Query :: any(),
                       BindValues :: erbi_bind_values() ) ->
                             { ok, dict() } | { error, any() }.
-selectrow_dict( Connection, Statement, BindValues  ) ->
-    {error,"not implemented"}.
+selectrow_dict( Connection, Query, BindValues  ) ->
+    prep_exec_and(fetchrow_dict,Connection,Query,BindValues).
 
 %% --------------------------------------
 %% @doc Begins a transaction, or adds a save-point.
@@ -213,12 +213,12 @@ selectrow_dict( Connection, Statement, BindValues  ) ->
 %% --------------------------------------
 -spec begin_work( Connection :: erbi_connection() ) -> ok | { error, any() }.
 begin_work( Connection ) ->
-    {error,"not implemented"}.
+    erbi_driver:call(Connection,begin_work).
 
 -spec begin_work( Connection :: erbi_connection(), 
                   SavePoint :: erbi_identifier() ) -> ok | { error, any() }.
 begin_work( Connection, SavePoint ) ->
-    {error,"not implemented"}.
+    erbi_driver:call(Connection,{begin_work,SavePoint}).
 
 %% --------------------------------------
 %% @doc Completes the current transaction; all changes are written to the database.
@@ -227,7 +227,7 @@ begin_work( Connection, SavePoint ) ->
 %% --------------------------------------
 -spec commit( Connection :: erbi_connection() ) -> ok | { error, any() }.
 commit( Connection ) ->
-    {error,"not implemented"}.
+    erbi_driver:call(Connection,commit).
 
 %% --------------------------------------
 %% @doc Undoes all changes made during the transaction.
@@ -238,12 +238,12 @@ commit( Connection ) ->
 %% --------------------------------------
 -spec rollback( Connection :: erbi_connection() ) -> ok | { error, any() }.
 rollback( Connection ) ->
-    {error,"not implemented"}.
+    erbi_driver:call(Connection,rollback).
 
 -spec rollback( Connection :: erbi_connection(),
                 SavePoint :: erbi_identifier() ) -> ok | { error, any() }.
 rollback( Connection, SavePoint ) ->
-    {error,"not implemented"}.
+    erbi_driver:call(Connection,{rollback,SavePoint}).
 
 %% --------------------------------------
 %% @doc Close database connection
@@ -255,4 +255,21 @@ disconnect( {erbi_connection,#conn{pid=Pid}} ) ->
 
 
 %%==== Internals ====%%
-
+prep_exec_and(FuncName,Connection,Query,BindValues) ->
+    case prepare(Connection,Query) of
+        {error,_}=E -> E;
+        {ok,Statement} ->
+            case erbi_statement:execute(Statement,BindValues) of
+                {error,_}=E -> E;
+                {ok,Rows} ->
+                    Ret = 
+                        case FuncName of
+                            return ->
+                                {ok,Rows};
+                            _ -> erbi_statement:FuncName(Statement)
+                        end,
+                    erbi_statement:finish(Statement),
+                    Ret
+            end
+    end.
+                                    

@@ -215,7 +215,7 @@ call({erbi_statement,#conn{pid = Pid},_},Message) ->
 
 -spec call( ConnOrStmt :: erbi_connection() | erbi_statement() | pid(),
             Message :: any(),
-            Handler :: fun((any()) -> any()) % any unary
+            Handler :: term() | fun((any()) -> any()) % any unary
                        ) ->
                   any() | {error,any()}.
 call({erbi_connection,#conn{ pid = Pid}},Message,Handler) ->
@@ -227,7 +227,12 @@ call(Pid,Message,Handler) ->
         {error,Reason} ->
             {error,Reason};
         Return ->
-            Handler(Return)
+            case Handler of
+                H when is_function(H) ->
+                    Handler(Return);
+                _ ->
+                    Handler
+            end
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
