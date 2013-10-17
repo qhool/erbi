@@ -6,13 +6,13 @@
 -include("erbi.hrl").
 
 bind_params_test() ->
-    ok = "need to figure out how to test this".
+    Stmt = ?debugVal(get_stmt(test,[])),
+    ?debugVal(erbi_statement:bind_params(Stmt,["one","two","three"])),
+    {ok,["one","two","three"]} = erbi_statement:driver_call(Stmt,params,[]).
 
 finish_test() ->
     Stmt = get_stmt(test,[]),
-    ok = Stmt:finish(),
-    %% should error second time
-    {error,_} = Stmt:finish().
+    ok = Stmt:finish().
 
 fetchall_test_() ->
     [ ?_assert( erbi_test_util:equal_rows_list(test,exec_on_stmt(test,fetchall_list)) ),
@@ -45,14 +45,14 @@ exec_on_stmt(Dataset,Fun) ->
 
 get_stmt(Dataset,Props) ->
     {Cols,Rows} = erbi_test_util:dataset(Dataset),
-     { ok, Conn } = erbi:connect( #erbi{ driver = dummy,
-                                         properties = Props++ 
-                                             [{queries,
-                                               [{".*",Cols,Rows}
-                                               ]
-                                              }
-                                             ]
-                                       } ),
-    {ok,Stmt} = Conn:prepare("whatever"),
+    { ok, Conn } = erbi:connect( #erbi{ driver = dummy,
+                                        properties = Props++ 
+                                            [{queries,
+                                              [{".*",Cols,Rows}
+                                              ]
+                                             }
+                                            ]
+                                      } ),
+    {ok,Stmt} = erbi_connection:prepare(Conn,"whatever"),
     Stmt.
 

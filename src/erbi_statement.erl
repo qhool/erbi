@@ -27,7 +27,8 @@
          finish/1,
          fetchall_list/1,
          fetchall_proplist/1,
-         fetchall_dict/1
+         fetchall_dict/1,
+         driver_call/3
         ]).
 
 -include("erbi.hrl").
@@ -112,6 +113,26 @@ fetchall_proplist(Statement) ->
                            { ok, [dict()] } | { error, any() }.
 fetchall_dict(Statement) ->
     get_rows_as(dict,Statement,all).
+
+%% --------------------------------------
+%% @doc Call arbitrary driver function
+%%
+%% This function calls an arbitrary function in the driver module.
+%% Similar to {@link erbi:call_driver/3} and {@link erbi_connection:call_driver/3},
+%% this version prepends the driver's connection object and
+%% the statement handle to the argument list you supply,
+%% and allows the driver to update its state information.
+%%
+%% See the documentation for your driver for what functions are available
+%% and how to use them.
+%% @end
+%% --------------------------------------
+-spec driver_call( Statement :: erbi_statement(),
+                   Function :: atom(),
+                   Args :: [any()] ) ->
+                         any().
+driver_call( ?STMT(StmtID)=Statement, Function, Args ) ->
+    erbi_driver:call(Statement,{driver_call,StmtID,Function,Args}).
 
 %%==== Internals ====%%
 get_row_as(Type,Statement) ->

@@ -34,7 +34,8 @@
          bind_params/3,
          execute/3,
          fetch_rows/3,
-         finish/2
+         finish/2,
+         params/2
         ]).
 
 driver_info() ->
@@ -52,18 +53,19 @@ validate_property(queries,Queries) ->
                             end, Queries )
         }]};    
 validate_property(Prop,Val) when is_list(Val) ->
-    [{Prop,list_to_atom(Val)}];
+    {ok,[{Prop,list_to_atom(Val)}]};
 validate_property(_,_) ->
     ok.
 
 property_info() ->
-    [{default, [%whether each operation should succeed
+    [{defaults, [%whether each operation should succeed
                 {connect,success},
                 {disconnect,success},
                 {prepare,success},
                 {transaction,success},
                 {begin_work,fallthrough},
                 {rollback,fallthrough},
+                {bind,success},
                 {fetch,success},
                 {finish,success},
                 %other behaviours:
@@ -109,13 +111,13 @@ prepare( Props, Q ) ->
                                     Cols;
                                 _ -> undefined
                             end,
-                        #erbdrv{status=ok,stmt={Q,undefined},data=Data}
+                        #erbdrv{status=ok,stmt={Q,[],undefined},data=Data}
                 end ).
 
-bind_params( Props, _Stmt, _Params ) ->
-    on_success( Props, bind, #erbdrv{status=ok} ).
+bind_params( Props, {Q,OldParams,R}, Params ) ->
+    on_success( Props, bind, #erbdrv{status=ok,stmt={Q,OldParams++Params,R}} ).
 
-execute( Props, Q, _Params ) ->
+execute( Props, Q, Params ) ->
     on_success( Props, execute, 
                 fun() ->
                         {Cols,Rows} = match_query(Props,Q),
@@ -132,13 +134,13 @@ execute( Props, Q, _Params ) ->
                                 false -> {Cols,DataRows}
                             end,
                         Stmt = case Q of
-                                   {Query,_} -> {Query,StmtRows};
-                                   Query -> {Query,StmtRows}
+                                   {Query,StParams,_} -> {Query,StParams++Params,StmtRows};
+                                   Query -> {Query,Params,StmtRows}
                                end,
                         #erbdrv{status=ok,stmt=Stmt,data=Data}
                 end ).
 
-fetch_rows( Props, {Query,Rows}, Amount ) ->
+fetch_rows( Props, {Query,Params,Rows}, Amount ) ->
     on_success( Props, fetch,
                 fun() ->
                         RowsOnExec = proplists:get_value(rows_on_execute,Props),
@@ -162,8 +164,24 @@ fetch_rows( Props, {Query,Rows}, Amount ) ->
                         #erbdrv{status=ok,stmt={Query,StmtRows},data=RetRows}
                 end ).
                       
-finish( Props, {Query,_} ) ->
-    on_success( Props, finish, #erbdrv{status=ok,stmt={Query,undefined}} ).
+finish( Props, {Query,_,_} ) ->
+    on_success( Props, finish, #erbdrv{status=ok,stmt={Query,[],undefined}} ).
+
+%% -----------------------------------
+%% @doc get bind parameters passed in
+%%
+%% example:
+%% <pre>
+%%  {ok,Params} = erbi_statement:driver_call(Statement,params,[])
+%% </pre>
+%% -----------------------------------
+params( Props, {_Q,Params,_} ) ->
+    #erbdrv{status=ok,data=Params}.
+
+
+%% ---
+%% Internal functions
+%% ---
 
 on_success( Props, Ops, OnSuccess ) when is_list(Ops) ->
     SV = lists:foldl(fun(Op,fallthrough) ->

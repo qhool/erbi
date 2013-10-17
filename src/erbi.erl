@@ -18,7 +18,10 @@
 %% Main erbi module.
 %% @end 
 -module(erbi).
--export([connect/3,connect/1,normalize_data_source/1,parse_data_source/1]).
+-export([connect/3,connect/1,
+         driver_call/3,
+         normalize_data_source/1,
+         parse_data_source/1]).
 -include("erbi.hrl").
 -include("erbi_private.hrl").
 
@@ -85,11 +88,11 @@ connect( DataSource ) ->
 -spec normalize_data_source( DataSource :: unicode:chardata() | erbi_data_source() ) ->
                                    erbi_data_source().
 
-%% normalize_data_source( DataSource ) when is_list(DataSource) ->
-%%     case parse_data_source(DataSource) of
-%%         {error,_}=E -> E;
-%%         DS -> normalize_data_source(DS)
-%%     end;
+normalize_data_source( DataSource ) when is_list(DataSource) ->
+    case parse_data_source(DataSource) of
+        {error,_}=E -> E;
+        DS -> normalize_data_source(DS)
+    end;
 normalize_data_source( DataSource ) ->
     Module = get_driver_module(DataSource),
     normalize_data_source( Module, DataSource ).
@@ -110,13 +113,39 @@ parse_data_source( DataSource ) ->
     Tokens=scan_ds(Charlist,[],[]),
     parse_ds( Tokens ).
 
+%% --------------------------------------
+%% @doc Call driver function
+%%
+%% Calls the specified function on the driver module
+%% with the given args.  This is exactly the same as
+%% {@link erlang:apply/3}, except that the actual module
+%% of the driver is resolved for you -- driver can be specified
+%% using any valid datasource term (string or record), 
+%% or an atom.  This function is mainly here for completeness
+%% for something much more useful, see {@link erbi_connection:driver_call}
+%% and {@link erbi_statement:driver_call}
+%% @end
+%% --------------------------------------
+-spec driver_call( DriverSpec :: erbi_data_source() | unicode:chardata() | atom(),
+                   Function :: atom(),
+                   Args :: [any()] ) ->
+                         any().
+driver_call( DataSource, Func, Args ) when is_list(DataSource) ->
+    DS = parse_data_source(DataSource),
+    driver_call(DS,Func,Args);
+driver_call( DSOrAtom,Func,Args ) ->
+    Module = get_driver_module(DSOrAtom),
+    apply(Module,Func,Args).
+
 %% @headerfile "erbi.hrl"
 
 %%==== Internals ====%%
 
--spec get_driver_module( erbi_data_source() ) -> atom().
+-spec get_driver_module( atom() | erbi_data_source() ) -> atom().
 
 get_driver_module( #erbi{driver=DriverAtom} ) ->
+    get_driver_module(DriverAtom);
+get_driver_module( DriverAtom ) ->
     Module = list_to_atom("erbdrv_" ++ atom_to_list(DriverAtom)),
     {module,Module} = code:ensure_loaded(Module),
     Module.

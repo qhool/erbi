@@ -290,7 +290,7 @@ handle_call({rollback,Savepoint}, _From, State) ->
 handle_call(commit,_From,State) ->
     proc_return(call_driver(State,commit), State, undefined);
 handle_call({prepare,Query},_From,State) ->
-    proc_return(call_driver(State,prepare,Query), State, undefined,
+    proc_return(call_driver(State,prepare,Query), State, new,
                 % ok status
                 fun opt_cols/3,
                 % declined status -- driver does not support prepare; store the statement instead
@@ -337,11 +337,15 @@ handle_call({end_fetch,StatementID,RowsRead},_From,#connect_state{statements=Tbl
     erbi_stmt_store:incr(Tbl,StatementID,current,RowsRead),
     {reply,ok,State};
 handle_call({finish,StatementID},_From,#connect_state{statements=Tbl}=State) ->
-    erbi_stmt_store:reset_statement(Tbl,StatementID),
     case erbi_stmt_store:reset_statement(Tbl,StatementID) of
         undefined -> {reply,ok,State};
         Handle -> proc_return(call_driver(State,finish,Handle),State,StatementID)
     end;
+handle_call({driver_call,Func,Args},_From,#connect_state{ module = Module, connection = Conn}=State) ->
+    proc_return(apply(Module,Func,[Conn|Args]),State,undefined);
+handle_call({driver_call,StmtID,Func,Args},_From,#connect_state{ module = Module, connection = Conn}=State) ->
+    Handle = get_stmt_handle(State,StmtID),
+    proc_return(apply(Module,Func,[Conn,Handle]++Args),State,StmtID);
 handle_call(reset,_From,#connect_state{statements=Tbl}=State) ->
     IDHandles = erbi_stmt_store:reset_all(Tbl),
     lists:foldl( fun(_,{stop,Reason}) ->
@@ -408,7 +412,9 @@ add_rows( #connect_state{statements=Tbl}=State,StmtID,Rows ) ->
     {reply,{ok,Counters,Tbl},State}.
         
 get_stmt_handle(#connect_state{statements=Tbl},StmtID) ->
-    erbi_stmt_store:get(Tbl,StmtID,handle).
+    Handle = erbi_stmt_store:get(Tbl,StmtID,handle),
+    io:format(user,"Got stmt_handle: ~p~n(For ~p/~p)~n",[Handle,Tbl,StmtID]),
+    Handle.
 
 %% simple function just to keep all the handle-call clauses a bit cleaner
 call_driver( #connect_state{ module = Module, connection = Conn }, Function ) ->
@@ -440,6 +446,7 @@ proc_return( #erbdrv{ status = Status, data = Data} = DriverReturn, State, StmtI
 %% takes an #erbdrv{} return record and updates the state information as needed
 update_state( #erbdrv{ conn = NewConn, stmt = Stmt },
               #connect_state{statements=Tbl}=State, StmtID ) ->
+    io:format( user, "Stmt: ~p~nStmtID: ~p~n~n", [Stmt,StmtID] ),
     State1 = case NewConn of 
                  same ->
                      State;
@@ -448,12 +455,18 @@ update_state( #erbdrv{ conn = NewConn, stmt = Stmt },
              end,
     StmtID1 = 
         case {StmtID,Stmt} of
-            {undefined,undefined} -> StmtID;
-            {_,same} -> StmtID;
-            {ID,Handle} when ID =:= new ; Handle =/= undefined -> %new statement
+            {undefined,undefined} -> 
+                io:format(user,"double undefinity~n",[]),
+                StmtID;
+            {_,same} -> 
+                io:format(user,"stmt=same~n",[]),
+                StmtID;
+            {ID,Handle} when ID =:= new, Handle =/= undefined -> %new statement
+                io:format(user,"add new statement~n",[]),
                 erbi_stmt_store:add_statement( Tbl, Handle );
-            {ID,NewHandle} when is_integer(ID) ->
-                true = erbi_stmt_store:set( Tbl, ID, handle, NewHandle ),
+            {ID,NewHandle} when ID =/= new, ID =/= undefined ->
+                io:format(user,"Storing statement handle: ~p~n(In ~p/~p)~n",[NewHandle,Tbl,ID]),
+                ok = erbi_stmt_store:set( Tbl, ID, handle, NewHandle ),
                 case NewHandle of
                     undefined ->
                         erbi_stmt_store:set( Tbl, ID, is_final, true );

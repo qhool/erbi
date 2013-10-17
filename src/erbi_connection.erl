@@ -33,7 +33,8 @@
          begin_work/1, begin_work/2,
          commit/1,
          rollback/1, rollback/2,
-         disconnect/1
+         disconnect/1,
+         driver_call/3
         ]).
 
 -include("erbi.hrl").
@@ -253,6 +254,24 @@ rollback( Connection, SavePoint ) ->
 disconnect( {erbi_connection,#conn{pid=Pid}} ) ->
     gen_server:cast(Pid,disconnect).
 
+%% --------------------------------------
+%% @doc Call arbitrary driver function
+%%
+%% This function calls an arbitrary function in the driver module.
+%% Similar to {@link erbi:call_driver/3} and {@link erbi_statement:call_driver/3},
+%% this version prepends the driver's connection object to the argument list you supply,
+%% and allows the driver to update its state information.
+%%
+%% See the documentation for your driver for what functions are available
+%% and how to use them.
+%% @end
+%% --------------------------------------
+-spec driver_call( Connection :: erbi_connection(),
+                   Function :: atom(),
+                   Args :: [any()] ) ->
+                         any().
+driver_call( Connection, Function, Args ) ->
+    erbi_driver:call(Connection,{driver_call,Function,Args}).
 
 %%==== Internals ====%%
 prep_exec_and(FuncName,Connection,Query,BindValues) ->
