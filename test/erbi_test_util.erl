@@ -7,7 +7,18 @@
 -include_lib("eunit/include/eunit.hrl").
 
 dataset(Name) ->
-    FileName = code:lib_dir(erbi,test)++"/"++atom_to_list(Name)++".dat",
+    {file,ThisFile} = code:is_loaded(?MODULE),
+    ErbiDir =
+        filename:join(
+          lists:reverse(
+            lists:nthtail(
+              2,  lists:reverse(
+                    filename:split(ThisFile))))),
+    FilePatterns = lists:map( fun(N) ->
+                                      Stars = lists:duplicate(N,"*"),
+                                      filename:join([ErbiDir|Stars]++[atom_to_list(Name)++".dat"])
+                              end, lists:seq(0,3) ),
+    [FileName|_] = lists:concat( lists:map( fun filelib:wildcard/1, FilePatterns ) ),
     case file:consult(FileName) of
         {ok,Terms} ->
             ?debugFmt("Read from ~p:~n~p~n",[FileName,Terms]),
