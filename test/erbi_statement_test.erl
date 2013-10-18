@@ -28,19 +28,22 @@ fetchrow_test_() ->
 
 fetchrow_meta(Dataset,EqualFunc,FetchFunc) ->
     Rowgetter = fun(Self,Stmt,Out) ->
-                        case Stmt:FetchFunc() of
+                        case erbi_statement:FetchFunc(Stmt) of
                             exhausted -> lists:reverse(Out);
-                            { ok, Row } -> Self(Self,[Row|Out])
+                            { ok, Row } -> Self(Self,Stmt,[Row|Out])
                         end
                 end,
     fun() ->
-            Rows = Rowgetter(Rowgetter,get_stmt(Dataset,[]),[]),
+            Stmt = get_stmt(Dataset,[]),
+            {ok,_} = erbi_statement:execute(Stmt),
+            Rows = Rowgetter(Rowgetter,Stmt,[]),
             ?_assert( erbi_test_util:EqualFunc(Dataset,Rows) )
     end.
 
 exec_on_stmt(Dataset,Fun) ->
-    Stmt = get_stmt(Dataset,[]),
-    {ok,Res} = Stmt:Fun(),
+    Stmt = ?debugVal(get_stmt(Dataset,[])),
+    {ok,_} = ?debugVal(erbi_statement:execute(Stmt)),
+    {ok,Res} = erbi_statement:Fun(Stmt),
     Res.
 
 get_stmt(Dataset,Props) ->

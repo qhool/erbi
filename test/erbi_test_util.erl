@@ -1,5 +1,9 @@
 -module(erbi_test_util).
--export([dataset/1,dicts_equal/2,proplists_equal/2]).
+-export([dataset/1,
+         equal_rows_list/2,equal_rows_list/3,
+         equal_rows_proplist/2,equal_rows_proplist/3,
+         equal_rows_dict/2,equal_rows_dict/3,
+         dicts_equal/2,proplists_equal/2]).
 -include_lib("eunit/include/eunit.hrl").
 
 dataset(Name) ->
@@ -15,7 +19,7 @@ dataset(Name) ->
     end.
 
 equal_rows_list(Dataset,Results) when is_atom(Dataset) ->
-    equal_rows_proplist(Dataset,Results,0).
+    equal_rows_list(Dataset,Results,0).
 equal_rows_list(Dataset,Results,Limit) -> 
     rows_equal_by(Dataset,Results,Limit,fun(_,Rows) -> Rows end,fun(A,B) -> A =:= B end).
 
@@ -38,12 +42,12 @@ apply_lim(List,Lim) ->
 
 rows_equal_by(DatasetName,Results,Limit,DatasetToRows,RowComparator) ->
     {Cols,Rows} = dataset(DatasetName),
-    ColAtoms = lists:map(atom_to_list/1,Cols),
+    %ColAtoms = lists:map(fun atom_to_list/1,Cols),
     Rows1 = apply_lim(Rows,Limit),
     Results1 = apply_lim(Results,Limit),
     Expected = DatasetToRows(Cols,Rows1),
     lists:all( fun(I) ->
-                       RowComparator( lists:nth(I,Expected), lists:nth(I,Results1) )
+                       RowComparator( ?debugVal(lists:nth(I,Expected)), ?debugVal(lists:nth(I,Results1)) )
                end,
                lists:seq(1,length(Results1)) ).
                                         
@@ -64,10 +68,10 @@ gen_d_eq(Dict) ->
             end
     end.
 dicts_equal(Dict1,Dict2) ->
-    Keys1 = dict:fetch_keys(Dict1),
-    Keys2 = dict:fetch_keys(Dict2),
-    lists:all( gen_d_eq(Dict1), Keys2 ) andalso
-        lists:all( gen_d_eq(Dict2), Keys1 ).
+    Entries1 = dict:to_list(Dict1),
+    Entries2 = dict:to_list(Dict2),
+    lists:all( gen_d_eq(Dict1), Entries2 ) andalso
+        lists:all( gen_d_eq(Dict2), Entries1 ).
 
 proplists_equal(PL1,PL2) ->
     lists:sort(PL1) =:= lists:sort(PL2).

@@ -157,7 +157,7 @@ get_rows_as(Type,?STMT(StmtID)=Statement,Amount) ->
                         undefined ->
                             {error, no_metadata};
                         Cols ->
-                            ColNames = lists:map( fun(Col) -> Col#erbdrv_field.name end, Cols ),
+                            ColNames = lists:map( fun(#erbdrv_field{name=Name}) -> Name end, Cols ),
                             Proplists = lists:map( fun(Row) -> lists:zip(ColNames,Row) end, Rows ),
                             case Type of
                                 proplist ->

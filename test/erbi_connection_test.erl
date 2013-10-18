@@ -29,18 +29,18 @@ selectrow_test_() ->
     ].
 
 transaction_test() ->
-    Conn = { ok, Conn } = erbi:connect( { erbi, dummy,
-                                          [{default,success}] } ),
+    { ok, Conn } = erbi:connect( { erbi, dummy,
+                                   [{default,success}] } ),
     ok = erbi_connection:begin_work(Conn),
     ok = erbi_connection:rollback(Conn),
     ok = erbi_connection:begin_work(Conn),
     ok = erbi_connection:commit(Conn).
 
 disconnect_test() ->
-    Conn = { ok, Conn } = erbi:connect( { erbi, dummy,
-                                          [{default,success}] } ),
+    { ok, Conn } = erbi:connect( { erbi, dummy,
+                                   [{default,success}] } ),
     ok = erbi_connection:disconnect(Conn),
-    {error,_} = erbi_connection:selectall_list(Conn,"foo").
+    ?assertExit({normal,_}, erbi_connection:selectall_list(Conn,"foo")).
 
 get_select(Dataset,Func) ->
     Conn = fetch_conn(Dataset),
@@ -52,7 +52,10 @@ fetch_conn(Dataset) ->
     { ok, Conn } = erbi:connect( { erbi, dummy,
                                    [{connect,success},
                                     {prepare,success},
-                                    {fetch,[{columns,Cols},
-                                            {rows,Rows}]}]
+                                    {queries,
+                                              [{".*",Cols,Rows}
+                                              ]
+                                             }
+                                   ]
                                  } ),
     Conn.

@@ -59,29 +59,31 @@ validate_property(_,_) ->
 
 property_info() ->
     [{defaults, [%whether each operation should succeed
-                {connect,success},
-                {disconnect,success},
-                {prepare,success},
-                {transaction,success},
-                {begin_work,fallthrough},
-                {rollback,fallthrough},
-                {bind,success},
-                {fetch,success},
-                {finish,success},
-                %other behaviours:
-                % whether to return columns after prepare
-                {cols_on_prepare,false},
-                {rows_on_execute,true},
-                {simulate_fetch,true},
-                {queries,[{re:compile(".*"),[dummy],[[1]]}]}
-               ]
+                 {connect,fallthrough},
+                 {disconnect,fallthrough},
+                 {prepare,fallthrough},
+                 {execute,fallthrough},
+                 {transaction,fallthrough},
+                 {begin_work,fallthrough},
+                 {rollback,fallthrough},
+                 {commit,fallthrough},
+                 {bind,fallthrough},
+                 {fetch,fallthrough},
+                 {finish,fallthrough},
+                 {default,success},
+                 %other behaviours:
+                 % whether to return columns after prepare
+                 {cols_on_prepare,false},
+                 {rows_on_execute,true},
+                 {simulate_fetch,true},
+                 {queries,[{re:compile(".*"),[dummy],[[1]]}]}
+                ]
      }].
 
 parse_args(_) ->
     declined.
 
-connect( #erbi{ properties = Props } = DataSource, _Username, _Password ) ->
-    io:format(user, "Dummy connect: DS = ~n~p~n", [DataSource] ),
+connect( #erbi{ properties = Props }, _Username, _Password ) ->
     on_success( Props, connect,
                 #erbdrv{ status = ok, conn = Props } ).
 
@@ -120,7 +122,12 @@ bind_params( Props, {Q,OldParams,R}, Params ) ->
 execute( Props, Q, Params ) ->
     on_success( Props, execute, 
                 fun() ->
-                        {Cols,Rows} = match_query(Props,Q),
+                        {Query,StParams,_} = 
+                            case Q of
+                                {_,_,_} -> Q;
+                                _ -> {Q,[],undefined}
+                            end,
+                        {Cols,Rows} = match_query(Props,Query),
                         %if we aren't returning the whole set of rows now,
                         %stash them in the statement
                         {StmtRows,DataRows} =
@@ -133,14 +140,11 @@ execute( Props, Q, Params ) ->
                                 true -> DataRows;
                                 false -> {Cols,DataRows}
                             end,
-                        Stmt = case Q of
-                                   {Query,StParams,_} -> {Query,StParams++Params,StmtRows};
-                                   Query -> {Query,Params,StmtRows}
-                               end,
+                        Stmt = {Query,StParams++Params,StmtRows},
                         #erbdrv{status=ok,stmt=Stmt,data=Data}
                 end ).
 
-fetch_rows( Props, {Query,_Params,Rows}, Amount ) ->
+fetch_rows( Props, {Query,Params,Rows}, Amount ) ->
     on_success( Props, fetch,
                 fun() ->
                         RowsOnExec = proplists:get_value(rows_on_execute,Props),
@@ -161,7 +165,7 @@ fetch_rows( Props, {Query,_Params,Rows}, Amount ) ->
                                             {{final,Rows},[]}
                                     end                  
                             end,
-                        #erbdrv{status=ok,stmt={Query,StmtRows},data=RetRows}
+                        #erbdrv{status=ok,stmt={Query,Params,StmtRows},data=RetRows}
                 end ).
                       
 finish( Props, {Query,_,_} ) ->
@@ -187,11 +191,10 @@ on_success( Props, Ops, OnSuccess ) when is_list(Ops) ->
     SV = lists:foldl(fun(Op,fallthrough) ->
                              proplists:get_value(Op,Props);
                         (_,V) -> V
-                     end,fallthrough,Ops),
+                     end,fallthrough,Ops++[default]),
     on_success(SV,OnSuccess);
 on_success( Props, Op, OnSuccess ) ->
-    SV = proplists:get_value(Op,Props),
-    on_success(SV,OnSuccess).
+    on_success( Props, [Op], OnSuccess ).
 on_success( SuccessVal, OnSuccess ) ->
     case SuccessVal of
         success ->
@@ -216,9 +219,9 @@ match_query(Props,QStr) ->
                              end;
                         (_,{C,R}) -> {C,R}
                      end, none, QueryList ),
-    case Found of
-        none ->
-            {[],[]};
-        _ -> Found
-    end.
-                              
+    {C,R} = case Found of
+                none ->
+                    {[],[]};
+                _ -> Found
+            end,
+    {C,R}.

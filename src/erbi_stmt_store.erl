@@ -117,7 +117,7 @@ lookup( Tbl, StatementID, Key, Default ) ->
     case ets:lookup( Tbl, {StatementID,K} ) of
         [Item] ->
             element(I,Item);
-        X -> io:format(user,"lookup: ~p~n",[X]), Default
+        _ -> Default
     end.    
 
 all_handles( Tbl ) ->

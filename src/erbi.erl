@@ -51,17 +51,12 @@ connect( DataSource, Username, Password ) ->
         DataSource1 ->
             Info = Module:driver_info(),
             ConnectReq = {Module,Info,DataSource1,Username,Password},
-            io:format( user, "About to start: DS = ~n~p~n", [DataSource1] ),
-            try gen_server:start(erbi_driver,ConnectReq,[]) of
+            case gen_server:start(erbi_driver,ConnectReq,[]) of
                 {ok,Pid} ->
                     Connection = {erbi_connection,#conn{ pid = Pid }},
                     {ok, Connection};
                 ignore -> {error,ignore};
                 {error,Reason} -> {error,Reason}
-            catch
-                Ex ->
-                    io:format(user, "got exception: ~n~p~n", [Ex] ),
-                    {error,exception}
             end
     end.
 

@@ -245,9 +245,9 @@
             Message :: any() ) ->
                   any() | {error,any()}.
 call({erbi_connection,#conn{ pid = Pid}},Message) ->
-    gen_server:call(Pid,Message);
+    call(Pid,Message,undefined);
 call({erbi_statement,#conn{pid = Pid},_},Message) ->
-    gen_server:call(Pid,Message).
+    call(Pid,Message,undefined).
 
 -spec call( ConnOrStmt :: erbi_connection() | erbi_statement() | pid(),
             Message :: any(),
@@ -266,6 +266,8 @@ call(Pid,Message,Handler) ->
             case Handler of
                 H when is_function(H) ->
                     Handler(Return);
+                undefined ->
+                    Return;
                 _ ->
                     Handler
             end
@@ -286,13 +288,10 @@ call(Pid,Message,Handler) ->
                   { stop, any() } | { ok, #connect_state{} }.
 
 init({Module,Info,DataSource,Username,Password}) ->
-    io:format( user, "erbi_driver:init~n", [] ),
     #erbdrv{status = Status} = Ret = Module:connect( DataSource, Username, Password ),
-    io:format( user, "driver ret: ~n~p~n", [Ret] ),
     {State,_} = update_state( Ret, 
                               #connect_state{ module = Module, info = Info }, 
                               undefined ),
-    io:format( user, "State: ~n~p~n", [State] ),
     case Status of
         ok -> 
             Tbl = erbi_stmt_store:init_store(),
@@ -303,7 +302,6 @@ init({Module,Info,DataSource,Username,Password}) ->
             {stop,"Module declined connect"};
         error ->
             #erbdrv{data = Reason} = Ret,
-            io:format( user, "Stop: ~p~n", [Reason] ),
             {stop,Reason}
     end.
 
@@ -345,7 +343,7 @@ handle_call({bind,StmtID,Params},_From,#connect_state{statements=Tbl}=State) ->
         Handle ->
             proc_return(call_driver(State,bind_params,Handle,Params), State, StmtID,
                         %ok:
-                        fun opt_cols/3,
+                        fun standard_on_ok/3,
                         %declined:
                         fun(#connect_state{}=State1,StmtID1,_) ->
                                 erbi_stmt_store:set(Tbl,StmtID1,params,Params),
@@ -424,22 +422,30 @@ do_exec( State, StmtID, QueryOrHandle, Params ) ->
 opt_cols( State,StmtID,undefined ) ->
     {reply,{ok,StmtID},State};
 opt_cols( #connect_state{statements=Tbl}=State,StmtID,Cols ) ->
-    erbi_stmt_store:set_cols(Tbl,StmtID,Cols),
+    set_cols(Tbl,StmtID,Cols),
     {reply,{ok,StmtID},State}.
 
+set_cols( Tbl,StmtID,Cols ) ->
+    Cols1 = lists:map( fun(#erbdrv_field{}=X) -> X;
+                          (Name) ->
+                               #erbdrv_field{name=Name}
+                       end, Cols ),
+    erbi_stmt_store:set_cols(Tbl,StmtID,Cols1).
+
+add_rows( #connect_state{statements=Tbl}=State,StmtID, undefined ) ->
+    Counters = erbi_stmt_store:counters(Tbl,StmtID),
+    {reply,{ok,Counters,Tbl},State};
 add_rows( #connect_state{statements=Tbl}=State,StmtID,
           {Cols,Rows} ) when is_list(Cols)->
-    erbi_stmt_store:set_cols(Tbl,StmtID,Cols),
+    set_cols(Tbl,StmtID,Cols),
     add_rows(State,StmtID,Rows);
 add_rows( #connect_state{statements=Tbl}=State,StmtID,
           [#erbdrv_field{}|_]=Cols ) ->
-    erbi_stmt_store:set_cols(Tbl,StmtID,Cols),
-    Counters = erbi_stmt_store:counters(Tbl,StmtID),
-    {reply,{ok,Counters,Tbl},State};
+    set_cols(Tbl,StmtID,Cols),
+    add_rows(State,StmtID,undefined);
 add_rows( #connect_state{statements=Tbl}=State,StmtID,final ) ->
     erbi_stmt_store:set( Tbl, StmtID, is_final, true ),
-    Counters = erbi_stmt_store:counters(Tbl,StmtID),
-    {reply,{ok,Counters,Tbl},State};
+    add_rows(State,StmtID,undefined);
 add_rows( #connect_state{statements=Tbl}=State,StmtID,{final,Rows} ) ->
     erbi_stmt_store:set( Tbl, StmtID, is_final, true ),
     add_rows(State,StmtID,Rows);
@@ -448,9 +454,7 @@ add_rows( #connect_state{statements=Tbl}=State,StmtID,Rows ) ->
     {reply,{ok,Counters,Tbl},State}.
         
 get_stmt_handle(#connect_state{statements=Tbl},StmtID) ->
-    Handle = erbi_stmt_store:get(Tbl,StmtID,handle),
-    io:format(user,"Got stmt_handle: ~p~n(For ~p/~p)~n",[Handle,Tbl,StmtID]),
-    Handle.
+    erbi_stmt_store:get(Tbl,StmtID,handle).
 
 %% simple function just to keep all the handle-call clauses a bit cleaner
 call_driver( #connect_state{ module = Module, connection = Conn }, Function ) ->
@@ -482,7 +486,6 @@ proc_return( #erbdrv{ status = Status, data = Data} = DriverReturn, State, StmtI
 %% takes an #erbdrv{} return record and updates the state information as needed
 update_state( #erbdrv{ conn = NewConn, stmt = Stmt },
               #connect_state{statements=Tbl}=State, StmtID ) ->
-    io:format( user, "Stmt: ~p~nStmtID: ~p~n~n", [Stmt,StmtID] ),
     State1 = case NewConn of 
                  same ->
                      State;
@@ -492,16 +495,12 @@ update_state( #erbdrv{ conn = NewConn, stmt = Stmt },
     StmtID1 = 
         case {StmtID,Stmt} of
             {undefined,undefined} -> 
-                io:format(user,"double undefinity~n",[]),
                 StmtID;
             {_,same} -> 
-                io:format(user,"stmt=same~n",[]),
                 StmtID;
             {ID,Handle} when ID =:= new, Handle =/= undefined -> %new statement
-                io:format(user,"add new statement~n",[]),
                 erbi_stmt_store:add_statement( Tbl, Handle );
             {ID,NewHandle} when ID =/= new, ID =/= undefined ->
-                io:format(user,"Storing statement handle: ~p~n(In ~p/~p)~n",[NewHandle,Tbl,ID]),
                 ok = erbi_stmt_store:set( Tbl, ID, handle, NewHandle ),
                 case NewHandle of
                     undefined ->

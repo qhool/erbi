@@ -25,7 +25,7 @@ parse_datasource_test_() ->
 
 %these tests will be somewhat dependent on default values, etc. in the dummy driver
 normalize_datasource_test_() ->
-    [ ?_assertEqual( ?debugVal(erbi:normalize_data_source( "erbi:dummy:connect=success;prepare=success" )),
+    [ ?_assertEqual( ?debugVal(erbi:normalize_data_source( "erbi:dummy:connect=fallthrough;prepare=success" )),
                      ?debugVal(erbi:normalize_data_source( "erbi:dummy:prepare=success" ) ) ),
       ?_assertEqual( ?debugVal(erbi:normalize_data_source( "erbi:dummy:connect=success;prepare=fail" )),
                      ?debugVal(erbi:normalize_data_source( "erbi:dummy:prepare=fail;connect=success" ) ) )
