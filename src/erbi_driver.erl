@@ -76,6 +76,42 @@
 %% {@link proplists:normalize/2}, with the addition of: 'default',
 %% which should be a list of optional arguments, with default values; and
 %% 'required', a list of arguments which must be present.
+%%
+%% A sample return value from property_info:
+%% <pre>
+%% [ {aliases, [{unencrypted_pass,cleartext_pass}],
+%%   {negations,[{cleartext_pass,encrypt_pass},{nossl,ssl}]},
+%%   {expand,[{supersecure,[encrypt_pass,ssl]}],
+%%   {defaults,[{encrypt_pass,true},{ssl,false}]},
+%%   {required,[user]}
+%% ]
+%% </pre>
+%% The property list is normalized as follows:
+%% <ul>
+%%  <li>Aliases are applied (see proplists:substitute_aliases).</li>
+%%  <li>validate_property is called on each property, substituting the
+%%      returned properties for the originals</li>
+%%  <li>Negations are applied (see proplists:substitute_negations).</li>
+%%  <li>Expands are applied (see proplists:expand).</li>
+%%  <li>If any property in 'required' is not found in the resulting list, an
+%%      error is returned.  N.B: this happens before defaults are added -- 
+%%      do not add properties to both required and defaults.</li>
+%%  <li>Every property in 'defaults' which is not present in the property list
+%%      is added with the default value</li>
+%%  <li>The list is compacted (see proplists:compact) and sorted.</li>
+%% </ul>
+%%
+%% For instance, given the sample property_info return above:
+%% <pre>
+%% Input Properties:                                | Result of normalization:
+%% -------------------------------------------------+---------------------------------------------------------
+%% [unencrypted_pass,{user,"foo"}]                  | [{encrypt_pass,false},{ssl,false},{user,"foo"}]
+%% []                                               | {error,{invalid_datasource,{missing_properties,[user]}}}
+%% [{user,"foo"},supersecure]                       | [{encrypt_pass,true},{ssl,true},{user,"foo"}]
+%% [{cleartext_pass,false},{ssl,true},{user,"foo"}] | [{encrypt_pass,true},{ssl,true},{user,"foo"}]
+%% </pre>
+%%
+%% The driver's connect function will receive the properties in normalized form.
 %% @end
 -callback property_info() -> [{atom(),any()}].
 
