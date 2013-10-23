@@ -1,19 +1,23 @@
 -module(erbi_test_util).
--export([dataset/1,
+-export([config/0,config/1,
+         dataset/1,
          equal_rows_list/2,equal_rows_list/3,
          equal_rows_proplist/2,equal_rows_proplist/3,
          equal_rows_dict/2,equal_rows_dict/3,
          dicts_equal/2,proplists_equal/2]).
 -include_lib("eunit/include/eunit.hrl").
 
+config() ->
+    ErbiDir = get_base_dir(),
+    ConfigFile = filename:join(ErbiDir,"test.config"),
+    file:consult(ConfigFile).
+
+config(Section) ->
+    {ok,Cfg} = config(),
+    proplists:get_value(Section,Cfg).
+
 dataset(Name) ->
-    {file,ThisFile} = code:is_loaded(?MODULE),
-    ErbiDir =
-        filename:join(
-          lists:reverse(
-            lists:nthtail(
-              2,  lists:reverse(
-                    filename:split(ThisFile))))),
+    ErbiDir = get_base_dir(),
     FilePatterns = lists:map( fun(N) ->
                                       Stars = lists:duplicate(N,"*"),
                                       filename:join([ErbiDir|Stars]++[atom_to_list(Name)++".dat"])
@@ -30,6 +34,7 @@ dataset(Name) ->
     end.
 
 equal_rows_list(Dataset,Results) when is_atom(Dataset) ->
+    ?debugFmt("list dataset: ~n~p~n",[Results]),
     equal_rows_list(Dataset,Results,0).
 equal_rows_list(Dataset,Results,Limit) -> 
     rows_equal_by(Dataset,Results,Limit,fun(_,Rows) -> Rows end,fun(A,B) -> A =:= B end).
@@ -86,3 +91,12 @@ dicts_equal(Dict1,Dict2) ->
 
 proplists_equal(PL1,PL2) ->
     lists:sort(PL1) =:= lists:sort(PL2).
+
+get_base_dir() ->
+    {file,ThisFile} = code:is_loaded(?MODULE),
+    filename:join(
+      lists:reverse(
+        lists:nthtail(
+          2,  lists:reverse(
+                filename:split(ThisFile)
+               )))).

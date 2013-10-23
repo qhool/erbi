@@ -20,28 +20,50 @@ fetchall_test_() ->
       ?_assert( erbi_test_util:equal_rows_dict(test,exec_on_stmt(test,fetchall_dict)) )
     ].
 
+fetchall_chunked_test_() ->
+    P = [{cols_on_prepare,true},
+         {rows_on_execute,false},
+         {simulate_fetch,true}],
+    [ ?_assert( erbi_test_util:equal_rows_list(test,exec_on_stmt(test,P,fetchall_list)) ),
+      ?_assert( erbi_test_util:equal_rows_proplist(test,exec_on_stmt(test,P,fetchall_proplist)) ),
+      ?_assert( erbi_test_util:equal_rows_dict(test,exec_on_stmt(test,P,fetchall_dict)) )
+    ].
+
 fetchrow_test_() ->
     [ fetchrow_meta(test,equal_rows_list,fetchrow_list),
       fetchrow_meta(test,equal_rows_proplist,fetchrow_proplist),
       fetchrow_meta(test,equal_rows_dict,fetchrow_dict)
     ].
+row_by_row_test_() ->
+    P = [{cols_on_prepare,true},
+         {rows_on_execute,false},
+         {simulate_fetch,true}],
+    [ fetchrow_meta(test,P,equal_rows_list,fetchrow_list),
+      fetchrow_meta(test,P,equal_rows_proplist,fetchrow_proplist),
+      fetchrow_meta(test,P,equal_rows_dict,fetchrow_dict)
+    ].
 
 fetchrow_meta(Dataset,EqualFunc,FetchFunc) ->
+    fetchrow_meta(Dataset,[],EqualFunc,FetchFunc).
+fetchrow_meta(Dataset,ConnProps,EqualFunc,FetchFunc) ->
     Rowgetter = fun(Self,Stmt,Out) ->
                         case erbi_statement:FetchFunc(Stmt) of
                             exhausted -> lists:reverse(Out);
                             { ok, Row } -> Self(Self,Stmt,[Row|Out])
                         end
                 end,
-    fun() ->
-            Stmt = get_stmt(Dataset,[]),
-            {ok,_} = erbi_statement:execute(Stmt),
-            Rows = Rowgetter(Rowgetter,Stmt,[]),
-            ?_assert( erbi_test_util:EqualFunc(Dataset,Rows) )
-    end.
+    { atom_to_list(FetchFunc), 
+      fun() ->
+              Stmt = get_stmt(Dataset,ConnProps),
+              {ok,_} = erbi_statement:execute(Stmt),
+              Rows = Rowgetter(Rowgetter,Stmt,[]),
+              ?_assert( erbi_test_util:EqualFunc(Dataset,Rows) )
+      end }.
 
 exec_on_stmt(Dataset,Fun) ->
-    Stmt = ?debugVal(get_stmt(Dataset,[])),
+    exec_on_stmt(Dataset,[],Fun).
+exec_on_stmt(Dataset,ConnProps,Fun) ->
+    Stmt = ?debugVal(get_stmt(Dataset,ConnProps)),
     {ok,_} = ?debugVal(erbi_statement:execute(Stmt)),
     {ok,Res} = erbi_statement:Fun(Stmt),
     Res.

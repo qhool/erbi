@@ -147,23 +147,31 @@ execute( Props, Q, Params ) ->
 fetch_rows( Props, {Query,Params,Rows}, Amount ) ->
     on_success( Props, fetch,
                 fun() ->
-                        RowsOnExec = proplists:get_value(rows_on_execute,Props),
                         SimFetch = proplists:get_value(simulate_fetch,Props),
                         {RetRows,StmtRows} = 
                             case Rows of
-                                [] -> final;
+                                [] -> {final,[]};
                                 _ ->
-                                    if (RowsOnExec and SimFetch and (Amount =:= one)) ->
-                                            [Row|Rows1] = Rows,
-                                            case Rows1 of 
-                                                [] ->
-                                                    {{final,[Row]},[]};
-                                                _ ->
-                                                    {[Row],Rows1}
-                                            end;
-                                       true ->
-                                            {{final,Rows},[]}
-                                    end                  
+                                    {Ret,Rmdr} = 
+                                        if (SimFetch and (Amount =:= one)) ->
+                                                [Row|Rows1] = Rows,
+                                                {[Row],Rows1};
+                                           SimFetch -> %amount not one, return more than one, but not all
+                                                case Rows of
+                                                    [R1,R2|Rows1] ->
+                                                        {[R1,R2],Rows1};
+                                                    _ ->
+                                                        {Rows,[]}
+                                                end;
+                                           true ->
+                                                {Rows,[]}
+                                        end,
+                                    case Rmdr of 
+                                        [] ->
+                                            {{final,Ret},[]};
+                                        _ ->
+                                            {Ret,Rmdr}
+                                    end     
                             end,
                         #erbdrv{status=ok,stmt={Query,Params,StmtRows},data=RetRows}
                 end ).

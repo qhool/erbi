@@ -181,12 +181,13 @@ get_rows(?STMT(StmtID)=Statement,all,Acc,
          {ok,#erbdrv_stmt_counters{current=Current,last=Last,is_final=IsFinal},Store}) ->
     Rows = lists:map( fun(N) -> erbi_stmt_store:get(Store,StmtID,N) end, lists:seq(Current,Last) ),
     NumRead = Last-Current+1,
+    Acc1 = [Rows|Acc],
     case IsFinal of
         true ->
-            erbi_driver:call(Statement,{end_fetch,StmtID,NumRead},{Store,[Rows|Acc]});
+            erbi_driver:call(Statement,{end_fetch,StmtID,NumRead},{Store,Acc1});
         false ->
-            get_rows(Statement,all,Acc,
-                     erbi_driver:call(Statement,{continue_fetch,StmtID,NumRead}))
+            get_rows(Statement,all,Acc1,
+                     erbi_driver:call(Statement,{continue_fetch,StmtID,all,NumRead}))
     end.
 
 
