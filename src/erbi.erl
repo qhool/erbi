@@ -53,6 +53,7 @@ connect( DataSource, Username, Password ) ->
             ConnectReq = {Module,Info,DataSource1,Username,Password},
             case gen_server:start(erbi_driver,ConnectReq,[]) of
                 {ok,Pid} ->
+                    true = link(Pid),
                     Connection = {erbi_connection,#conn{ pid = Pid }},
                     {ok, Connection};
                 ignore -> {error,ignore};
@@ -221,9 +222,11 @@ validate_properties(Module,Props) ->
                     ({P,V},{ok,Properties}) ->
                          case Module:validate_property(P,V) of
                              ok ->
-                                 {ok,Properties++[{P,V}]};
-                             {ok,VProps} ->
-                                 {ok,Properties++VProps};
+                                 {ok,[{P,V}]++Properties};
+                             {ok,VProps} when is_list(VProps) ->
+                                 {ok,VProps++Properties};
+                             {ok,VProp} ->
+                                 {ok,[VProp|Properties]};
                              {error,Reason} -> {error,Reason}
                          end
                  end, {ok,[]}, proplist_uncompact(Props) ).
@@ -238,18 +241,26 @@ proplist_uncompact(Props) ->
 -spec parse_ds( Tokens :: list(string()) ) ->
                       erbi_data_source() | { error, any() }.
 
+parse_ds( [ "erbi", ":", Driver, ":" ] ) ->
+    mk_ds( Driver, [], [] );
 parse_ds( [ "erbi", ":", Driver, ":" | Tokens ] ) ->
-    DriverAtom = list_to_atom(Driver),
     case parse_ds_props(Tokens,[]) of
         {error,Reason} -> {error,Reason};
         {Props,Args} ->
-            #erbi{driver=DriverAtom,properties=Props,args=Args}
+            mk_ds(Driver,Props,Args)
     end;
-parse_ds( [ "erbi", ":" | _ ] ) ->
+parse_ds( [ "erbi", ":", Driver ] ) ->
+    mk_ds( Driver, [], [] );
+parse_ds( [ "erbi" | _ ] ) ->
     { error, { expected, driver_name } };
 parse_ds( _Tokens ) ->
     { error, { expected, erbi } }.
 
+mk_ds( "", _Props, _Args ) ->
+    { error, { expected, driver_name } };
+mk_ds( Driver, Props, Args ) ->
+    DriverAtom = list_to_atom(Driver),
+    #erbi{driver=DriverAtom,properties=Props,args=Args}.
 
 %%---------------------------------------------------------------
 %% Parser for name-value pairs in datasource
