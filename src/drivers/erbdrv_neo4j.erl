@@ -31,6 +31,7 @@
          begin_work/1, begin_work/2,
          rollback/1, rollback/2,
          commit/1,
+         do/3,
          prepare/2,
          bind_params/3,
          execute/3,
@@ -45,7 +46,10 @@
         }).
 
 driver_info() ->
-    #erbi_driver_info{ driver = neo4j }.
+    #erbi_driver_info{ driver = neo4j,
+                       preparse_support = false,
+                       cursor_support = false, 
+                       transaction_support = true }.
 
 validate_property(Prop,Val) when is_list(Val) and ((Prop =:= scheme) or (Prop =:= endpoint)) ->
     validate_property(Prop,list_to_atom(Val));
@@ -99,9 +103,14 @@ connect( #erbi{ properties = Props }, _Username, _Password ) ->
              _ ->
                  ok
          end,
+    Info = case Endpoint of
+               transaction -> same;
+               cypher ->
+                   (driver_info())#erbi_driver_info{transaction_support=false}
+           end,
     case restc:request( get, json, CheckUrl, [200] ) of
         {ok,_Status,_,_} ->
-            #erbdrv{ status = ok, conn = #neocon{type=Endpoint,url=EndpointUrl} };
+            #erbdrv{ status = ok, info = Info, conn = #neocon{type=Endpoint,url=EndpointUrl} };
         {error,Status,Headers,_} ->
             #erbdrv{ status = error, data = {connect_failed,Status,Headers} }
     end.
@@ -145,6 +154,9 @@ commit( #neocon{trans=Trans}=C ) ->
 
 %% no way to do this in neo4j Rest API
 prepare( _C, _Q ) ->
+    declined.
+
+do( _C, _Q, _P ) ->
     declined.
 
 bind_params( _C , _S, _P ) ->

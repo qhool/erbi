@@ -79,7 +79,7 @@ prepare_cached(_Connection,_Query) ->
           BindValues :: erbi_bind_values() ) ->
                 { ok, erbi_row_count() } | { error, any() }.
 do( Connection, Query, BindValues ) ->
-    prep_exec_and(return,Connection,Query,BindValues).
+    erbi_driver:call(Connection,{do,Query,BindValues}).
 
 %% @doc
 %%
@@ -281,12 +281,7 @@ prep_exec_and(FuncName,Connection,Query,BindValues) ->
             case erbi_statement:execute(Statement,BindValues) of
                 {error,_}=E -> E;
                 {ok,Rows} ->
-                    Ret = 
-                        case FuncName of
-                            return ->
-                                {ok,Rows};
-                            _ -> erbi_statement:FuncName(Statement)
-                        end,
+                    Ret = erbi_statement:FuncName(Statement),
                     erbi_statement:finish(Statement),
                     Ret
             end

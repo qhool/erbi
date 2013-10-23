@@ -30,6 +30,7 @@
          begin_work/1, begin_work/2,
          rollback/1, rollback/2,
          commit/1,
+         do/3,
          prepare/2,
          bind_params/3,
          execute/3,
@@ -58,9 +59,11 @@ validate_property(_,_) ->
     ok.
 
 property_info() ->
+    {ok,QR} = re:compile(".*"),
     [{defaults, [%whether each operation should succeed
                  {connect,fallthrough},
                  {disconnect,fallthrough},
+                 {do,declined},
                  {prepare,fallthrough},
                  {execute,fallthrough},
                  {transaction,fallthrough},
@@ -74,9 +77,12 @@ property_info() ->
                  %other behaviours:
                  % whether to return columns after prepare
                  {cols_on_prepare,false},
+                 % whether to return all rows at execute
                  {rows_on_execute,true},
+                 % whether to spread rows out over fetches
+                 % fetch_rows will return 2 rows when amount is 'all', 1 for 'one' when this is on
                  {simulate_fetch,true},
-                 {queries,[{re:compile(".*"),[dummy],[[1]]}]}
+                 {queries,[{QR,[dummy],[[1]]}]}
                 ]
      }].
 
@@ -102,6 +108,15 @@ rollback( Props, _ ) ->
 
 commit( Props ) ->
     on_success( Props, [commit,transaction], #erbdrv{status=ok} ).
+
+do( Props, Q, Params ) ->
+    on_success( Props, do, 
+                fun() ->
+                        %hand off to execute, overriding some behavior
+                        execute( [{execute,success},
+                                  {cols_on_prepare,false},
+                                  {rows_on_execute,false}|Props], Q, Params )
+                end ).
 
 prepare( Props, Q ) ->
     on_success( Props, prepare, 

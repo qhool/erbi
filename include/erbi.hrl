@@ -48,7 +48,10 @@
         { driver :: atom(),
           preparse_support :: boolean(),
           cursor_support :: boolean(),
-          transaction_support :: boolean()
+          transaction_support :: boolean(),
+          must_preparse = false :: boolean(),
+          must_bind = false :: boolean(),
+          multiple_bind = true :: boolean()
         }).
 
 -type erbi_driver_info() :: #erbi_driver_info{}.

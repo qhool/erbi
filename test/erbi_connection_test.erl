@@ -16,6 +16,12 @@ prepare2_test() ->
                                     {prepare,success}] }, undefined, undefined ),
     { ok, _ } = erbi_connection:prepare( Conn, "anything" ).
 
+do_test() ->
+    { ok, Conn } = erbi:connect( { erbi, dummy, 
+                                   [{connect,success},
+                                    {do,success}] }, undefined, undefined ),
+    { ok, _ } = erbi_connection:do( Conn, "whatever", ["A","n"] ).
+
 selectall_test_() ->
     [ ?_assert( erbi_test_util:equal_rows_dict(test,get_select(test,selectall_dict)) ),
       ?_assert( erbi_test_util:equal_rows_list(test,get_select(test,selectall_list)) ),

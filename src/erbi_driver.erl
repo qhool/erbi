@@ -173,6 +173,16 @@
 -callback commit( Connection :: erbdrv_connection() ) ->
     erbdrv_return().
 
+%% @doc execute query with no return data
+%%
+%% Should execute the supplied query, supplying row count if possible.
+%% If return value is 'declined', statement will be prepared and executed
+%% @end
+-callback do( Connection :: erbdrv_connection(),
+              Query :: string(),
+              Params :: erbi_bind_values() ) ->
+    erbdrv_return().
+
 %% @doc parse query/statement
 %%
 %% Should parse the supplied query and return a handle to the pre-parsed form.  
@@ -323,45 +333,32 @@ handle_call({rollback,Savepoint}, _From, State) ->
     proc_return(call_driver(State,rollback, Savepoint ), State, undefined);
 handle_call(commit,_From,State) ->
     proc_return(call_driver(State,commit), State, undefined);
+handle_call({do,Query,Params},_From,State) ->
+    DriverReturn = call_driver(State,do,Query,Params),
+    case DriverReturn of
+        #erbdrv{ rows=Rows } ->
+            proc_return( DriverReturn, State, none,
+                         fun(State1,_,_) ->
+                                 {reply,{ok,Rows},State1}
+                         end,
+                         %% declined
+                         fun(State1,_,_) ->
+                                 do_exec(State1,Query,Params)
+                         end );
+        declined ->
+            do_exec(State,Query,Params)
+    end;
 handle_call({prepare,Query},_From,State) ->
-    proc_return(call_driver(State,prepare,Query), State, new,
-                % ok status
-                fun opt_cols/3,
-                % declined status -- driver does not support prepare; store the statement instead
-                fun(#connect_state{ statements = Tbl }=State1,_,_) ->
-                        StmtID = erbi_stmt_store:add_statement(Tbl,undefined),
-                        erbi_stmt_store:set(Tbl,StmtID,raw_query,Query),
-                        {reply,{ok,StmtID},State1}
-                end
-               );
+    do_prepare(State,Query);
 %% statement-level
-handle_call({bind,StmtID,Params},_From,#connect_state{statements=Tbl}=State) ->
-    case get_stmt_handle(State,StmtID) of
-        undefined -> % no handle, just store params
-            erbi_stmt_store:set(Tbl,StmtID,params,Params),
-            {reply,ok,State};
-        Handle ->
-            proc_return(call_driver(State,bind_params,Handle,Params), State, StmtID,
-                        %ok:
-                        fun standard_on_ok/3,
-                        %declined:
-                        fun(#connect_state{}=State1,StmtID1,_) ->
-                                erbi_stmt_store:set(Tbl,StmtID1,params,Params),
-                                {reply,ok,State1}
-                        end)
+handle_call({bind,StmtID,Params},_From,State) ->
+    case do_bind(State,StmtID,Params,store_params) of
+        {reply,_,_}=Reply -> Reply;
+        {_,State1,_} ->
+            {reply,ok,State1}
     end;
-handle_call({execute,StmtID,Params},_From,#connect_state{statements=Tbl}=State)
-  when is_integer(StmtID) ->
-    case get_stmt_handle(State,StmtID) of
-        undefined -> % no handle; execute stored query text
-            Query = erbi_stmt_store:get(Tbl,StmtID,raw_query),
-            Params1 = Params ++ erbi_stmt_store:lookup(Tbl,StmtID,params,[]),
-            do_exec(State,StmtID,Query,Params1);
-        Handle ->
-            do_exec(State,StmtID,Handle,Params)
-    end;
-handle_call({execute,Query,Params},_From,State) ->
-    do_exec(State,undefined,Query,Params);
+handle_call({execute,StmtID,Params},_From,State) ->
+    do_exec(State,StmtID,Params);
 handle_call({start_fetch,StatementID,Amount},_From,State) ->
     do_fetch(State,StatementID,Amount);
 handle_call({continue_fetch,StatementID,Amount,RowsRead},_From,#connect_state{statements=Tbl}=State) ->
@@ -410,14 +407,98 @@ do_fetch( #connect_state{statements=Tbl} = State,StatementID,Amount) ->
         Counters -> {reply,{ok,Counters,Tbl},State}
     end.
 
-do_exec( State, StmtID, QueryOrHandle, Params ) ->
-    #erbdrv{ rows = Rows } = 
-        DriverReturn = call_driver( State, execute, QueryOrHandle, Params ),
-    proc_return( DriverReturn, State, StmtID, 
-                 fun(State1,StmtID1,Data) ->
-                         {reply,{ok,_Counters,_Tbl},State2} = add_rows(State1,StmtID1,Data),
-                         {reply,{ok,Rows},State2}
-                 end ).
+do_bind(#connect_state{statements=Tbl,info=Info}=State,StmtID,Params,StoreParams) ->
+    case get_stmt_handle(State,StmtID) of
+        undefined -> % no handle, just store params
+            case StoreParams of
+                store_params ->
+                    erbi_stmt_store:set(Tbl,StmtID,params,Params),
+                    {stored,State,StmtID};
+                _ ->
+                    {ignored,State,StmtID}
+            end;
+        Handle ->
+            case { Info#erbi_driver_info.multiple_bind , erbi_stmt_store:lookup(Tbl,StmtID,bound,false) } of
+                {Mult,Bound} when (Mult == true) or (Bound == false) ->
+                    proc_return(call_driver(State,bind_params,Handle,Params), State, StmtID,
+                                                %ok:
+                                fun(State1,StmtID1,_) ->
+                                        erbi_stmt_store:set(Tbl,StmtID1,bound,true),
+                                        erbi_stmt_store:set(Tbl,StmtID1,params,[]),
+                                        {bound,State1,StmtID1}
+                                end,
+                                                %declined:
+                                fun(#connect_state{}=State1,StmtID1,_) ->
+                                        case StoreParams of
+                                            store_params ->
+                                                erbi_stmt_store:set(Tbl,StmtID1,params,Params),
+                                                {stored,State1,StmtID1};
+                                            _ -> 
+                                                {ignored,State1,StmtID1}
+                                        end
+                                end);
+                {false,true} ->
+                    %second attempt to bind, but parameters already bound
+                    {ignored,State,StmtID}
+            end
+    end.
+
+do_prepare(State,Query) ->
+    proc_return(call_driver(State,prepare,Query), State, new,
+                % ok status
+                fun opt_cols/3,
+                % declined status -- driver does not support prepare; store the statement instead
+                fun(#connect_state{ statements = Tbl }=State1,_,_) ->
+                        StmtID = erbi_stmt_store:add_statement(Tbl,undefined),
+                        erbi_stmt_store:set(Tbl,StmtID,raw_query,Query),
+                        {reply,{ok,StmtID},State1}
+                end
+               ).
+
+do_exec( #connect_state{statements=Tbl}=State, StmtID, Params ) when is_integer(StmtID) ->
+    case get_stmt_handle(State,StmtID) of
+        undefined -> % no handle; execute stored query text
+            Query = erbi_stmt_store:get(Tbl,StmtID,raw_query),
+            Params1 = Params ++ erbi_stmt_store:lookup(Tbl,StmtID,params,[]),
+            do_exec(State,StmtID,raw_query,Query,Params1);
+        Handle ->
+            do_exec(State,StmtID,handle,Handle,Params)
+    end;
+do_exec( #connect_state{ info = Info } = State, Query, Params ) ->
+    %% in this case, no prepare has been done, yet
+    case Info#erbi_driver_info.must_preparse of
+        true ->
+            case do_prepare(State,Query) of
+                {reply,{ok,StmtID},State1} ->
+                    do_exec(State1,StmtID,Params);
+                X -> X
+            end;
+        false ->
+            do_exec(State,undefined,raw_query,Query,Params)
+    end.
+do_exec( #connect_state{ info = Info } = State, StmtID, QHType, QueryOrHandle, Params ) ->
+    BindResult = 
+        case {QHType,Info#erbi_driver_info.must_bind} of
+            {handle,true} ->
+                case do_bind(State,StmtID,Params,do_not_store) of
+                    {bound,State1,StmtID1} -> {State1,StmtID1,[]};
+                    {ignored,State1,StmtID1} -> {State1,StmtID1,Params};
+                    {reply,_,_}=X -> X
+                end;               
+            _ ->
+                {State,StmtID,Params}
+        end,
+    case BindResult of
+        {reply,_,_}=Reply -> Reply;
+        {State2,StmtID2,Params1} ->
+            #erbdrv{ rows = Rows } = 
+                DriverReturn = call_driver( State2, execute, QueryOrHandle, Params1 ),
+            proc_return( DriverReturn, State2, StmtID2, 
+                         fun(State3,StmtID3,Data) ->
+                                 {reply,{ok,_Counters,_Tbl},State4} = add_rows(State3,StmtID3,Data),
+                                 {reply,{ok,Rows},State4}
+                         end )
+    end.
                                      
 opt_cols( State,StmtID,undefined ) ->
     {reply,{ok,StmtID},State};
@@ -432,6 +513,12 @@ set_cols( Tbl,StmtID,Cols ) ->
                        end, Cols ),
     erbi_stmt_store:set_cols(Tbl,StmtID,Cols1).
 
+add_rows( State, StmtID, [] ) ->
+    add_rows(State,StmtID,undefined);
+add_rows( State, undefined, undefined ) ->
+    {reply,{ok,undefined,undefined},State};
+add_rows( State, undefined, undefined ) ->
+    {reply,{ok,undefined,undefined},State};
 add_rows( #connect_state{statements=Tbl}=State,StmtID, undefined ) ->
     Counters = erbi_stmt_store:counters(Tbl,StmtID),
     {reply,{ok,Counters,Tbl},State};
@@ -484,16 +571,23 @@ proc_return( #erbdrv{ status = Status, data = Data} = DriverReturn, State, StmtI
     end.
 
 %% takes an #erbdrv{} return record and updates the state information as needed
-update_state( #erbdrv{ conn = NewConn, stmt = Stmt },
+update_state( #erbdrv{ conn = NewConn, stmt = Stmt, info = NewInfo },
               #connect_state{statements=Tbl}=State, StmtID ) ->
-    State1 = case NewConn of 
+    State0 = case NewConn of 
                  same ->
                      State;
                  _ ->
                      State#connect_state{ connection = NewConn }
              end,
+    State1 = case NewInfo of
+                 same -> State0;
+                 _ ->
+                     State0#connect_state{ info = NewInfo }
+             end,
     StmtID1 = 
         case {StmtID,Stmt} of
+            {none,_} ->
+                undefined;
             {undefined,undefined} -> 
                 StmtID;
             {_,same} -> 
