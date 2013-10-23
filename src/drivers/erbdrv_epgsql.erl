@@ -19,7 +19,7 @@
 
 -include("erbi.hrl").
 -include("erbi_driver.hrl").
--include_lib("../epgsql/include/pgsql.hrl").
+-include_lib("epgsql/include/pgsql.hrl").
 -export([driver_info/0,
          validate_property/2,
          property_info/0,
@@ -57,8 +57,9 @@ validate_property( _,_ ) ->
 
 -spec property_info() -> [{atom(),any()}].
 property_info()->
-    [{aliases, [{db,database},{dbname,database},{hostaddr,host},{sslmode,ssl}},
-     {defaults,[{host,"localhost"}}
+    [{aliases, [{db,database},{dbname,database},{hostaddr,host},{sslmode,ssl}]},
+     {defaults,[{host,"localhost"}]},
+     {required,[database]}
      ].
 
 -spec parse_args([any()]) ->
@@ -70,7 +71,7 @@ parse_args([])->
                    Username :: string(),
                    Password :: string() ) -> erbdrv_return().
 connect(#erbi{driver = epgsql, properties=PropList}, Username, Password)->
-    Host= proplist:get_value(host,PropList),
+    Host= proplists:get_value(host,PropList),
     connect(Host, Username, Password, PropList).
 
 connect(Host,Username,Password,PropList)->
@@ -100,7 +101,7 @@ begin_work(Connection,Savepoint) when is_atom(Savepoint)->
     begin_work(Connection,atom_to_list(Savepoint)).
 
 savepoint(Connection,Savepoint,{ok,[],[]})->
-    erbdrv_response( catch psql:squery(Connection, [$S,$A,$V,$E,$P,$O,$I,$N,$T,$  |Savepoint])).
+    erbdrv_response(pgsql:squery(Connection, [$S,$A,$V,$E,$P,$O,$I,$N,$T,$  |Savepoint])).
 
 -spec rollback( Connection :: erbdrv_connection() ) -> 
     erbdrv_return().
@@ -130,14 +131,14 @@ prepare(Connection,Query)->
                        Statement :: erbdrv_statement(),
                        Params :: erbi_bind_values() ) ->
     erbdrv_return().
-bind_params(Connection, Statement,Params)->
+bind_params(Connection, Statement,Params) when is_record(Statement,statement)->
     erbdrv_response(pgsql:bind(Connection,Statement,"",erbi_bind_values_to_epgsql(Params))). 
 
 -spec execute( Connection :: erbdrv_connection(),
                    Statement :: erbdrv_statement() | string(),
                    Params :: erbi_bind_values() ) ->
     erbdrv_return().
-execute(Connection,Statement,_Params) ->
+execute(Connection,Statement,_Params)  when is_record(Statement,statement)->
     erbdrv_cols_rows_response(pgsql:execute(Connection,Statement,"", ?MIN_FETCH),Statement).
 
 -spec fetch_rows( Connection :: erbdrv_connection(),
@@ -149,13 +150,13 @@ fetch_rows(Connection,Statement,one)->
 fetch_rows(Connection,Statement,all) ->
     fetch_rows_number(Connection,Statement,?MAX_FETCH).
 
-fetch_rows_number(Connection,Statement, Amount) when is_integer(Amount)->
-    erbdrv_only_rows_response(pgsql:execute(Connection,Statement,"",Amount),Statement).
+fetch_rows_number(Connection,Statement, Amount) when is_integer(Amount), is_record(Statement,statement) ->
+    erbdrv_only_rows_response(pgsql:execute(Connection,Statement,"",Amount),Statement#statement.columns).
 
 -spec finish( Connection :: erbdrv_connection(),
                  Statement :: erbdrv_statement() ) ->
     erbdrv_return().
-finish(Connection,Statement)->
+finish(Connection,Statement) ->
     erbdrv_response(pgsql:squery(Connection,[$c,$l,$o,$e,$  |Statement])).
 
 
@@ -164,24 +165,29 @@ finish(Connection,Statement)->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 erbdrv_cols_rows_response({Atom,Rows},Statement) when is_list(Rows) andalso (Atom=:= ok orelse Atom=:= partial) ->
-    erbdrv_data_response(lists:lenght(Rows),{erbdrv_cols_response(Statement#statement.columns),erbdrv_rows_response({Atom,Rows},Statement#statement.columns)});
+    erbdrv_data_response(length(Rows),{erbdrv_cols_response(Statement#statement.columns),erbdrv_rows_response({Atom,Rows},Statement#statement.columns)});
 erbdrv_cols_rows_response(Response,_) ->
     erbdrv_response(Response).
 
 erbdrv_only_rows_response({Atom,Rows}, Columns)->
-    erbdrv_data_response(lists:lenght(Rows),erbdrv_rows_response({Atom,Rows}, Columns)).
+    erbdrv_data_response(length(Rows),erbdrv_rows_response({Atom,Rows}, Columns)).
 
+erbdrv_cols_response(undefined)->
+    [];
 erbdrv_cols_response(ColumnsList)->
     lists:map(fun epgsql_column_to_erbdrv_field/1, ColumnsList).
 
+erbdrv_rows_response({Atom,[]}, Columns)->
+    final;
 erbdrv_rows_response({Atom,Rows}, Columns)->
     is_final(Atom,lists:map(fun(Row) ->
                                     erbdrv_row_response(Row,Columns)
                                         end,Rows)).
-
+erbdrv_row_response([], Columns)->
+    [];
 erbdrv_row_response(Row, Columns)->
-    lists:zip(tuple_to_list(Row),Columns),
-    lists:map(fun epgsql_value_to_erbdrv/1, Columns).
+    Zipped=lists:zip(tuple_to_list(Row),Columns),
+    lists:map(fun epgsql_value_to_erbdrv/1, Zipped).
 
 -spec is_final(atom(),any())-> any() | {final,any()}.
 is_final(ok,Data)->
@@ -212,14 +218,14 @@ erbdrv_statement_response(Statement)->
     #erbdrv
         {status=ok,
          conn=same,
-         stmt=Statement}.
+         stmt=Statement,
+        data=erbdrv_cols_response(Statement#statement.columns)}.
 
-erbdrv_response(Status,Connection,Statement,Rows,Data)->
+erbdrv_response(Status,Connection,Statement,_Rows,Data)->
     #erbdrv
         { status = Status,
           conn = Connection,
           stmt = Statement,
-          rows = Rows,
           data = Data }.
         
 erbdrv_simple_ok_response()->
@@ -301,6 +307,7 @@ epgsql_value_to_erbdrv({Value, #column{type=text}}) ->
     binary_to_list(Value);
 epgsql_value_to_erbdrv({Value,_}) ->
     Value.
+
 
 epgsql_column_to_erbdrv_field(Column)->
     #erbdrv_field
