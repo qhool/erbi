@@ -185,6 +185,13 @@ basic_crud(Type,{_Config,Conn,TestKey}) ->
                           (Conn,"start n=node(*) where n.erbi_test! = {key} and n.val= {val_old} " ++ 
                                " set n.val = {val_new} return n.val",
                            [{key,TestKey},{val_old,7},{val_new,9}]) ) )
+      },
+      { "check pt 3"++TypeStr,
+        ?_assertEqual
+           ( {ok,[[9]]},
+             ?debugVal( erbi_connection:selectall_list
+                          (Conn,"start n=node(*) where n.erbi_test! = {key} return n.val",
+                           [{key,TestKey}]) ) )
       }
     ].
 
