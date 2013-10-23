@@ -102,21 +102,12 @@ mktests_non_transactional({Config,Type,Conn,_DS}) ->
               TestKey = gen_test_key(),
               {Config,Type,Conn,TestKey}
       end,
-      fun({_Config,_Type,Conn,TestKey}) ->
-              erbi_connection:do(Conn,"start n=node(*) where n.erbi_test! = {k} delete n",[{k,TestKey}]),
-              erbi_connection:do(Conn,"start r=relationship(*) where r.erbi_test! = {k} delete r",[{k,TestKey}])
+      fun({_Config,_Type,C,TestKey}) ->
+              erbi_connection:do(C,"start n=node(*) where n.erbi_test! = {k} delete n",[{k,TestKey}]),
+              erbi_connection:do(C,"start r=relationship(*) where r.erbi_test! = {k} delete r",[{k,TestKey}])
       end,
-      fun({_Config,_Type,Conn,TestKey}) ->
-              [ { "create node (non-transactional)",
-                  ?_test( erbi_connection:do(Conn,"create (n:Foo {erbi_test:{key},val: 7})",[{key,TestKey}]) )
-                },
-                { "check node (non-transactional)",
-                  ?_assertEqual
-                     ( {ok,[7]},
-                       ?debugVal( erbi_connection:selectrow_list
-                                    (Conn,"start n=node(*) where n.erbi_test! = {key} return n.val",
-                                     [{key,TestKey},{val,7}]) ) )
-                     } ]
+      fun({Cfg,_Type,C,TestKey}) ->
+              basic_crud("non-transactional",{Cfg,C,TestKey})
       end
     }.
 
@@ -129,21 +120,12 @@ mktests_transactional({Config,transaction,Conn,DS}) ->
               TestKey = gen_test_key(),
               {Config,Conn,TestKey}
       end,
-      fun({_Config,Conn,_TestKey}) ->
-              ok = erbi_connection:rollback(Conn)
+      fun({_Cfg,C,_TestKey}) ->
+              ok = erbi_connection:rollback(C)
       end,
-      [ fun({_,Conn,TestKey}) ->
-                [ { "create node (transactional)",
-                    ?_test( erbi_connection:do(Conn,"create (n:Bar {erbi_test:{key},val: 7})",[{key,TestKey}]) )
-                  },
-                  { "check node (transactional)",
-                    ?_assertEqual
-                       ( {ok,[7]},
-                         ?debugVal( erbi_connection:selectrow_list
-                                      (Conn,"start n=node(*) where n.erbi_test! = {key} return n.val",
-                                       [{key,TestKey}]) ) )
-                  },
-                  { "look outside transaction",
+      [ fun({_Cfg,_C,TestKey}=Tparms) ->
+                basic_crud("transactional",Tparms) 
+                ++ [ { "look outside transaction",
                     fun() ->
                             {ok, Conn2} = erbi:connect(DS),
                             ?assertEqual( exhausted,
@@ -155,6 +137,56 @@ mktests_transactional({Config,transaction,Conn,DS}) ->
                 ]
         end
       ] }.
+
+basic_crud(Type,{_Config,Conn,TestKey}) ->
+    TypeStr = " (" ++ Type ++ ")",
+    [ { "create node" ++ TypeStr,
+        ?_assertEqual
+           ( {ok,0},
+             ?debugVal(erbi_connection:do(Conn,"create (n:Bar {erbi_test:{key},val: 7})",[{key,TestKey}]) ) )
+      },
+      { "check node" ++ TypeStr,
+        ?_assertEqual
+           ( {ok,[7]},
+             ?debugVal( erbi_connection:selectrow_list
+                          (Conn,"start n=node(*) where n.erbi_test! = {key} and n.val = {val} return n.val",
+                           [{key,TestKey},{val,7}]) ) )
+      },
+      { "null property" ++ TypeStr,
+        ?_assertEqual
+           ( {ok,[null]},
+             ?debugVal( erbi_connection:selectrow_list
+                          (Conn,"start n=node(*) where n.erbi_test! = {key} return n.sovnsdojn? limit 1",
+                           [{key,TestKey}]) ) ) 
+      },
+      { "create node part 2" ++ TypeStr,
+        ?_assertEqual
+           ( {ok,0},
+             ?debugVal(erbi_connection:do(Conn,"create (n:Bar {erbi_test:{key},val: 101})",[{key,TestKey}]) ) )
+      },
+      { "check pt 2" ++ TypeStr,
+        ?_assertEqual
+           ( {ok,[[7],[101]]},
+             ?debugVal( erbi_connection:selectall_list
+                          (Conn,"start n=node(*) where n.erbi_test! = {key} return n.val order by n.val",
+                           [{key,TestKey}]) ) )
+      },
+      { "delete node"++TypeStr,
+        ?_assertEqual
+           ( {ok,0},
+             ?debugVal(erbi_connection:do
+                         (Conn,"start n=node(*) where n.erbi_test! = {key} and n.val = {val} delete n",
+                          [{key,TestKey},{val,101}])) )
+      },
+      { "update node"++TypeStr,
+        ?_assertEqual
+           ( {ok,[9]},
+             ?debugVal( erbi_connection:selectrow_list
+                          (Conn,"start n=node(*) where n.erbi_test! = {key} and n.val= {val_old} " ++ 
+                               " set n.val = {val_new} return n.val",
+                           [{key,TestKey},{val_old,7},{val_new,9}]) ) )
+      }
+    ].
 
 gen_test_key() ->
     random:seed(now()),

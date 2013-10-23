@@ -183,9 +183,9 @@ execute( #neocon{trans = Trans, url=Url}, Query, Params ) ->
                    case proplists:get_value(<<"errors">>,Body) of
                        X when X =:= [] ; X =:= undefined ->
                            [Result|_] = proplists:get_value(<<"results">>,Body),
-                           io:format(user,"~n~nResult: ~p~n",[Result]),
+                           %io:format(user,"~n~nResult: ~p~n",[Result]),
                            Cols = proplists:get_value(<<"columns">>,Result,[]),
-                           io:format(user,"columns: ~p~n",[Cols]),
+                           %io:format(user,"columns: ~p~n",[Cols]),
                            %% my neo4j differs from the docs here:
                            %Data = proplists:get_value(<<"data">>,Result,[]),
                            %Rows = proplists:get_all_values(<<"row">>,Data),
@@ -228,23 +228,23 @@ do_req(Method,#neocon{trans=undefined,url=Url},Statuses,Body,Func) ->
 do_req(Method,#neocon{trans=Trans},Statuses,Body,Func) ->
     do_req(Method,Trans,Statuses,Body,Func);
 do_req(Method,Url,Statuses,ReqBody,Func) ->
-    io:format(user,"~n~n~n~n------~nURL: ~p~n------~nreqbody: ~p~n",[Url,ReqBody]),
+    %io:format(user,"~n~n~n~n------~nURL: ~p~n------~nreqbody: ~p~n",[Url,ReqBody]),
     case restc:request(Method,json,Url,Statuses,[],ReqBody) of
         {error, Status, _H, B } when Status == 400 ->
-            io:format(user,"400Status: ~n~p~n",[B]),
+            %io:format(user,"400Status: ~n~p~n",[B]),
             ErrMsg = proplists:get_value(<<"message">>,B),
             #erbdrv{ status = error, data = { cypher_error, ErrMsg } };
         {error, Status, H, B } -> 
-            io:format(user,"got error status (~p): ~n~p~n~n",[Status,B]),
+            %io:format(user,"got error status (~p): ~n~p~n~n",[Status,B]),
             #erbdrv{ status = error, data = { unexpected_status, {Status,H,B} } };
         { error, Reason } -> 
-            io:format(user,"{error,~p}~n",[Reason]),
+            %io:format(user,"{error,~p}~n",[Reason]),
             #erbdrv{ status = error, data = { rest_error, Reason } };
         { ok, Status, Headers, Body } -> 
-            io:format(user,"got body:~n~p~n",[Body]),
+            %io:format(user,"got body:~n~p~n",[Body]),
             Func(Status,Headers,Body);
         Other ->
-            io:format(user, "Other: ~n~p~n",[Other]),
+            %io:format(user, "Other: ~n~p~n",[Other]),
             {error,Other}
     end.  
               
