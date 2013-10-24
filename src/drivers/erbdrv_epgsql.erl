@@ -31,6 +31,7 @@
          rollback/1,
          rollback/2,
          commit/1,
+         do/3,
          prepare/2,
          bind_params/3,
          execute/3,
@@ -47,7 +48,10 @@ driver_info()->
         { driver = epgsql,
           preparse_support = true,
           cursor_support = true,
-          transaction_support = true
+          transaction_support = true,
+          must_preparse = true,
+          must_bind = true,
+          multiple_bind = false
           }.
 
 -spec validate_property( atom(), any() ) ->
@@ -121,51 +125,35 @@ rollback(Connection,Savepoint) when is_atom(Savepoint) ->
 commit(Connection)->
     erbdrv_response(catch pgsql:squery(Connection,"END")).
     
+-spec do( Connection :: erbdrv_connection(),
+              Query :: string(),
+              Params ::  erbi_bind_values() ) ->
+    erbdrv_return().
+do(Connection,Query,Params)->
+    erbdrv_squery_response(pgsql:equery(Connection,Query,erbi_bind_values_to_epgsql(Params))).
 
 -spec prepare( Connection :: erbdrv_connection(), Query :: string() ) -> erbdrv_return().
 prepare(Connection,Query) when is_list(Query)->
-    prepare(Connection,Query, is_drop_table(Query)).
-
-prepare(Connection,Query,false)->
-    erbdrv_response(pgsql:parse(Connection,[],Query,[]));
-prepare(Connection,Query,true) ->
-    erbdrv_response({squery,Query}).
-
+    erbdrv_response(pgsql:parse(Connection,[],Query,[])).
 
 -spec bind_params( Connection :: erbdrv_connection(),
                        Statement :: erbdrv_statement(),
                        Params :: erbi_bind_values() ) ->
     erbdrv_return().
-bind_params(Connection,{squery, SQuery},Params) ->
-    erbdrv_response(ok);
-bind_params(Connection,{not_bind, Statement},Params) when is_record(Statement,statement)->
-    erbdrv_bind_response(bind_query(Connection,Statement,Params),Statement).
-
-bind_query(Connection,Statement,Params)->
-    pgsql:bind(Connection,Statement,"",erbi_bind_values_to_epgsql(Params)).
+bind_params(Connection,Statement,Params) when is_record(Statement,statement)->
+    erbdrv_response(pgsql:bind(Connection,Statement,"",erbi_bind_values_to_epgsql(Params))).
 
 -spec execute( Connection :: erbdrv_connection(),
                    Statement :: erbdrv_statement() | string(),
                    Params :: erbi_bind_values() ) ->
     erbdrv_return().
-
-execute(Connection,{squery,SQuery},Params)->
-    erbdrv_squery_response(pgsql:squery(Connection,SQuery));
 execute(Connection,Statement,Params)  when is_record(Statement,statement)->
-    erbdrv_cols_rows_response(pgsql:execute(Connection,Statement,"", ?MIN_FETCH),Statement);
-execute(Connection,{not_bind,Statement},Params)  when is_record(Statement,statement)->
-    pgsql:bind(Connection,Statement,"",erbi_bind_values_to_epgsql(Params)),
-    execute(Connection,Statement,Params).
+    erbdrv_cols_rows_response(pgsql:execute(Connection,Statement,"", ?MIN_FETCH),Statement).
 
 -spec fetch_rows( Connection :: erbdrv_connection(),
                       Statement :: erbdrv_statement(),
                       Amount :: one | all ) ->
     erbdrv_return().
-
-fetch_rows(Connection,{not_bind,Statement},Amount)  when is_record(Statement,statement)->
-    pgsql:bind(Connection,Statement,"",[]),
-    fetch_rows(Connection,Statement,Amount);
-
 fetch_rows(Connection,Statement,one)->
     fetch_rows_number(Connection,Statement,?MIN_FETCH);
 fetch_rows(Connection,Statement,all) ->
@@ -177,8 +165,6 @@ fetch_rows_number(Connection,Statement, Amount) when is_integer(Amount), is_reco
 -spec finish( Connection :: erbdrv_connection(),
                  Statement :: erbdrv_statement() ) ->
     erbdrv_return().
-finish(Connection,{not_bind,Statement}) ->
-    finish(Connection,Statement);
 finish(Connection,Statement) when is_record(Statement,statement)->
     pgsql:sync(Connection),
     erbdrv_response(pgsql:close(Connection,Statement));
@@ -190,7 +176,7 @@ finish(Connection,_) ->
 %% Create Responses Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 erbdrv_cols_rows_response({Atom,Rows},Statement) when is_list(Rows) andalso (Atom=:= ok orelse Atom=:= partial) ->
-    erbdrv_data_response(0,{erbdrv_cols_response(Statement#statement.columns),erbdrv_rows_response({partial,[]},Statement#statement.columns)});
+    erbdrv_data_response(0,{erbdrv_cols_response(Statement#statement.columns),erbdrv_rows_response({Atom,Rows},Statement#statement.columns)});
 erbdrv_cols_rows_response(Response,_) ->
     erbdrv_response(Response).
 
@@ -227,9 +213,7 @@ erbdrv_response({ok,[],[]})->
 erbdrv_response({ok,Connection}) when is_pid(Connection)->
     erbdrv_connection_response(Connection);
 erbdrv_response({ok,Statement}) when is_record(Statement,statement)->
-    erbdrv_statement_response({not_bind,Statement});
-erbdrv_response({squery,SQuery}=ReturnStmt) ->
-    erbdrv_statement_response(ReturnStmt,[]);
+    erbdrv_statement_response(Statement);
 erbdrv_response({ok,Count}) when is_integer(Count) ->
     erbdrv_count_response(Count);
 erbdrv_response({error,Reason}) ->
@@ -246,25 +230,12 @@ erbdrv_count_response(Count)->
 erbdrv_data_response(Count,Rows)->    
     erbdrv_response(ok,same,same,Count,Rows).
 
-erbdrv_statement_response({not_bind,Statement}=Return)->
-    erbdrv_statement_response(Return,Statement#statement.columns);
-erbdrv_statement_response(Statement) ->
-    erbdrv_statement_response(Statement,Statement).
-
-erbdrv_statement_response(Statement,Columns)->
+erbdrv_statement_response(Statement)->
     #erbdrv
         {status=ok,
          conn=same,
          stmt=Statement,
-        data=erbdrv_cols_response(Columns)}.
-
-erbdrv_bind_response(ok,Statement)->
-     #erbdrv
-        {status=ok,
-         conn=same,
-         stmt=Statement};
-erbdrv_bind_response(Err,_) ->
-    erbdrv_response(Err).
+        data=erbdrv_cols_response(Statement#statement.columns)}.
 
 erbdrv_response(Status,Connection,Statement,_Rows,Data)->
     #erbdrv

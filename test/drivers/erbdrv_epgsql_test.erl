@@ -6,7 +6,7 @@
 
 -define(CREATE_TABLE,"CREATE TABLE Persons (PersonID int, LastName varchar(255), FirstName varchar(255), Address varchar(255), City varchar(255))").
 -define(SELECT_ALL_QUERY,"SELECT * FROM Persons").
--define(SELECT_BIND,"Select * from Persons p where p.PersonId= 3").
+-define(SELECT_BIND,"Select * from Persons p where p.PersonId= $1").
 -define(INSERT,"insert into Persons (PersonId, LastName, FirstName, Address, City) values ($1, $2,$3,$4,$5 )").
 -define(DELETE_TABLE,"drop table Persons").
 -define(DATA1,[1, "Ruiz","Cris","Mierda","Coru"]).
@@ -95,19 +95,10 @@ erbi_selectall(Conn)->
      ?_test({ok,_}= ?debugVal(erbi_connection:selectall_dict(Conn,?SELECT_ALL_QUERY))) ].
 
 erbi_selectrow(Conn)->
-    [?_test(exhausted= ?debugVal(erbi_connection:selectrow_list(Conn,?SELECT_BIND))),
+    [?_test(exhausted= ?debugVal(erbi_connection:selectrow_list(Conn,?SELECT_BIND,[3]))),
      ?_test({ok,_}= ?debugVal(erbi_connection:selectrow_proplist(Conn,?SELECT_BIND,[3]))),
      ?_test({ok,_}= ?debugVal(erbi_connection:selectrow_dict(Conn,?SELECT_BIND,[3]))) ].
 
-%% create_table_fun(Conn)->
-    
-%%     do(Conn,?CREATE_TABLE,[]).
-
-%% delete_table_test()->
-%%      Conn=connect(),
-%%     ?debugVal(erbi_connection:do(Conn,?DELETE_TABLE)).
- 
-     
 
 connect()->
     element(2,erbi:connect( "erbi:epgsql:database=mydatabase", "postgres", "a8pr3Nuq" )).                       
