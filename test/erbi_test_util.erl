@@ -4,6 +4,7 @@
          equal_rows_list/2,equal_rows_list/3,
          equal_rows_proplist/2,equal_rows_proplist/3,
          equal_rows_dict/2,equal_rows_dict/3,
+         rows_equal_by/3,rows_equal_by/4,rows_equal_by/5,
          dicts_equal/2,proplists_equal/2,
          bitmap_sublist/2 ]).
 -include_lib("eunit/include/eunit.hrl").
@@ -34,18 +35,18 @@ dataset(Name) ->
             {error,Reason}
     end.
 
-equal_rows_list(Dataset,Results) when is_atom(Dataset) ->
+equal_rows_list(Dataset,Results) ->
     ?debugFmt("list dataset: ~n~p~n",[Results]),
     equal_rows_list(Dataset,Results,0).
 equal_rows_list(Dataset,Results,Limit) -> 
     rows_equal_by(Dataset,Results,Limit,fun(_,Rows) -> Rows end,fun(A,B) -> A =:= B end).
 
-equal_rows_proplist(Dataset,Results) when is_atom(Dataset) ->
+equal_rows_proplist(Dataset,Results)  ->
     equal_rows_proplist(Dataset,Results,0).
 equal_rows_proplist(Dataset,Results,Limit) -> 
     rows_equal_by(Dataset,Results,Limit,fun rows_to_proplists/2,fun proplists_equal/2).
 
-equal_rows_dict(Dataset,Results) when is_atom(Dataset) ->
+equal_rows_dict(Dataset,Results) ->
     equal_rows_dict(Dataset,Results,0).
 equal_rows_dict(Dataset,Results,Limit) -> 
     rows_equal_by(Dataset,Results,Limit,fun rows_to_dicts/2,fun dicts_equal/2).
@@ -57,14 +58,24 @@ apply_lim(List,0) ->
 apply_lim(List,Lim) ->
     lists:sublist(List,Lim).
 
-rows_equal_by(DatasetName,Results,Limit,DatasetToRows,RowComparator) ->
+rows_equal_by(DatasetName,Results,Limit,DatasetToRows,RowComparator) when is_atom(DatasetName) ->
     {Cols,Rows} = dataset(DatasetName),
-    %ColAtoms = lists:map(fun atom_to_list/1,Cols),
+    rows_equal_by({Cols,Rows},Results,Limit,DatasetToRows,RowComparator);
+rows_equal_by({Cols,Rows},Results,Limit,DatasetToRows,RowComparator) -> 
     Rows1 = apply_lim(Rows,Limit),
+    Dataset = DatasetToRows(Cols,Rows1),
+    rows_equal_by(Dataset,Results,Limit,DatasetToRows,RowComparator);
+rows_equal_by(Dataset,Results,Limit,_,RowComparator) when is_list(Dataset) ->
+    rows_equal_by(Dataset,Results,Limit,RowComparator).
+
+rows_equal_by(Expected,Results,RowComparator) ->    
+    rows_equal_by(Expected,Results,0,RowComparator).
+rows_equal_by(Expected,Results,Limit,RowComparator) ->
+    Expected1 = apply_lim(Expected,Limit),
     Results1 = apply_lim(Results,Limit),
-    Expected = DatasetToRows(Cols,Rows1),
     lists:all( fun(I) ->
-                       RowComparator( ?debugVal(lists:nth(I,Expected)), ?debugVal(lists:nth(I,Results1)) )
+                       RowComparator( ?debugVal(lists:nth(I,Expected1)), 
+                                      ?debugVal(lists:nth(I,Results1)) )
                end,
                lists:seq(1,length(Results1)) ).
                                         
