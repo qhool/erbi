@@ -4,7 +4,8 @@
          equal_rows_list/2,equal_rows_list/3,
          equal_rows_proplist/2,equal_rows_proplist/3,
          equal_rows_dict/2,equal_rows_dict/3,
-         dicts_equal/2,proplists_equal/2]).
+         dicts_equal/2,proplists_equal/2,
+         bitmap_sublist/2 ]).
 -include_lib("eunit/include/eunit.hrl").
 
 config() ->
@@ -100,3 +101,23 @@ get_base_dir() ->
           2,  lists:reverse(
                 filename:split(ThisFile)
                )))).
+
+bitmap_sublist(List,Map) when is_integer(Map) ->
+    bitmap_sublist(List,binary:encode_unsigned(Map));
+bitmap_sublist(List,Map) when is_binary(Map) ->
+    bitmap_sublist(List,bits_to_bools(Map,[]),[]).
+bitmap_sublist([],_,Acc) ->
+    lists:reverse(Acc);
+bitmap_sublist(_,[],Acc) ->
+    lists:reverse(Acc);
+bitmap_sublist([L|List],[true|Map],Acc) ->
+    bitmap_sublist(List,Map,[L|Acc]);
+bitmap_sublist([_|List],[false|Map],Acc) ->
+    bitmap_sublist(List,Map,Acc).
+
+bits_to_bools(<<>>,Acc) ->
+    Acc;
+bits_to_bools(<<1:1,B/bitstring>>,Acc) ->
+    bits_to_bools(B,[true|Acc]);
+bits_to_bools(<<0:1,B/bitstring>>,Acc) ->
+    bits_to_bools(B,[false|Acc]).

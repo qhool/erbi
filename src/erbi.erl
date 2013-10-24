@@ -186,6 +186,7 @@ normalize_properties(Module,Props) ->
     Expands = proplists:lookup_all(expand,PropInfo),
     Defaults = proplists:get_value(defaults,PropInfo,[]),
     Required = proplists:get_value(required,PropInfo,[]),
+    MakeUnique = proplists:get_value(unique,PropInfo,false),
     %processing phases:
     Props1 = proplists:substitute_aliases(Aliases,Props),
     case validate_properties( Module, Props1 ) of
@@ -208,7 +209,17 @@ normalize_properties(Module,Props) ->
                                       end
                               end, Required) of
                 [] -> %nothing missing
-                    lists:sort( proplists:compact(Props3++NeedDefaults) );
+                    Props4 = 
+                        case MakeUnique of
+                            true ->
+                                Keys = proplists:get_keys(Props3),
+                                lists:map( fun(K) ->
+                                                   proplists:lookup(K,Props3)
+                                           end, Keys );
+                            false ->
+                                Props3
+                        end,
+                    lists:sort( proplists:compact(Props4++NeedDefaults) );
                 Missing ->
                     {error,{invalid_datasource,{missing_properties,Missing}}}
             end

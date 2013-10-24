@@ -74,6 +74,13 @@ property_info() ->
                  {fetch,fallthrough},
                  {finish,fallthrough},
                  {default,success},
+                 %driver info flags:
+                 {preparse_support,false},
+                 {cursor_support,false},
+                 {transaction_support,false},
+                 {must_preparse,false},
+                 {must_bind,false},
+                 {multiple_bind,false},
                  %other behaviours:
                  % whether to return columns after prepare
                  {cols_on_prepare,false},
@@ -83,15 +90,27 @@ property_info() ->
                  % fetch_rows will return 2 rows when amount is 'all', 1 for 'one' when this is on
                  {simulate_fetch,true},
                  {queries,[{QR,[dummy],[[1]]}]}
-                ]
-     }].
+                ]},
+     {unique,true}
+    ].
 
 parse_args(_) ->
     declined.
 
+-define( CHKSUP(Sup), Sup = proplists:get_value(Sup,Props) ).
+
 connect( #erbi{ properties = Props }, _Username, _Password ) ->
+    Info = #erbi_driver_info
+        { driver = dummy,
+          ?CHKSUP(preparse_support),
+          ?CHKSUP(cursor_support),
+          ?CHKSUP(transaction_support),
+          ?CHKSUP(must_preparse),
+          ?CHKSUP(must_bind),
+          ?CHKSUP(multiple_bind)
+        },
     on_success( Props, connect,
-                #erbdrv{ status = ok, conn = Props } ).
+                #erbdrv{ status = ok, info = Info, conn = Props } ).
 
 disconnect( Props ) ->
     on_success( Props, disconnect, ok ).

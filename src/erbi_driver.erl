@@ -74,8 +74,9 @@
 %% This function should return a set of normalizations for the connect
 %% properties.  These are the same as the operations supported by 
 %% {@link proplists:normalize/2}, with the addition of: 'default',
-%% which should be a list of optional arguments, with default values; and
-%% 'required', a list of arguments which must be present.
+%% which should be a list of optional arguments, with default values;
+%% 'required', a list of arguments which must be present, and 'unique' which
+%% indicates that each property key should appear only once.
 %%
 %% A sample return value from property_info:
 %% <pre>
@@ -96,6 +97,9 @@
 %%  <li>If any property in 'required' is not found in the resulting list, an
 %%      error is returned.  N.B: this happens before defaults are added -- 
 %%      do not add properties to both required and defaults.</li>
+%%  <li>If the option 'unique' is present in property_info with a value of
+%%      'true', all but the first occurrence of each key is removed from 
+%%      the property list</li>
 %%  <li>Every property in 'defaults' which is not present in the property list
 %%      is added with the default value</li>
 %%  <li>The list is compacted (see proplists:compact) and sorted.</li>
@@ -515,8 +519,6 @@ set_cols( Tbl,StmtID,Cols ) ->
 
 add_rows( State, StmtID, [] ) ->
     add_rows(State,StmtID,undefined);
-add_rows( State, undefined, undefined ) ->
-    {reply,{ok,undefined,undefined},State};
 add_rows( State, undefined, undefined ) ->
     {reply,{ok,undefined,undefined},State};
 add_rows( #connect_state{statements=Tbl}=State,StmtID, undefined ) ->
