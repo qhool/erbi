@@ -56,13 +56,15 @@ driver_info()->
 
 -spec validate_property( atom(), any() ) ->
     ok | {ok,[property()]} | {error,any()}.
+validate_property(port,Port)->
+     {ok,[{port,list_to_integer(Port)}]};
 validate_property( _,_ ) ->
     ok.
 
 -spec property_info() -> [{atom(),any()}].
 property_info()->
-    [{aliases, [{db,database},{dbname,database},{hostaddr,host},{sslmode,ssl}]},
-     {defaults,[{host,"localhost"}]},
+    [{aliases, [{db,database},{dbname,database},{hostaddr,host},{hostname,host},{sslmode,ssl}]},
+     {defaults,[{host,"localhost"},{port,5432}]},
      {required,[database]}
      ].
 
@@ -147,7 +149,7 @@ bind_params(Connection,Statement,Params) when is_record(Statement,statement)->
                    Statement :: erbdrv_statement() | string(),
                    Params :: erbi_bind_values() ) ->
     erbdrv_return().
-execute(Connection,Statement,Params)  when is_record(Statement,statement)->
+execute(Connection,Statement,_Params)  when is_record(Statement,statement)->
     erbdrv_cols_rows_response(pgsql:execute(Connection,Statement,"", ?MIN_FETCH),Statement).
 
 -spec fetch_rows( Connection :: erbdrv_connection(),
@@ -188,13 +190,13 @@ erbdrv_cols_response(undefined)->
 erbdrv_cols_response(ColumnsList)->
     lists:map(fun epgsql_column_to_erbdrv_field/1, ColumnsList).
 
-erbdrv_rows_response({ok,[]}, Columns)->
+erbdrv_rows_response({ok,[]}, _Columns)->
     final;
 erbdrv_rows_response({Atom,Rows}, Columns)->
     is_final(Atom,lists:map(fun(Row) ->
                                     erbdrv_row_response(Row,Columns)
                                         end,Rows)).
-erbdrv_row_response([], Columns)->
+erbdrv_row_response([], _Columns)->
     [];
 erbdrv_row_response(Row, Columns)->
     Zipped=lists:zip(tuple_to_list(Row),Columns),
@@ -333,19 +335,7 @@ epgsql_column_to_erbdrv_field(Column)->
          length = 1, %%Column#column.size, sometimes < 0?
          precision = 1 %% Get precision by type?
          }.
-  
-
-
-is_drop_table(Query)->
-    matches_drop_table(string:to_upper(Query)).
-        
-matches_drop_table([$D,$R,$O,$P,$ ,$T,$A,$B,$L,$E|_])->
-    true;
-matches_drop_table(_) ->
-    false.
-      
-
-
+ 
 
        
 
