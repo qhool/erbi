@@ -150,7 +150,7 @@ bind_query(Connection,Statement,Params)->
     erbdrv_return().
 
 execute(Connection,{squery,SQuery},Params)->
-    erbdrv_response(pgsql:squery(Connection,SQuery));
+    erbdrv_squery_response(pgsql:squery(Connection,SQuery));
 execute(Connection,Statement,Params)  when is_record(Statement,statement)->
     erbdrv_cols_rows_response(pgsql:execute(Connection,Statement,"", ?MIN_FETCH),Statement);
 execute(Connection,{not_bind,Statement},Params)  when is_record(Statement,statement)->
@@ -179,17 +179,18 @@ fetch_rows_number(Connection,Statement, Amount) when is_integer(Amount), is_reco
     erbdrv_return().
 finish(Connection,{not_bind,Statement}) ->
     finish(Connection,Statement);
-finish(Connection,Statement) ->
+finish(Connection,Statement) when is_record(Statement,statement)->
     pgsql:sync(Connection),
-    erbdrv_response(pgsql:close(Connection,Statement)).
+    erbdrv_response(pgsql:close(Connection,Statement));
+finish(Connection,_) ->
+    erbdrv_response(pgsql:sync(Connection)).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Create Responses Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 erbdrv_cols_rows_response({Atom,Rows},Statement) when is_list(Rows) andalso (Atom=:= ok orelse Atom=:= partial) ->
-    erbdrv_data_response(length(Rows),{erbdrv_cols_response(Statement#statement.columns),erbdrv_rows_response({Atom,Rows},Statement#statement.columns)});
+    erbdrv_data_response(0,{erbdrv_cols_response(Statement#statement.columns),erbdrv_rows_response({partial,[]},Statement#statement.columns)});
 erbdrv_cols_rows_response(Response,_) ->
     erbdrv_response(Response).
 
@@ -201,7 +202,7 @@ erbdrv_cols_response(undefined)->
 erbdrv_cols_response(ColumnsList)->
     lists:map(fun epgsql_column_to_erbdrv_field/1, ColumnsList).
 
-erbdrv_rows_response({Atom,[]}, Columns)->
+erbdrv_rows_response({ok,[]}, Columns)->
     final;
 erbdrv_rows_response({Atom,Rows}, Columns)->
     is_final(Atom,lists:map(fun(Row) ->
@@ -233,6 +234,11 @@ erbdrv_response({ok,Count}) when is_integer(Count) ->
     erbdrv_count_response(Count);
 erbdrv_response({error,Reason}) ->
     erbdrv_error_response(Reason).
+
+erbdrv_squery_response({ok,[],[]})->
+    erbdrv_response(ok,same,same,unknown,[]);
+erbdrv_squery_response(Sth) ->
+ erbdrv_response(Sth).
 
 erbdrv_count_response(Count)->
     erbdrv_response(ok,same,same,Count,[]).
