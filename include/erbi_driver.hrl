@@ -23,7 +23,7 @@
 -type erbdrv_connection() :: any().
 -type erbdrv_statement() :: any().
 
--type erbdrv_general_error() :: timeout | unauthorized.
+-type erbdrv_general_error() :: timeout | unauthorized | unmapped_error.
 
 -type erbdrv_connection_error() :: invalid_datasource |
                                    unknown_host | 
