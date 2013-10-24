@@ -155,10 +155,10 @@ erbi_selectall(Conn,DataConfig)->
 
              [?_assert(equal_data_list(Data,ResList)), 
               ?_assert(equal_data_proplist(Data,ResProp,Fields)),
-                                                %?_assert(equal_data_dict(Data,ResDict,Fields)),
+              ?_assert(equal_data_dict(Data,ResDict,Fields)),
               ?_assert(equal_data_list(Data,ResList2)), 
-              ?_assert(equal_data_proplist(Data,ResProp2,Fields))
-                                                %?_assert(equal_data_dict(Data,ResDict2,Fields))
+              ?_assert(equal_data_proplist(Data,ResProp2,Fields)),
+              ?_assert(equal_data_dict(Data,ResDict2,Fields))
              ]
      end
     }.
@@ -192,7 +192,7 @@ erbi_selectrow(Conn,DataConfig)->
              [
               ?_assert(equal_data_list([lists:nth(BValue,Data)],[RowList])), 
               ?_assert(equal_data_proplist([lists:nth(BValue,Data)],[RowProp],Fields)),
-                                                %?_assert(equal_data_dict([lists:nth(BValue,Data)],[RowDict],Fields)),
+              ?_assert(equal_data_dict([lists:nth(BValue,Data)],[RowDict],Fields)),
               ?_assertEqual(exhausted , ?debugVal(erbi_connection:selectrow_list(Conn,SelectBind,[BValue+3]))),
               ?_assertEqual(exhausted , ?debugVal(erbi_connection:selectrow_proplist(Conn,SelectBind,[BValue+3]))),
               ?_assertEqual(exhausted , ?debugVal(erbi_connection:selectrow_dict(Conn,SelectBind,[BValue+3]))) 
@@ -235,7 +235,7 @@ create_proplist(Data,Fields)->
 
 equal_data_dict(Data,Res,Fields)->
     DataDict=?debugVal(create_dict(Data,Fields)),
-    erbi_test_util:dicts_equal(DataDict,Res).
+    erbi_test_util:equal_rows_dict(DataDict,Res).
 
 create_dict(Data,Fields) ->
     lists:map( fun(Row) ->
