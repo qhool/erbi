@@ -176,12 +176,12 @@ finish(Connection,_) ->
 %% Create Responses Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 erbdrv_cols_rows_response({Atom,Rows},Statement) when is_list(Rows) andalso (Atom=:= ok orelse Atom=:= partial) ->
-    erbdrv_data_response(0,{erbdrv_cols_response(Statement#statement.columns),erbdrv_rows_response({Atom,Rows},Statement#statement.columns)});
+    erbdrv_data_response(unknown,{erbdrv_cols_response(Statement#statement.columns),erbdrv_rows_response({Atom,Rows},Statement#statement.columns)});
 erbdrv_cols_rows_response(Response,_) ->
     erbdrv_response(Response).
 
 erbdrv_only_rows_response({Atom,Rows}, Columns)->
-    erbdrv_data_response(length(Rows),erbdrv_rows_response({Atom,Rows}, Columns)).
+    erbdrv_data_response(unknown,erbdrv_rows_response({Atom,Rows}, Columns)).
 
 erbdrv_cols_response(undefined)->
     [];
@@ -227,8 +227,8 @@ erbdrv_squery_response(Sth) ->
 erbdrv_count_response(Count)->
     erbdrv_response(ok,same,same,Count,[]).
 
-erbdrv_data_response(Count,Rows)->    
-    erbdrv_response(ok,same,same,Count,Rows).
+erbdrv_data_response(_Count,Rows)->    
+    erbdrv_response(ok,same,same,unknown,Rows).
 
 erbdrv_statement_response(Statement)->
     #erbdrv
@@ -237,11 +237,12 @@ erbdrv_statement_response(Statement)->
          stmt=Statement,
         data=erbdrv_cols_response(Statement#statement.columns)}.
 
-erbdrv_response(Status,Connection,Statement,_Rows,Data)->
+erbdrv_response(Status,Connection,Statement,Rows,Data)->
     #erbdrv
         { status = Status,
           conn = Connection,
           stmt = Statement,
+          rows= Rows,
           data = Data }.
         
 erbdrv_simple_ok_response()->

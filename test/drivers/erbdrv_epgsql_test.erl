@@ -51,18 +51,18 @@ erbi_transaction(Conn)->
    [
     ?_assertEqual({ok,[]}, ?debugVal(erbi_connection:selectall_list(Conn,?SELECT_ALL_QUERY))), 
     ?_assertEqual(ok , ?debugVal(erbi_connection:begin_work(Conn))),
-    ?_assertEqual({ok,unknown},  ?debugVal(insert_data(Conn,?INSERT,?DATA1))),
+    ?_assertEqual({ok,1},  ?debugVal(insert_data(Conn,?INSERT,?DATA1))),
     ?_assertEqual({ok,[?DATA1]}, ?debugVal(erbi_connection:selectall_list(Conn,?SELECT_ALL_QUERY))),
     
     ?_assertEqual(ok , ?debugVal(erbi_connection:rollback(Conn))),
     ?_assertEqual({ok,[]}, ?debugVal(erbi_connection:selectall_list(Conn,?SELECT_ALL_QUERY))),
 
     ?_assertEqual(ok , ?debugVal(erbi_connection:begin_work(Conn))),
-    ?_assertEqual({ok,unknown},  ?debugVal(insert_data(Conn,?INSERT,?DATA1))),
+    ?_assertEqual({ok,1},  ?debugVal(insert_data(Conn,?INSERT,?DATA1))),
     ?_assertEqual({ok,[?DATA1]}, ?debugVal(erbi_connection:selectall_list(Conn,?SELECT_ALL_QUERY))),
      
     ?_assertEqual(ok , ?debugVal(erbi_connection:begin_work(Conn,"savepoint"))),
-    ?_assertEqual({ok,unknown},  ?debugVal(insert_data(Conn,?INSERT,?DATA2))),
+    ?_assertEqual({ok,1},  ?debugVal(insert_data(Conn,?INSERT,?DATA2))),
     ?_assertEqual({ok,[?DATA1,?DATA2]}, ?debugVal(erbi_connection:selectall_list(Conn,?SELECT_ALL_QUERY))),
 
     ?_assertEqual({ok,[]},?debugVal(erbi_connection:selectall_list(OutsideTransConnect,?SELECT_ALL_QUERY))), 
@@ -74,7 +74,7 @@ erbi_transaction(Conn)->
     ?_assertEqual({ok,[]}, ?debugVal(erbi_connection:selectall_list(Conn,?SELECT_ALL_QUERY))),
 
     ?_assertEqual(ok , ?debugVal(erbi_connection:begin_work(Conn))),
-    ?_assertEqual({ok,unknown},  ?debugVal(insert_data(Conn,?INSERT,?DATA2))),
+    ?_assertEqual({ok,1},  ?debugVal(insert_data(Conn,?INSERT,?DATA2))),
     
     ?_assertEqual(ok , ?debugVal(erbi_connection:commit(Conn))),
 
@@ -95,9 +95,14 @@ erbi_selectall(Conn)->
      ?_test({ok,_}= ?debugVal(erbi_connection:selectall_dict(Conn,?SELECT_ALL_QUERY))) ].
 
 erbi_selectrow(Conn)->
-    [?_test(exhausted= ?debugVal(erbi_connection:selectrow_list(Conn,?SELECT_BIND,[3]))),
+    [?_test({ok,_}= ?debugVal(erbi_connection:selectrow_list(Conn,?SELECT_BIND,[3]))),
      ?_test({ok,_}= ?debugVal(erbi_connection:selectrow_proplist(Conn,?SELECT_BIND,[3]))),
-     ?_test({ok,_}= ?debugVal(erbi_connection:selectrow_dict(Conn,?SELECT_BIND,[3]))) ].
+     ?_test({ok,_}= ?debugVal(erbi_connection:selectrow_dict(Conn,?SELECT_BIND,[3]))) ,
+     ?_test(exhausted = ?debugVal(erbi_connection:selectrow_list(Conn,?SELECT_BIND,[8]))),
+     ?_test(exhausted = ?debugVal(erbi_connection:selectrow_proplist(Conn,?SELECT_BIND,[8]))),
+     ?_test(exhaysted = ?debugVal(erbi_connection:selectrow_dict(Conn,?SELECT_BIND,[8]))) ,
+
+    ].
 
 
 connect()->
