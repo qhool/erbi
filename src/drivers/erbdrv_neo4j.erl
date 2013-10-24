@@ -147,7 +147,7 @@ commit( #neocon{type=cypher} ) ->
 commit( #neocon{trans=undefined} ) ->
     #erbdrv{ status = error, data = no_open_transaction };
 commit( #neocon{trans=Trans}=C ) ->
-    do_req(post,Trans ++ "/commit",[200],[{statements,[]}],
+    do_req(post,C,Trans ++ "/commit",[200],[{statements,[]}],
            fun(_S,_H,_B) ->
                    #erbdrv{ status = ok, conn = C#neocon{trans=undefined} }
            end).
@@ -163,9 +163,9 @@ bind_params( _C , _S, _P ) ->
     declined.
 
 %% since prepare isn't supported, we should always get the raw query and a list of params
-execute( #neocon{type=cypher, url=Url}, Query, Params ) ->
+execute( #neocon{type=cypher, url=Url}=C, Query, Params ) ->
     Q = format_query({'query',Query},{params,Params}),
-    do_req(post,Url,[200],Q,
+    do_req(post,C,Url,[200],Q,
            fun(_S,_H,Body) ->
                    Cols = proplists:get_value(<<"columns">>,Body,[]),
                    Rows = proplists:get_value(<<"data">>,Body,[]),
@@ -180,7 +180,7 @@ execute( #neocon{type=cypher, url=Url}, Query, Params ) ->
                               end,
                    #erbdrv{status=ok,rows=RowCount,data={Cols,Rows}}
            end);
-execute( #neocon{trans = Trans, url=Url}, Query, Params ) ->
+execute( #neocon{trans = Trans, url=Url}=C, Query, Params ) ->
     ToUrl = 
         case Trans of
             undefined ->
@@ -189,7 +189,7 @@ execute( #neocon{trans = Trans, url=Url}, Query, Params ) ->
                 Trans
         end,
     Q = format_query({statement,Query},{parameters,Params}),
-    do_req(post,ToUrl,[200],[{statements,[Q]}],
+    do_req(post,C,ToUrl,[200],[{statements,[Q]}],
            fun(_S,_H,Body) ->
                    % Results = 
                    case proplists:get_value(<<"errors">>,Body) of
@@ -235,30 +235,75 @@ format_query({QAtom,Query},{PAtom,Params}) ->
     Q++QParams.
 
 
-do_req(Method,#neocon{trans=undefined,url=Url},Statuses,Body,Func) ->
-    do_req(Method,Url,Statuses,Body,Func);
-do_req(Method,#neocon{trans=Trans},Statuses,Body,Func) ->
-    do_req(Method,Trans,Statuses,Body,Func);
-do_req(Method,Url,Statuses,ReqBody,Func) ->
-    %io:format(user,"~n~n~n~n------~nURL: ~p~n------~nreqbody: ~p~n",[Url,ReqBody]),
-    case restc:request(Method,json,Url,Statuses,[],ReqBody) of
-        {error, Status, _H, B } when Status == 400 ->
-            %io:format(user,"400Status: ~n~p~n",[B]),
-            ErrMsg = proplists:get_value(<<"message">>,B),
-            #erbdrv{ status = error, data = { cypher_error, ErrMsg } };
-        {error, Status, H, B } -> 
-            %io:format(user,"got error status (~p): ~n~p~n~n",[Status,B]),
-            #erbdrv{ status = error, data = { unexpected_status, {Status,H,B} } };
-        { error, Reason } -> 
-            %io:format(user,"{error,~p}~n",[Reason]),
-            #erbdrv{ status = error, data = { rest_error, Reason } };
-        { ok, Status, Headers, Body } -> 
-            %io:format(user,"got body:~n~p~n",[Body]),
-            Func(Status,Headers,Body);
-        Other ->
-            %io:format(user, "Other: ~n~p~n",[Other]),
-            {error,Other}
-    end.  
-              
+do_req(Method,#neocon{trans=undefined,url=Url}=Conn,Statuses,Body,Func) ->
+    do_req(Method,Conn,Url,Statuses,Body,Func);
+do_req(Method,#neocon{trans=Trans}=Conn,Statuses,Body,Func) ->
+    do_req(Method,Conn,Trans,Statuses,Body,Func).
 
-                
+do_req(Method,Conn,Url,Statuses,ReqBody,Func) ->
+    %io:format(user,"~n~n~n~n------~nURL: ~p~n------~nreqbody: ~p~n",[Url,ReqBody]),
+    rest_response(Conn,Func,restc:request(Method,json,Url,Statuses,[],ReqBody)).
+         
+rest_response(#neocon{type=Type},Func,RestStat) ->
+    rest_response(Type,Func,RestStat);
+rest_response(_,Func,{_,Stat,Headers,Body}) when (Stat >= 200) and (Stat < 300) ->
+    case proplists:get_value(<<"errors">>,Body) of
+        X when X =:= [] ; X =:= undefined ->
+            Func(200,Headers,Body);
+        [Error|_] ->
+            Code = proplists:get_value(<<"code">>,Error),
+            Status = proplists:get_value(<<"status">>,Error),
+            Message = proplists:get_value(<<"message">>,Error),
+            ErbiError = 
+                case Code of
+                    42000 -> execution_error;
+                    42001 -> syntax_error;
+                    42002 -> missing_parameter;
+                    _ -> unmapped_error
+                end,
+            #erbdrv{status=error,data={ErbiError,{Code,Status,Message}}}
+    end;
+rest_response(_,_Func,{_, 400, _H, Body}) ->  
+    ExcpName = proplists:get_value(<<"exception">>,Body),
+    FullName = proplists:get_value(<<"fullname">>,Body,ExcpName),
+    Message = proplists:get_value(<<"message">>,Body),
+    ErbiError =
+        case ExcpName of
+            <<"SyntaxException">> ->
+                syntax_error;
+            <<"ParameterNotFoundException">> ->
+                missing_parameter;
+            <<"EntityNotFoundException">> ->
+                unknown_object;
+            _ -> unmapped_error
+        end,
+    #erbdrv{ status = error, data = {ErbiError, {FullName,Message}} };
+rest_response(_,_,{_, 401, H,_}) -> 
+    header_error(unauthorized,<<"www-authenticate">>,H);
+rest_response(_,_,{_, 407, H,_}) ->
+    header_error(unauthorized,<<"proxy-authenticate">>,H);
+rest_response(_,_,{_, 403, H,_}) ->
+    header_error(unauthorized,H);
+rest_response(_,_,{_, 408, H,_}) ->
+    header_error(timeout,none,H);
+rest_response(_,_,{_, Stat, H, _}) when (Stat >= 300) and (Stat < 500) ->
+    header_error(communication_error,H);
+rest_response(_,_,{_, Stat, H, _}) when (Stat >= 300) and (Stat < 500) ->
+    header_error(communication_error,H);
+rest_response(_,_,{_, Stat, H, _}) when (Stat >= 500) ->
+    header_error(server_error,H);
+rest_response(_,_,{error,Reason}) ->
+    #erbdrv{ status = error, data = {unmapped_error,Reason} }.
+
+header_error( Code, Headers ) ->
+    header_error( Code, <<"status">>, Headers ).
+header_error( Code, HeaderName, Headers ) ->
+    header_error( Code, HeaderName, Headers, undefined ).
+header_error( Code, HeaderName, Headers, Default ) ->
+    Data = case proplists:get_value(HeaderName,Headers,Default) of
+               undefined ->
+                   Code;
+               Val ->
+                   {Code,Val}
+           end,
+    #erbdrv{ status = error, data = Data }.

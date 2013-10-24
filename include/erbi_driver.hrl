@@ -23,7 +23,7 @@
 -type erbdrv_connection() :: any().
 -type erbdrv_statement() :: any().
 
--type erbdrv_general_error() :: timeout | unauthorized | unmapped_error.
+-type erbdrv_general_error() :: timeout | unauthorized | server_error | unmapped_error.
 
 -type erbdrv_connection_error() :: invalid_datasource |
                                    unknown_host | 
@@ -33,6 +33,8 @@
                                    connection_lost.
                                    
 -type erbdrv_statement_error() :: syntax_error |
+                                  unknown_object |
+                                  execution_error |
                                   unknown_table |
                                   unknown_column |
                                   unknown_object.

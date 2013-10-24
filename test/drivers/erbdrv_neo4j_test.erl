@@ -57,7 +57,8 @@ main_test_() ->
                           fun({_,_,Conn,_}) ->
                                   erbi_connection:disconnect(Conn)
                           end,
-                          [ fun mktests_read_only/1 ]
+                          [ fun mktests_read_only/1,
+                            fun mktests_errors/1 ]
                           ++ case DoCommitted of
                                  true ->
                                      [fun mktests_non_transactional/1];
@@ -93,6 +94,26 @@ mktests_read_only({_Config,_Type,Conn,_DS}) ->
                                   ?assert( (Res =:= exhausted) orelse (Res =:= {ok,[N]}) )
                           end, lists:seq(0,2))
         end  }
+    ].
+mktests_errors({_Config,Type,Conn,_DS}) ->
+    TypeStr = " (" ++ atom_to_list(Type) ++ ")",
+    [ { "syntax err" ++ TypeStr,
+        ?_test( {error,{syntax_error,_}} =
+                    ?debugVal(erbi_connection:do(Conn,"create (n:foo {")) )
+      },
+      { "missing param" ++ TypeStr,
+        ?_test( {error,{missing_parameter,_}} = 
+                    ?debugVal(erbi_connection:selectrow_list(
+                                Conn,"start n=node(*) where id(n)={x} return n",[]))
+              )
+      },
+      { "negone node" ++ TypeStr,
+        fun() ->
+                {error,{Err,_}} = ?debugVal(erbi_connection:selectrow_list(
+                                Conn,"start n=node(-1) return n")),
+                ?assert( (Err =:= unknown_object) or (Err =:= execution_error) )
+        end
+      }
     ].
                                 
 mktests_non_transactional({Config,Type,Conn,_DS}) ->
@@ -194,6 +215,8 @@ basic_crud(Type,{_Config,Conn,TestKey}) ->
                            [{key,TestKey}]) ) )
       }
     ].
+
+
 
 gen_test_key() ->
     random:seed(now()),
