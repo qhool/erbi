@@ -53,7 +53,7 @@
 -record(erbdrv_field,
         { name              :: string(),
           type              :: atom(),
-          length            :: non_neg_integer(),
+          length            :: non_neg_integer() | unlimited,
           precision         :: non_neg_integer()
         }).
 

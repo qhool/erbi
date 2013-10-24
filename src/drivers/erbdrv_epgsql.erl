@@ -332,11 +332,14 @@ epgsql_column_to_erbdrv_field(Column)->
     #erbdrv_field
         {name = binary_to_list(Column#column.name),
          type = Column#column.type,
-         length = 1, %%Column#column.size, sometimes < 0?
+         length = get_size(Column#column.size),
          precision = 1 %% Get precision by type?
          }.
  
-
+get_size(N) when N < 0 ->
+    unlimited;
+get_size(N) ->
+    N.
        
 
             
