@@ -53,7 +53,7 @@ all_test_()->
                             erbi_transaction(Conn,Config,DataConfig),
                             erbi_selectall(Conn,DataConfig),
                             erbi_selectrow(Conn,DataConfig), 
-                            get_some_errors(Conn,DataConfig),
+                            get_some_errors(Conn,Config,DataConfig),
                             delete_table(Conn,DataConfig),
                             disconnect_epgsql(Conn)
                            ])
@@ -201,23 +201,27 @@ erbi_selectrow(Conn,DataConfig)->
      end
     }.
 
-get_some_errors(Conn,DataConfig)->
+get_some_errors(Conn,Config,DataConfig)->
     {setup,
      fun()->
              SelectBind=proplists:get_value(select_one_bind,DataConfig),
-             {Conn,SelectBind}
+             SelectMany=proplists:get_value(select_all,DataConfig),
+             TmpConn=connect(Config),
+             disconnect_epgsql(TmpConn),
+             {Conn,SelectBind,SelectMany,TmpConn}
      end,
-     fun({Conn,SelectBind})->
+     fun({Conn,SelectBind,SelectMany,TmpConn})->
            [?_test({error,{missing_parameter,_}}= ?debugVal(erbi_connection:selectrow_list(Conn,SelectBind,[]))),
             ?_test({error,{syntax_error,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values 1 ,2"))),
-            ?_test({error,{unknown_table,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values (1 ,2)")))
-                          
-                          
-            ]
-                 end
-}.
-     
+            ?_test({error,{unknown_table,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values (1 ,2)"))),
 
+            
+            ?_test({ok,[]}=?debugVal(erbi_connection:selectall_list(TmpConn,SelectMany))) %this should crash/return error              
+                          
+          ]
+      end
+     }.
+     
 
 disconnect_epgsql(Conn)->
     ?_assertEqual(ok, ?debugVal(erbi_connection:disconnect(Conn))).
