@@ -112,7 +112,7 @@ savepoint(Connection,Savepoint,{ok,[],[]})->
 -spec rollback( Connection :: erbdrv_connection() ) -> 
     erbdrv_return().
 rollback(Connection)->
-   erbdrv_response( pgsql:squery(Connection, "ROLLBACK")).
+   erbdrv_response(pgsql:squery(Connection, "ROLLBACK")).
 
 -spec rollback( Connection :: erbdrv_connection(),
                     Savepoint :: atom | string() ) ->  
@@ -125,7 +125,7 @@ rollback(Connection,Savepoint) when is_atom(Savepoint) ->
 -spec commit( Connection :: erbdrv_connection() ) ->
     erbdrv_return().
 commit(Connection)->
-    erbdrv_response(catch pgsql:squery(Connection,"END")).
+    erbdrv_response(pgsql:squery(Connection,"END")).
     
 -spec do( Connection :: erbdrv_connection(),
               Query :: string(),
@@ -227,6 +227,8 @@ erbdrv_response({ok,Statement}) when is_record(Statement,statement)->
     erbdrv_statement_response(Statement);
 erbdrv_response({ok,Count}) when is_integer(Count) ->
     erbdrv_count_response(Count);
+erbdrv_response({'EXIT',Reason}) ->
+    erbdrv_error_response(Reason);
 erbdrv_response({error,Reason}) ->
     erbdrv_error_response(Reason).
 
