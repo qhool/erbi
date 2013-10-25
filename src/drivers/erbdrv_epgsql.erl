@@ -143,7 +143,16 @@ prepare(Connection,Query) when is_list(Query)->
                        Params :: erbi_bind_values() ) ->
     erbdrv_return().
 bind_params(Connection,Statement,Params) when is_record(Statement,statement)->
-    erbdrv_response(pgsql:bind(Connection,Statement,"",erbi_bind_values_to_epgsql(Params))).
+    erbdrv_response(check_bindable_statement(Connection,Statement,Params)).
+
+check_bindable_statement(_Connection,#statement{types=Types},Params)
+  when length(Types)=/=length(Params)->
+    {error,{missing_parameter,Types}};
+check_bindable_statement(Connection,Statement,Params)->
+    bind_params_query(Connection,Statement,Params).
+
+bind_params_query(Connection,Statement,Params)->
+   pgsql:bind(Connection,Statement,"",erbi_bind_values_to_epgsql(Params)). 
 
 -spec execute( Connection :: erbdrv_connection(),
                    Statement :: erbdrv_statement() | string(),
@@ -279,6 +288,8 @@ epgsql_error_to_erbdrv_error({{badmatch,{error,econnrefused}},_}=Error) ->
     {connection_refused,Error};
 epgsql_error_to_erbdrv_error({{badmatch,{error,nxdomain}},_}=Error) ->
     {unknown_host,Error};
+epgsql_error_to_erbdrv_error({missing_parameter,_}=Err) ->
+    Err;
 epgsql_error_to_erbdrv_error(Error) ->
     {invalid_datasource,Error}.
 
@@ -290,6 +301,8 @@ epgsql_code_to_erbdrv_error_code("42703") ->
     unknown_column;
 epgsql_code_to_erbdrv_error_code("42704") ->
     unknown_object;
+epgsql_code_to_erbdrv_error_code("42601") ->
+    syntax_error;
 epgsql_code_to_erbdrv_error_code("53000") ->
     insufficient_resources;
 epgsql_code_to_erbdrv_error_code(_) ->

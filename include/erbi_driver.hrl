@@ -33,6 +33,7 @@
                                    connection_lost.
                                    
 -type erbdrv_statement_error() :: syntax_error |
+                                  missing_parameter |
                                   unknown_object |
                                   execution_error |
                                   unknown_table |

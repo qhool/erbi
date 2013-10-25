@@ -53,7 +53,7 @@ all_test_()->
                             erbi_transaction(Conn,Config,DataConfig),
                             erbi_selectall(Conn,DataConfig),
                             erbi_selectrow(Conn,DataConfig), 
-
+                            get_some_errors(Conn,DataConfig),
                             delete_table(Conn,DataConfig),
                             disconnect_epgsql(Conn)
                            ])
@@ -200,6 +200,24 @@ erbi_selectrow(Conn,DataConfig)->
              ]
      end
     }.
+
+get_some_errors(Conn,DataConfig)->
+    {setup,
+     fun()->
+             SelectBind=proplists:get_value(select_one_bind,DataConfig),
+             {Conn,SelectBind}
+     end,
+     fun({Conn,SelectBind})->
+           [?_test({error,{missing_parameter,_}}= ?debugVal(erbi_connection:selectrow_list(Conn,SelectBind,[]))),
+            ?_test({error,{syntax_error,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values 1 ,2"))),
+            ?_test({error,{unknown_table,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values (1 ,2)")))
+                          
+                          
+            ]
+                 end
+}.
+     
+
 
 disconnect_epgsql(Conn)->
     ?_assertEqual(ok, ?debugVal(erbi_connection:disconnect(Conn))).
