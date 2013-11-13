@@ -191,6 +191,10 @@ erbdrv_cols_rows_response({Atom,Rows},Statement) when is_list(Rows) andalso (Ato
 erbdrv_cols_rows_response(Response,_) ->
     erbdrv_response(Response).
 
+erbdrv_only_rows_response({error,_Reason}=Response, _Columns)->
+     erbdrv_response(Response);
+erbdrv_only_rows_response({Atom,Count}, Columns) when is_integer(Count)->
+    erbdrv_data_response(Count,erbdrv_rows_response({Atom,[]}, Columns));
 erbdrv_only_rows_response({Atom,Rows}, Columns)->
     erbdrv_data_response(unknown,erbdrv_rows_response({Atom,Rows}, Columns));
 erbdrv_only_rows_response({Atom,Count,Rows},Columns) ->
