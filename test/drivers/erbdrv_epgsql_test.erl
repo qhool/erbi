@@ -55,6 +55,7 @@ all_test_()->
                             erbi_selectrow(Conn,DataConfig), 
                             get_some_errors(Conn,Config,DataConfig),
                             delete_table(Conn,DataConfig),
+                            timestamp_test(Conn),
                             disconnect_epgsql(Conn)
                            ])
      end
@@ -268,3 +269,10 @@ generate_rows(N,Data)->
                       [Index|Data]
               end, lists:seq(1,N)).
 
+
+timestamp_test(Conn)->
+    ?_assertEqual({ok,unknown},?debugVal(erbi_connection:do(Conn,"CREATE TABLE tiempo_test (Id int, tiempo timestamp )"))),
+     ?_assertEqual({ok,1}, ?debugVal(erbi_connection:do(Conn,"insert into tiempo_test (Id,tiempo) values ($1, $2)",[1,calendar:now_to_datetime(os:timestamp())]))). 
+
+    
+    

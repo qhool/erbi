@@ -316,7 +316,7 @@ erbi_bind_values_to_epgsql(Params)->
 
 erbi_bind_value_to_epgsql({Type,Value}) when is_atom(Type)->
     erbi_type_to_epgsql(Type,Value);
-erbi_bind_value_to_epgsql({_,Value}) ->
+erbi_bind_value_to_epgsql({Type,Value}) when is_list(Type) ->
     erbi_value_to_epgsql(Value);
 erbi_bind_value_to_epgsql({_Id,Type,Value}) ->
     erbi_type_to_epgsql(Type,Value);
