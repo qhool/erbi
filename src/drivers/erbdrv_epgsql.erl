@@ -192,7 +192,9 @@ erbdrv_cols_rows_response(Response,_) ->
     erbdrv_response(Response).
 
 erbdrv_only_rows_response({Atom,Rows}, Columns)->
-    erbdrv_data_response(unknown,erbdrv_rows_response({Atom,Rows}, Columns)).
+    erbdrv_data_response(unknown,erbdrv_rows_response({Atom,Rows}, Columns));
+erbdrv_only_rows_response({Atom,Count,Rows},Columns) ->
+    erbdrv_data_response(Count,erbdrv_rows_response({Atom,Rows}, Columns)).
 
 erbdrv_cols_response(undefined)->
     [];
