@@ -4,6 +4,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("erbi.hrl").
 
+
 connection_properties_test_()->
    
     [?_assertEqual( #erbi{driver=epgsql,
@@ -141,7 +142,7 @@ erbi_selectall(Conn,DataConfig)->
              DeleteAll=proplists:get_value(delete_all,DataConfig),
              {Data,Fields,SelectAll,SelectMany,SelectManyValue,DeleteAll}
      end,
-     fun({_Data,Fields,_SelectAll,_SelectMany,_SelectManyValue,DeleteAll})->
+     fun({_Data,_Fields,_SelectAll,_SelectMany,_SelectManyValue,DeleteAll})->
              erbi_connection:do(Conn,DeleteAll)
      end,
      fun({Data,Fields,SelectAll,SelectMany,SelectManyValue,_DeleteAll})->
@@ -170,20 +171,19 @@ erbi_selectrow(Conn,DataConfig)->
     {setup,
      fun()->
              SelectBind=proplists:get_value(select_one_bind,DataConfig),
-             SelectOne=proplists:get_value(select_one,DataConfig),
-             SelectOneBindValue=proplists:get_value(select_many_bind_value,DataConfig),
+            
              N=proplists:get_value(number_of_rows,DataConfig),
              Data=?debugVal(generate_rows(N,proplists:get_value(data,DataConfig))),
              Fields=proplists:get_value(fields,DataConfig),
              Insert=proplists:get_value(insert,DataConfig),
              populate_db(Conn,Insert,Data),
              DeleteAll=proplists:get_value(delete_all,DataConfig),
-             {Data,Fields,SelectBind,SelectOne,N,DeleteAll}
+             {Data,Fields,SelectBind,N,DeleteAll}
      end,
-     fun({_Data,Fields,_SelectAll,_SelectMany,_SelectOneBindValue,DeleteAll})->
+     fun({_Data,_Fields,_SelectBind,_SelectOneBindValue,DeleteAll})->
              erbi_connection:do(Conn,DeleteAll)
      end,
-     fun({Data,Fields,SelectBind,SelectOne,BValue,_DeleteAll})->
+     fun({Data,Fields,SelectBind,BValue,_DeleteAll})->
 
              {ok,RowList}= ?debugVal(erbi_connection:selectrow_list(Conn,SelectBind,[BValue])),
              {ok,RowProp}= ?debugVal(erbi_connection:selectrow_proplist(Conn,SelectBind,[BValue])),
@@ -209,9 +209,9 @@ get_some_errors(Conn,Config,DataConfig)->
              SelectMany=proplists:get_value(select_all,DataConfig),
              TmpConn=connect(Config),
              erbi_connection:disconnect(TmpConn),
-             {Conn,SelectBind,SelectMany,TmpConn}
+             {SelectBind,SelectMany,TmpConn}
      end,
-     fun({Conn,SelectBind,SelectMany,TmpConn})->
+     fun({SelectBind,SelectMany,TmpConn})->
            [?_test({error,{missing_parameter,_}}= ?debugVal(erbi_connection:selectrow_list(Conn,SelectBind,[]))),
             ?_test({error,{syntax_error,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values 1 ,2"))),
             ?_test({error,{unknown_table,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values (1 ,2)"))),
@@ -271,8 +271,17 @@ generate_rows(N,Data)->
 
 
 timestamp_test(Conn)->
-    ?_assertEqual({ok,unknown},?debugVal(erbi_connection:do(Conn,"CREATE TABLE tiempo_test (Id int, tiempo timestamp )"))),
-     ?_assertEqual({ok,1}, ?debugVal(erbi_connection:do(Conn,"insert into tiempo_test (Id,tiempo) values ($1, $2)",[1,calendar:now_to_datetime(os:timestamp())]))). 
+    {setup,
+     fun()->
+    erbi_connection:do(Conn,"CREATE TABLE tiempo_test (Id int, tiempo timestamp )"),
+                 []
+                 end,
+     fun(_)->
+           erbi_connection:do(Conn,"DROP TABLE tiempo_test")
+                 end,
+     fun(_)->
+     ?_assertEqual({ok,1}, ?debugVal(erbi_connection:do(Conn,"insert into tiempo_test (Id,tiempo) values ($1, $2)",[1,calendar:now_to_datetime(os:timestamp())])))
+                 end}.
 
     
     
