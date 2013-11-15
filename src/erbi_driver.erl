@@ -28,7 +28,8 @@
          handle_call/3,
          handle_cast/2,
          handle_info/2,
-         code_change/3
+         code_change/3,
+         start_link/1
         ]).
 
 -include("erbi.hrl").
@@ -36,6 +37,7 @@
 -include("erbi_driver.hrl").
 
 -behaviour(gen_server).
+-behaviour(poolboy_worker).
 
 %%-----------------------------------------------
 %% TOP LEVEL DRIVER CALLS
@@ -297,6 +299,10 @@ call(Pid,Message,Handler) ->
           statements :: ets:tid(),
           info :: erbi_driver_info()
         }).
+
+
+start_link({_Module,_Info,_DataSource,_Username,_Password} = Args) ->
+    gen_server:start_link(?MODULE,Args,[]).
 
 -spec init( {atom(),undefined|erbi_driver_info(),any(),any(),any()} ) ->
                   { stop, any() } | { ok, #connect_state{} }.
