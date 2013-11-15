@@ -113,14 +113,14 @@ property_info()->
 %%%===================================================================
 internal_to_ext_name(PoolName) when is_atom(PoolName) ->
     internal_to_ext_name(atom_to_list(PoolName));
-internal_to_ext_name([$_, $_, $e, $r, $b, $i, $_, $p, $o, $o, $l, $_ | PoolName]) ->
+internal_to_ext_name("__erbi_pool_" ++ PoolName) ->
     list_to_atom(PoolName);
 internal_to_ext_name(PoolName) when is_list(PoolName) ->
     list_to_atom(PoolName).
 
 ext_to_internal_name(PoolName) when is_atom(PoolName) ->
     ext_to_internal_name(atom_to_list(PoolName));
-ext_to_internal_name([$_, $_, $e, $r, $b, $i, $_, $p, $o, $o, $l, $_ | _Tail] = PoolName) ->
-    list_to_atom(PoolName);
+ext_to_internal_name("__erbi_pool_" ++ _PoolName = FullName) ->
+    list_to_atom(FullName);
 ext_to_internal_name(PoolName) when is_list(PoolName) ->
     list_to_atom("__erbi_pool_" ++ PoolName).
