@@ -84,23 +84,16 @@ connect( {PoolProps, DataSource}, Username, Password ) when is_list(PoolProps) -
         {error,_}=E ->
             case proplists:get_value(name, PoolProps, undefined) of
                 undefined -> E;
-            % this to account for fetching connection by the code that assumes
-            % pools are pre-created. So a call like this erbi:connect("erbi:epgsql:pool_name=test")
-            % should not fail unless we have no pool.
-                PoolName ->
-                    {ok, PooledConn} = erbi_sup:checkout(PoolName),
-                    {ok, {erbi_connection,#conn{ pid = PooledConn,
-                    pooled = true,
-                    pool_name = PoolName }}}
+                % this to account for fetching connection by the code that assumes
+                % pools are pre-created. So a call like this erbi:connect("erbi:epgsql:pool_name=test")
+                % should not fail unless we have no pool.
+                PoolName -> erbi_pools:checkout(PoolName)
             end;
         DataSource1 ->
-            Info = Module:driver_info(),
-            ConnectReq = {Module,Info,DataSource1,Username,Password},
+            ConnectReq = {Module,Module:driver_info(),DataSource1,Username,Password},
             PoolName = proplists:get_value(name, PoolProps),
-            {ok, Pool} = erbi_sup:start_pool(PoolName, PoolProps, ConnectReq),
-            {ok, {erbi_connection,#conn{ pid = poolboy:checkout(Pool),
-            pooled = true,
-            pool_name = PoolName }}}
+            {ok, _Pool} = erbi_pools:start_pool(PoolName, PoolProps, ConnectReq),
+            erbi_pools:checkout(PoolName)
     end.
 
 

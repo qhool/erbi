@@ -23,6 +23,7 @@
 -module(erbi_pools).
 
 -include("erbi.hrl").
+-include("erbi_private.hrl").
 
 -define(POOL_PROPS,[pool_name,pool_size,pool_max_overflow]).
 
@@ -30,7 +31,7 @@
 -export([
     start_pool/3,
     checkout/1,
-    checkin/2,
+    checkin/1,
     status/1,
     list_pool_names/0,
     scrape_pool_properties/1,
@@ -53,32 +54,40 @@ start_pool(PoolName, PoolArgs, WorkerArgs) ->
         {error, Reason} -> {error, Reason}
     end.
 
+-spec checkout(PoolName :: atom() | string()) ->
+    {ok, PooledConn :: erbi_connection()} | {error, Reason :: term()}.
+checkout(PoolName) when is_atom(PoolName) orelse is_list(PoolName) ->
 
--spec(checkout(PoolName :: atom()) ->
-    {ok, PooledConn :: erbi_connection()} | {error, Reason :: term()}).
-checkout(PoolName) when is_atom(PoolName) ->
     case poolboy:checkout(ext_to_internal_name(PoolName), false, 1) of
         full -> {error, no_available_connections};
-        PooledConn ->
-            %% ok = gen_server:call(PooledConn, reset_caches),
-            {ok, PooledConn}
+        Worker ->
+            ok = erbi_driver:reset(Worker),
+            {ok, {erbi_connection, #conn{
+                    pid = Worker,
+                    pooled = true,
+                    pool_name = PoolName }}}
     end.
 
--spec(checkin(PoolName :: atom(), PooledConn :: erbi_connection()) -> ok).
-checkin(PoolName, PooledConn) when is_atom(PoolName) orelse is_list(PoolName) ->
-    poolboy:checkin(ext_to_internal_name(PoolName), PooledConn).
+-spec checkin(PooledConn :: erbi_connection()) -> ok.
+checkin({erbi_connection, #conn{ pid = Worker,
+                                 pooled = true,
+                                 pool_name = PoolName }}) when is_atom(PoolName) orelse is_list(PoolName) ->
+    ok = erbi_driver:reset(Worker),
+    poolboy:checkin(ext_to_internal_name(PoolName), Worker).
 
--spec(list_pool_names() -> [atom()]).
+-spec list_pool_names() -> [atom()].
 list_pool_names() ->
     [internal_to_ext_name(Id) || {Id,_,_,_} <- supervisor:which_children(erbi_sup)].
 
--spec(status(PoolName :: atom) -> {State :: ready | full | overflow,
+-spec status(PoolName :: atom) -> {State :: ready | full | overflow,
                                    NumberOfConnections :: integer(),
                                    NumberOfOverflowConnections :: integer(),
-                                   NumberOfLeasedConnections :: integer()}).
+                                   NumberOfLeasedConnections :: integer()}.
 status(PoolName) when is_atom(PoolName) ->
     poolboy:status(ext_to_internal_name(PoolName)).
 
+-spec scrape_pool_properties(DataSource :: erbi_data_source()) ->
+    {list(), erbi_data_source()}.
 scrape_pool_properties(#erbi{ properties = Props } = DataSource) ->
     {L0, Props1} = proplists:split(Props, ?POOL_PROPS),
     L1 = lists:flatten(L0),

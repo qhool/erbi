@@ -29,7 +29,8 @@
          handle_cast/2,
          handle_info/2,
          code_change/3,
-         start_link/1
+         start_link/1,
+         reset/1
         ]).
 
 -include("erbi.hrl").
@@ -256,6 +257,10 @@
 %% ERBI-Internal convenience functions %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+-spec reset(Pid :: pid()) -> ok.
+reset(Pid) ->
+    gen_server:call(Pid, reset).
+
 %% convenience wrapper for gen_server
 -spec call( ConnOrStmt :: erbi_connection() | erbi_statement(),
             Message :: any() ) ->
@@ -405,6 +410,9 @@ handle_info(_,State) ->
 
 code_change(_OldVsn, _State, _Extra) ->
     {error, i_cant_do_that}.
+
+
+
     
 %% row fetching
 %% if there are already rows in the buffer, just pass back the counters and the ets table

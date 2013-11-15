@@ -30,8 +30,8 @@
 
 %% API
 -export([
-    start_link/1,
-    start_pool/1]).
+    start_link/1
+]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -44,18 +44,6 @@
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link(Pools) ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, Pools).
-
--spec(start_pool({DataSource :: list(), Username :: list(), Password :: list()}) ->
-    {ok, Pool :: pid()} | {error, Reason :: term()}).
-start_pool({_DataSource, _Username, _Password} = A) ->
-    case supervisor:start_child(erbi_sup, pool_child_spec(A)) of
-        {ok, Pool} -> {ok, Pool};
-        {ok, Pool, _} -> {ok, Pool};
-        {error, _}=E -> E;
-        {already_started, Pool} -> {ok, Pool};
-        already_present -> {error, already_present};
-        Otherwise -> {error, Otherwise}
-    end.
 
 %%%===================================================================
 %%% Supervisor callbacks

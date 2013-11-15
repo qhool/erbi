@@ -251,9 +251,8 @@ rollback( Connection, SavePoint ) ->
 %% @end
 %% --------------------------------------
 -spec disconnect( Connection :: erbi_connection() ) -> ok | { error, any() }.
-disconnect( {erbi_connection,#conn{ pid = Worker, pooled = true, pool_name = Pool}} ) ->
-    ok = gen_server:call(Worker, reset_caches),
-    poolboy:checkin(Pool, Worker);
+disconnect( {erbi_connection,#conn{ pooled = true }} = Conn ) ->
+    erbi_pools:checkin(Conn);
 disconnect( {erbi_connection,#conn{pid=Pid, pooled = false}} ) ->
     gen_server:cast(Pid,disconnect).
 

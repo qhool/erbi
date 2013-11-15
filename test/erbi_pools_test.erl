@@ -48,8 +48,8 @@ check_no_overflow_pool_state() ->
     {ok,  C1} = erbi_pools:checkout(test0),
     S1 = erbi_pools:status(test0),
     E = erbi_pools:checkout(test0),
-    erbi_pools:checkin(test0, C0),
-    erbi_pools:checkin(test0, C1),
+    erbi_pools:checkin(C0),
+    erbi_pools:checkin(C1),
     S2 = erbi_pools:status(test0),
     [
      ?_assertMatch({error, no_available_connections}, E),
@@ -64,8 +64,8 @@ check_overflow_pool_state() ->
     {ok, C1} = erbi_pools:checkout(test1),
     S1 = erbi_pools:status(test1),
     E = erbi_pools:checkout(test1),
-    erbi_pools:checkin(test1, C0),
-    erbi_pools:checkin(test1, C1),
+    erbi_pools:checkin(C0),
+    erbi_pools:checkin(C1),
     S2 = erbi_pools:status(test1),
     [
      ?_assertMatch({ready,1,0,0},S0),
