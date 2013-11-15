@@ -21,9 +21,24 @@
 -export([connect/3,connect/1,
          driver_call/3,
          normalize_data_source/1,
-         parse_data_source/1]).
+         normalize_data_source/2,
+         normalize_properties/2,
+         parse_data_source/1,
+         get_driver_module/1,
+         start/0,
+         start/2,
+         stop/1]).
 -include("erbi.hrl").
 -include("erbi_private.hrl").
+
+-behavior(application).
+
+%% --------------------------------------
+%% @doc Allows erbi application to be started with -s option from command line.
+%% @end
+%% --------------------------------------
+-spec start() -> 'ok' | {'error', _Reason}.
+start() -> application:start(erbi).
 
 %% --------------------------------------
 %% @doc Connect to a database.
@@ -44,10 +59,13 @@ connect( {erbi,Driver}, Username, Password ) ->
     connect( #erbi{ driver = Driver }, Username, Password );
 connect( {erbi,Driver,Props}, Username, Password ) ->
     connect( #erbi{ driver = Driver, properties = Props }, Username, Password );
-connect( DataSource, Username, Password ) -> 
+connect( #erbi{} = DataSource, Username, Password ) ->
+    connect( erbi_pools:scrape_pool_properties(DataSource), Username, Password );
+connect( {[], DataSource}, Username, Password ) -> % requesting non-pooled connection
     Module = get_driver_module(DataSource),
     case normalize_data_source(Module,DataSource) of
-        {error,_}=E -> E;
+        {error,_}=E ->
+            E;
         DataSource1 ->
             Info = Module:driver_info(),
             ConnectReq = {Module,Info,DataSource1,Username,Password},
@@ -59,7 +77,32 @@ connect( DataSource, Username, Password ) ->
                 ignore -> {error,ignore};
                 {error,Reason} -> {error,Reason}
             end
+    end;
+connect( {PoolProps, DataSource}, Username, Password ) when is_list(PoolProps) -> % requesting pooled connection
+    Module = get_driver_module(DataSource),
+    case normalize_data_source(Module,DataSource) of
+        {error,_}=E ->
+            case proplists:get_value(name, PoolProps, undefined) of
+                undefined -> E;
+            % this to account for fetching connection by the code that assumes
+            % pools are pre-created. So a call like this erbi:connect("erbi:epgsql:pool_name=test")
+            % should not fail unless we have no pool.
+                PoolName ->
+                    {ok, PooledConn} = erbi_sup:checkout(PoolName),
+                    {ok, {erbi_connection,#conn{ pid = PooledConn,
+                    pooled = true,
+                    pool_name = PoolName }}}
+            end;
+        DataSource1 ->
+            Info = Module:driver_info(),
+            ConnectReq = {Module,Info,DataSource1,Username,Password},
+            PoolName = proplists:get_value(name, PoolProps),
+            {ok, Pool} = erbi_sup:start_pool(PoolName, PoolProps, ConnectReq),
+            {ok, {erbi_connection,#conn{ pid = poolboy:checkout(Pool),
+            pooled = true,
+            pool_name = PoolName }}}
     end.
+
 
 %% --------------------------------------
 %% @doc Connect without supplying username/password
@@ -133,6 +176,47 @@ driver_call( DSOrAtom,Func,Args ) ->
     Module = get_driver_module(DSOrAtom),
     apply(Module,Func,Args).
 
+%%%===================================================================
+%%% Application callbacks
+%%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% This function is called whenever an application is started using
+%% application:start/[1,2], and should start the processes of the
+%% application. If the application is structured according to the OTP
+%% design principles as a supervision tree, this means starting the
+%% top supervisor of the tree.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(start(StartType :: normal | {takeover, node()} | {failover, node()},
+    StartArgs :: term()) ->
+    {ok, pid()} |
+    {ok, pid(), State :: term()} |
+    {error, Reason :: term()}).
+start(_StartType, _StartArgs) ->
+    ErbiPools = application:get_env(erbi, pools, []),
+    case erbi_sup:start_link(ErbiPools) of
+        {ok, Pid} -> {ok, Pid};
+        Error -> Error
+    end.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% This function is called whenever an application has stopped. It
+%% is intended to be the opposite of Module:start/2 and should do
+%% any necessary cleaning up. The return value is ignored.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(stop(State :: term()) -> term()).
+stop(_State) ->
+    ok.
+
+
 %% @headerfile "erbi.hrl"
 
 %%==== Internals ====%%
@@ -141,7 +225,12 @@ driver_call( DSOrAtom,Func,Args ) ->
 
 get_driver_module( #erbi{driver=DriverAtom} ) ->
     get_driver_module(DriverAtom);
-get_driver_module( DriverAtom ) ->
+get_driver_module( DriverList ) when is_list(DriverList) ->
+    Module = list_to_atom("erbdrv_" ++ DriverList),
+    io:format("module: ~p", [Module]),
+    {module,Module} = code:ensure_loaded(Module),
+    Module;
+get_driver_module( DriverAtom ) when is_atom(DriverAtom) ->
     Module = list_to_atom("erbdrv_" ++ atom_to_list(DriverAtom)),
     {module,Module} = code:ensure_loaded(Module),
     Module.
