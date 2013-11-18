@@ -342,12 +342,16 @@ erbi_type_to_epgsql(_,Value) ->
     Value.
 
 epgsql_value_to_erbdrv({Value,#column{type=varchar} })->
-    binary_to_list(Value);
+    binary_value_to_list(Value);
 epgsql_value_to_erbdrv({Value, #column{type=text}}) ->
-    binary_to_list(Value);
+    binary_value_to_list(Value);
 epgsql_value_to_erbdrv({Value,_}) ->
     Value.
 
+binary_value_to_list(null)->
+    null;
+binary_value_to_list(Value) ->
+     binary_to_list(Value).
 
 epgsql_column_to_erbdrv_field(Column)->
     #erbdrv_field

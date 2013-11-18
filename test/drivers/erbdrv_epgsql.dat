@@ -6,6 +6,7 @@
 {select_one_bind, "Select * from erbdrv_epgsql_test t where t.Id= $1"}.
 {select_one, "Select * from erbdrv_epgsql_test t where t.Id= 1"}.
 {insert,"insert into erbdrv_epgsql_test (Id, String) values ($1, $2)"}.
+{insert_id,"insert into erbdrv_epgsql_test (Id) values ($1)"}.
 {delete_table, "DROP TABLE erbdrv_epgsql_test"}.
 {delete_all,"Delete from erbdrv_epgsql_test"}.
 {number_of_rows,10}.

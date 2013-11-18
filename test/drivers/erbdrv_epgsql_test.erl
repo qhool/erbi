@@ -55,6 +55,7 @@ all_test_()->
                             erbi_selectall(Conn,DataConfig),
                             erbi_selectrow(Conn,DataConfig), 
                             get_some_errors(Conn,Config,DataConfig),
+                             null_value_test(Conn,DataConfig),
                             delete_table(Conn,DataConfig),
                             timestamp_test(Conn),
                             disconnect_epgsql(Conn)
@@ -283,5 +284,18 @@ timestamp_test(Conn)->
      ?_assertEqual({ok,1}, ?debugVal(erbi_connection:do(Conn,"insert into tiempo_test (Id,tiempo) values ($1, $2)",[1,calendar:now_to_datetime(os:timestamp())])))
                  end}.
 
+null_value_test(Conn,DataConfig)->
+    {setup,
+     fun()->
+       Insert=proplists:get_value(insert_id,DataConfig),
+       SelectBind=proplists:get_value(select_one_bind,DataConfig),
+       N=proplists:get_value(number_of_rows,DataConfig),
+       insert_data(Conn,Insert,[N+7]),
+     {SelectBind,N+7}
+                 end,
+     fun({SelectBind,BindN})->
+          ?_assertEqual({ok,[BindN,null]} ,?debugVal(erbi_connection:selectrow_list(Conn,SelectBind,[BindN])))
+                    end}.
+       
     
     
