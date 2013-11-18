@@ -54,7 +54,30 @@ all_test_()->
                             erbi_transaction(Conn,Config,DataConfig),
                             erbi_selectall(Conn,DataConfig),
                             erbi_selectrow(Conn,DataConfig), 
-                            get_some_errors(Conn,Config,DataConfig),
+                            get_some_errors(Conn,Config,DataConfig,not_pooled_conn),
+                            delete_table(Conn,DataConfig),
+                            timestamp_test(Conn),
+                            disconnect_epgsql(Conn)
+                           ])
+     end
+    }.
+
+all_pooled_test_()->
+    {setup,
+     fun()->
+             Config =erbi_test_util:config(epgsql_pooled),
+             Conn= connect(Config),
+             {_,DataConfig}=erbi_test_util:dataset(erbdrv_epgsql),
+             {Conn,Config,DataConfig}
+     end,
+     fun({Conn,Config,DataConfig}) ->
+
+             lists:flatten([
+                            create_table(Conn,DataConfig),
+                            erbi_transaction(Conn,Config,DataConfig),
+                            erbi_selectall(Conn,DataConfig),
+                            erbi_selectrow(Conn,DataConfig),
+                            get_some_errors(Conn,Config,DataConfig,pooled_conn),
                             delete_table(Conn,DataConfig),
                             timestamp_test(Conn),
                             disconnect_epgsql(Conn)
@@ -202,25 +225,30 @@ erbi_selectrow(Conn,DataConfig)->
      end
     }.
 
-get_some_errors(Conn,Config,DataConfig)->
+closed_connection_query(_SelectBind,SelectMany,TmpConn,not_pooled_conn) ->
+    [?_assertException(exit,{noproc,_},?debugVal(erbi_connection:selectall_list(TmpConn,SelectMany)))];  %this should crash
+closed_connection_query(_,_,_,pooled_conn) ->
+    [].  %this should not run when connection is from a pool (they never close).
+
+get_some_errors(Conn,Config,DataConfig,PooledConn)->
     {setup,
-     fun()->
-             SelectBind=proplists:get_value(select_one_bind,DataConfig),
-             SelectMany=proplists:get_value(select_all,DataConfig),
-             TmpConn=connect(Config),
-             erbi_connection:disconnect(TmpConn),
-             {SelectBind,SelectMany,TmpConn}
-     end,
-     fun({SelectBind,SelectMany,TmpConn})->
-           [?_test({error,{missing_parameter,_}}= ?debugVal(erbi_connection:selectrow_list(Conn,SelectBind,[]))),
-            ?_test({error,{syntax_error,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values 1 ,2"))),
-            ?_test({error,{unknown_table,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values (1 ,2)"))),
-            ?_assertException(exit,{noproc,_},?debugVal(erbi_connection:selectall_list(TmpConn,SelectMany))) %this should crash/return error              
-                          
-          ]
-      end
-     }.
-     
+        fun()->
+            SelectBind=proplists:get_value(select_one_bind,DataConfig),
+            SelectMany=proplists:get_value(select_all,DataConfig),
+            TmpConn=connect(Config),
+            erbi_connection:disconnect(TmpConn),
+            {SelectBind,SelectMany,TmpConn}
+        end,
+        fun({_SelectBind,_SelectMany,TmpConn}) ->
+            erbi_connection:disconnect(TmpConn)
+        end,
+        fun({SelectBind,SelectMany,TmpConn})->
+            [?_test({error,{missing_parameter,_}}= ?debugVal(erbi_connection:selectrow_list(Conn,SelectBind,[]))),
+             ?_test({error,{syntax_error,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values 1 ,2"))),
+             ?_test({error,{unknown_table,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values (1 ,2)")))
+            ] ++ closed_connection_query(SelectBind,SelectMany,TmpConn,PooledConn)
+        end
+    }.
 
 disconnect_epgsql(Conn)->
     ?_assertEqual(ok, ?debugVal(erbi_connection:disconnect(Conn))).

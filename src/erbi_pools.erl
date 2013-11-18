@@ -26,6 +26,7 @@
 -include("erbi_private.hrl").
 
 -define(POOL_PROPS,[pool_name,pool_size,pool_max_overflow]).
+-define(DEFAULT_CHECKOUT_TIMEOUT, 5000).
 
 %% API
 -export([
@@ -57,11 +58,10 @@ start_pool(PoolName, PoolArgs, WorkerArgs) ->
 -spec checkout(PoolName :: atom() | string()) ->
     {ok, PooledConn :: erbi_connection()} | {error, Reason :: term()}.
 checkout(PoolName) when is_atom(PoolName) orelse is_list(PoolName) ->
-
-    case poolboy:checkout(ext_to_internal_name(PoolName), false, 1) of
+    case poolboy:checkout(ext_to_internal_name(PoolName), false, ?DEFAULT_CHECKOUT_TIMEOUT) of
         full -> {error, no_available_connections};
         Worker ->
-            ok = erbi_driver:reset(Worker),
+            catch(erbi_driver:reset(Worker)),
             {ok, {erbi_connection, #conn{
                     pid = Worker,
                     pooled = true,
@@ -72,7 +72,7 @@ checkout(PoolName) when is_atom(PoolName) orelse is_list(PoolName) ->
 checkin({erbi_connection, #conn{ pid = Worker,
                                  pooled = true,
                                  pool_name = PoolName }}) when is_atom(PoolName) orelse is_list(PoolName) ->
-    ok = erbi_driver:reset(Worker),
+    catch(erbi_driver:reset(Worker)),
     poolboy:checkin(ext_to_internal_name(PoolName), Worker).
 
 -spec list_pool_names() -> [atom()].
