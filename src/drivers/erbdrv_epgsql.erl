@@ -238,10 +238,10 @@ initialize_db(true,PropList)->
     ?debugFmt("Checking if db is ready", []),
     wait_for_db_started(Port, 0),
     lists:map(fun(File)->
-                     A=os:cmd("psql -p "++integer_to_list(Port)++
+                     os:cmd("psql -p "++integer_to_list(Port)++
                                  " -U "++get_db_user()++
                                  " -d "++get_db_name()++
-                                 " -f "++File),
+                                 " -f "++File)
               end,InitFiles);
 initialize_db(false,_) ->
     ok.
@@ -250,9 +250,10 @@ wait_for_db_started(_Port,N) when N >=10 ->
      ?debugFmt("Db NOT ready TOO MANY attemps", []),
     ok;
 wait_for_db_started(Port,N)->
-    case os:cmd("psql -f /dev/null -p "++integer_to_list(Port)) of
-        "psql:"++_->
-            ?debugFmt("Db NOT ready(~p)", [N]),
+    case os:cmd("psql -d "++get_db_name()++
+                    " -f /dev/null -p "++integer_to_list(Port)) of
+        "psql:"++_=Res->
+            ?debugFmt("Db NOT ready(~p)", [Res]),
             receive
             after 1000->
                     wait_for_db_started(Port,N+1)
