@@ -21,7 +21,8 @@
 -export([connect/3,connect/1,
          driver_call/3,
          normalize_data_source/1,
-         parse_data_source/1]).
+         parse_data_source/1,
+         get_driver_module/1]).
 -include("erbi.hrl").
 -include("erbi_private.hrl").
 
@@ -133,9 +134,6 @@ driver_call( DSOrAtom,Func,Args ) ->
     Module = get_driver_module(DSOrAtom),
     apply(Module,Func,Args).
 
-%% @headerfile "erbi.hrl"
-
-%%==== Internals ====%%
 
 -spec get_driver_module( atom() | erbi_data_source() ) -> atom().
 
@@ -146,6 +144,9 @@ get_driver_module( DriverAtom ) ->
     {module,Module} = code:ensure_loaded(Module),
     Module.
 
+%% @headerfile "erbi.hrl"
+
+%%==== Internals ====%%
 -spec normalize_data_source( Module :: atom(), erbi_data_source() ) ->
                                    erbi_data_source() | {error,any()}.
 normalize_data_source(Module,#erbi{properties=Props,args=Args}=DataSource ) ->

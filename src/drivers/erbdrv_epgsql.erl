@@ -16,10 +16,15 @@
 %% limitations under the License.
 -module(erbdrv_epgsql).
 -behaviour(erbi_driver).
+-behaviour(erbi_mockable_driver).
 
 -include("erbi.hrl").
 -include("erbi_driver.hrl").
 -include_lib("epgsql/include/pgsql.hrl").
+
+
+-include_lib("eunit/include/eunit.hrl").
+% erbi_driver API
 -export([driver_info/0,
          validate_property/2,
          property_info/0,
@@ -38,6 +43,8 @@
          fetch_rows/3,
          finish/2
         ]).
+% erbi_mockable_driver API
+-export([start_mocking/1]).
 
 -define(MIN_FETCH,1).
 -define(MAX_FETCH,0). % 0 all rows
@@ -182,6 +189,100 @@ finish(Connection,Statement) when is_record(Statement,statement)->
 finish(Connection,_) ->
     erbdrv_response(pgsql:sync(Connection)).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% erbi_mockable_driver API
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+start_mocking(PropList)->
+    PathBin="/Library/PostgreSQL/9.2/bin/", %TODO implement location search
+    PathData= proplists:get_value(data_dir,PropList),
+    Port=proplists:get_value(port,PropList),
+    {ok,NeedsDbInit} = configure_datadir(PathBin,PathData),
+    ok = check_db_instance(PathBin,PathData,Port),
+    initialize_db(NeedsDbInit,PropList),
+    {create_mock_proplist(PropList),get_db_user(),get_db_password()}.
+
+configure_datadir(PathBin,PathData)->    
+    case filelib:is_dir(PathData) of
+        true ->    % database instance already initialized
+            {ok,false};
+        false ->
+            initialize_datadir(PathBin,PathData)
+    end.
+
+% Creates datadir defaults->user=$USER;authmode=trust;db=postgres
+initialize_datadir(PathBin,PathData)->
+     ?debugFmt("Configure Datadir", []),
+    Res=os:cmd(PathBin++"/initdb -D "++PathData),
+     ?debugFmt("Datadir configured ~p", [Res]),
+    {ok,true}.
+
+check_db_instance(PathBin,PathData,Port)->
+    ?debugFmt("Check db instance", []),
+    StartDbCmd=PathBin++"/postgres -p "++integer_to_list(Port)++" -D "++PathData,
+    case os:cmd("ps aux | grep -c -e '"++StartDbCmd++"'") of
+        "1\n"->
+            % only grep process listed
+            start_db_instance(StartDbCmd),
+            ok;
+        _ ->
+            % another process was listed
+            ok
+     end.
+
+start_db_instance(StartDbCmd)->
+    os:cmd(StartDbCmd++" &").
+
+initialize_db(true,PropList)->
+    InitFiles= proplists:get_value(init_files,PropList),
+    Port=proplists:get_value(port,PropList),
+    ?debugFmt("Checking if db is ready", []),
+    wait_for_db_started(Port, 0),
+    lists:map(fun(File)->
+                     A=os:cmd("psql -p "++integer_to_list(Port)++
+                                 " -U "++get_db_user()++
+                                 " -d "++get_db_name()++
+                                 " -f "++File),
+              end,InitFiles);
+initialize_db(false,_) ->
+    ok.
+
+wait_for_db_started(_Port,N) when N >=10 ->
+     ?debugFmt("Db NOT ready TOO MANY attemps", []),
+    ok;
+wait_for_db_started(Port,N)->
+    case os:cmd("psql -f /dev/null -p "++integer_to_list(Port)) of
+        "psql:"++_->
+            ?debugFmt("Db NOT ready(~p)", [N]),
+            receive
+            after 1000->
+                    wait_for_db_started(Port,N+1)
+            end;
+        _ ->
+            ?debugFmt("Db ready(~p)", [N]),
+            ok
+    end.
+    
+create_mock_proplist(OldPropList)->
+    [proplists:lookup(port,OldPropList),
+     {host,"localhost"},
+     get_database_property(OldPropList)].
+
+get_database_property(OldPropList)->
+    case proplists:lookup(database,OldPropList) of
+        {database,_}=Prop->
+            Prop;
+        _->
+            {database,get_db_name()}
+    end.
+
+get_db_user()->
+    os:cmd("echo $USER")--"\n".
+
+get_db_password()->
+    "".
+
+get_db_name()->
+    "postgres".
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Create Responses Functions
