@@ -202,7 +202,7 @@ finish(Connection,_) ->
 -spec start_temp(PropList::[property()])->
     ok.
 start_temp(PropList)->
-    PathBin="/Library/PostgreSQL/9.2/bin/", %TODO implement location search
+    {ok,PathBin}=get_db_binaries_path(PropList),
     PathData= proplists:get_value(data_dir,PropList),
     {ok, Port}=get_free_db_port(),
     ok = configure_datadir(PathBin,PathData),
@@ -447,6 +447,30 @@ get_temp_username(User) ->
 get_temp_password(Passwd) ->
     Passwd.
 
+get_db_binaries_path(PropList)->
+    case proplists:get_value(bin_dir,PropList) of
+        undefined ->
+            search_db_binaries();
+        Path ->
+            {ok,Path}
+    end.
+
+-define(POSSIBLE_BIN_DIRS,["/usr/bin/pgsql/bin/",
+                          "/usr/sbin/pgsql/bin/",
+                          "/usr/local/pgsql/bin/",
+                          "/usr/local/bin/pgsql/bin/",
+                          "/Library/PostgreSQL/9.2/bin/"]).
+
+search_db_binaries()->
+    case lists:filter(fun(Path)->
+                              filelib:is_dir(Path)
+                      end,?POSSIBLE_BIN_DIRS) of
+        []->
+            {error,binaries_not_found};
+        [H|_]->         
+            {ok,H}
+    end.
+
 configure_datadir(PathBin,PathData)->
     case filelib:is_dir(PathData) of
         true ->    % database instance already initialized
@@ -457,7 +481,7 @@ configure_datadir(PathBin,PathData)->
 
 % Creates datadir defaults->user=$USER;authmode=trust;db=postgres
 initialize_datadir(PathBin,PathData)->
-    Res=os:cmd(PathBin++"/initdb -D "++PathData),
+    os:cmd(PathBin++"/initdb -D "++PathData),
     ok.
 
 start_db_instance(PathBin,PathData,Port)->
@@ -481,7 +505,7 @@ wait_for_db_started(_Port,N) when N >=10 ->
 wait_for_db_started(Port,N)->
     case os:cmd("psql -d "++get_db_name()++
                     " -f /dev/null -p "++integer_to_list(Port)) of
-        "psql:"++_=Res->
+        "psql:"++_->
             receive
             after 500->
                     wait_for_db_started(Port,N+1)
