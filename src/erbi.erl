@@ -22,9 +22,12 @@
          driver_call/3,
          normalize_data_source/1,
          parse_data_source/1,
+         data_source_to_string/1,
          get_driver_module/1]).
 -include("erbi.hrl").
 -include("erbi_private.hrl").
+
+
 
 %% --------------------------------------
 %% @doc Connect to a database.
@@ -109,6 +112,28 @@ parse_data_source( DataSource ) ->
     Charlist = unicode:characters_to_list(DataSource),
     Tokens=scan_ds(Charlist,[],[]),
     parse_ds( Tokens ).
+
+%% --------------------------------------
+%% @doc Converts a datasource of type tuple to a string normalized datasource.
+%%
+%% Takes a data source descriptor of type erbi_data_source()
+%% and returns a datasource in the form "erbi:driver:arg=val;arg=val[...]"
+%% @end
+%% --------------------------------------
+-spec data_source_to_string( DataSource :: erbi_data_source() ) ->
+                               unicode:chardata() | { error, any() }.
+
+data_source_to_string( DataSource ) ->
+    #erbi{driver=Driver,properties=PList,args=Args}
+        = normalize_data_source(correct_if_normalized(DataSource)),
+    string:join(lists:filter(fun("")-> false;
+                                (_)-> true
+                             end ,
+                             ["erbi",
+                              atom_to_list(Driver),
+                              proplist_to_string(PList),
+                              proplist_to_string(Args)]),
+                ":").
 
 %% --------------------------------------
 %% @doc Call driver function
@@ -376,4 +401,29 @@ scan_ds_quoted( Quote, [Q|Chars], Accum, Tokens )
 scan_ds_quoted( Quote, [Char|Chars], Accum, Tokens ) ->
     scan_ds_quoted( Quote, Chars, [Char|Accum], Tokens ).
 
+%------------------------------------------------------
+% Data Source to string internal functions
+%------------------------------------------------------
 
+% This function corrects arguments if datasource is already normalized,
+correct_if_normalized(#erbi{args=undefined}=DS)->
+    DS#erbi{args=[]};
+correct_if_normalized(DS) ->
+    DS.
+    
+proplist_to_string(PList) when is_list(PList)->
+    StringList= lists:map(fun({Atom,Value})->
+                                  atom_to_list(Atom)++"="++value_to_list(Value)
+                          end,PList),
+    string:join(StringList,";");
+proplist_to_string(_) ->
+    "".
+
+value_to_list([H|_]=Value) when is_list(H)->
+    string:join(Value,",");
+value_to_list(Value) when is_atom(Value) ->
+    atom_to_list(Value);
+value_to_list(Value)when is_integer(Value) ->
+    integer_to_list(Value);
+value_to_list(Value) ->
+    Value.

@@ -16,14 +16,12 @@
 %% limitations under the License.
 -module(erbdrv_epgsql).
 -behaviour(erbi_driver).
--behaviour(erbi_mockable_driver).
+-behaviour(erbi_temp_db).
 
 -include("erbi.hrl").
 -include("erbi_driver.hrl").
 -include_lib("epgsql/include/pgsql.hrl").
 
-
--include_lib("eunit/include/eunit.hrl").
 % erbi_driver API
 -export([driver_info/0,
          validate_property/2,
@@ -43,11 +41,17 @@
          fetch_rows/3,
          finish/2
         ]).
-% erbi_mockable_driver API
--export([start_mocking/1]).
 
 -define(MIN_FETCH,1).
 -define(MAX_FETCH,0). % 0 all rows
+
+% erbi_mockable_driver API
+-export([start_temp/1,
+         stop_temp/1,
+        get_temp_connect_data/4]).
+
+-define(MIN_PORT,5433).
+-define(MAX_PORT,5533).
 
 -spec driver_info() -> erbi_driver_info().
 driver_info()->
@@ -63,7 +67,7 @@ driver_info()->
 
 -spec validate_property( atom(), any() ) ->
     ok | {ok,[property()]} | {error,any()}.
-validate_property(port,Port)->
+validate_property(port,Port) when is_list(Port)->
      {ok,[{port,list_to_integer(Port)}]};
 validate_property( _,_ ) ->
     ok.
@@ -77,7 +81,7 @@ property_info()->
 
 -spec parse_args([any()]) ->
     declined | {error,any()} | term().
-parse_args([])->
+parse_args(_)->
     declined.
 
 -spec connect( DS :: erbi_data_source(),
@@ -189,105 +193,51 @@ finish(Connection,Statement) when is_record(Statement,statement)->
 finish(Connection,_) ->
     erbdrv_response(pgsql:sync(Connection)).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% erbi_mockable_driver API
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-start_mocking(PropList)->
+%----------------------------------------------------
+% erbi_temp_db API
+%-----------------------------------------------------
+-define(PID_FILE,"tmp_db.pid").
+-define(PORT_FILE,"tmp_db.port").
+
+-spec start_temp(PropList::[property()])->
+    ok.
+start_temp(PropList)->
     PathBin="/Library/PostgreSQL/9.2/bin/", %TODO implement location search
     PathData= proplists:get_value(data_dir,PropList),
-    Port=proplists:get_value(port,PropList),
-    {ok,NeedsDbInit} = configure_datadir(PathBin,PathData),
-    ok = check_db_instance(PathBin,PathData,Port),
-    initialize_db(NeedsDbInit,PropList),
-    {create_mock_proplist(PropList),get_db_user(),get_db_password()}.
-
-configure_datadir(PathBin,PathData)->    
-    case filelib:is_dir(PathData) of
-        true ->    % database instance already initialized
-            {ok,false};
-        false ->
-            initialize_datadir(PathBin,PathData)
-    end.
-
-% Creates datadir defaults->user=$USER;authmode=trust;db=postgres
-initialize_datadir(PathBin,PathData)->
-     ?debugFmt("Configure Datadir", []),
-    Res=os:cmd(PathBin++"/initdb -D "++PathData),
-     ?debugFmt("Datadir configured ~p", [Res]),
-    {ok,true}.
-
-check_db_instance(PathBin,PathData,Port)->
-    ?debugFmt("Check db instance", []),
-    StartDbCmd=PathBin++"/postgres -p "++integer_to_list(Port)++" -D "++PathData,
-    case os:cmd("ps aux | grep -c -e '"++StartDbCmd++"'") of
-        "1\n"->
-            % only grep process listed
-            start_db_instance(StartDbCmd),
-            ok;
-        _ ->
-            % another process was listed
-            ok
-     end.
-
-start_db_instance(StartDbCmd)->
-    os:cmd(StartDbCmd++" &").
-
-initialize_db(true,PropList)->
-    InitFiles= proplists:get_value(init_files,PropList),
-    Port=proplists:get_value(port,PropList),
-    ?debugFmt("Checking if db is ready", []),
-    wait_for_db_started(Port, 0),
-    lists:map(fun(File)->
-                     os:cmd("psql -p "++integer_to_list(Port)++
-                                 " -U "++get_db_user()++
-                                 " -d "++get_db_name()++
-                                 " -f "++File)
-              end,InitFiles);
-initialize_db(false,_) ->
+    {ok, Port}=get_free_db_port(),
+    ok = configure_datadir(PathBin,PathData),
+    DBPid = start_db_instance(PathBin,PathData,Port),
+    ok = initialize_db(PropList,Port),
+    ok = save_in_file(DBPid,PathData,?PID_FILE),
+    ok = save_in_file(Port,PathData,?PORT_FILE),
     ok.
 
-wait_for_db_started(_Port,N) when N >=10 ->
-     ?debugFmt("Db NOT ready TOO MANY attemps", []),
-    ok;
-wait_for_db_started(Port,N)->
-    case os:cmd("psql -d "++get_db_name()++
-                    " -f /dev/null -p "++integer_to_list(Port)) of
-        "psql:"++_=Res->
-            ?debugFmt("Db NOT ready(~p)", [Res]),
-            receive
-            after 1000->
-                    wait_for_db_started(Port,N+1)
-            end;
-        _ ->
-            ?debugFmt("Db ready(~p)", [N]),
-            ok
-    end.
-    
-create_mock_proplist(OldPropList)->
-    [proplists:lookup(port,OldPropList),
-     {host,"localhost"},
-     get_database_property(OldPropList)].
+-spec stop_temp(PropList::[property()])->
+    ok.
+stop_temp(PropList)->
+    PathData= proplists:get_value(data_dir,PropList),
+    Pid=read_from_file(PathData,?PID_FILE),
+    kill_db_pid(Pid),
+    ok=del_dir(PathData),
+    ok.
 
-get_database_property(OldPropList)->
-    case proplists:lookup(database,OldPropList) of
-        {database,_}=Prop->
-            Prop;
-        _->
-            {database,get_db_name()}
-    end.
+-spec get_temp_connect_data(PropList::[property()],
+                                Args::[any()] | atom(),
+                                Username::unicode:chardata(),
+                                Password::unicode:chardata())->
+    {[property()],
+     [any()] | atom(),
+     unicode:chardata(),
+     unicode:chardata()}.
+get_temp_connect_data(PropList,_Args,UserName,Password)->
+    {get_temp_proplist(PropList),
+     [],
+     get_temp_username(UserName),
+     get_temp_password(Password)}.
 
-get_db_user()->
-    os:cmd("echo $USER")--"\n".
-
-get_db_password()->
-    "".
-
-get_db_name()->
-    "postgres".
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%------------------------------------
 %% Create Responses Functions
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%------------------------------------
 erbdrv_cols_rows_response({Atom,Rows},Statement) when is_list(Rows) andalso (Atom=:= ok orelse Atom=:= partial) ->
     erbdrv_data_response(unknown,{erbdrv_cols_response(Statement#statement.columns),erbdrv_rows_response({Atom,Rows},Statement#statement.columns)});
 erbdrv_cols_rows_response(Response,_) ->
@@ -385,9 +335,9 @@ erbdrv_error_response(Error) ->
          }.
     
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%--------------------------------------------
 % ERBI <-> Driver Conversions
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%--------------------------------------------
 
 epgsql_error_to_erbdrv_error(Error) when is_record(Error,error)->
     {epgsql_code_to_erbdrv_error_code(binary_to_list(Error#error.code)),
@@ -469,7 +419,135 @@ get_size(N) ->
     N.
        
 
-            
+%-----------------------------------------------
+% Erbi temp driver internal functions
+%-----------------------------------------------
+get_temp_proplist(PropList)->
+    [get_temp_port_prop(PropList),
+    get_temp_db_prop(PropList)].
+
+get_temp_port_prop(PropList)->
+    PathData= proplists:get_value(data_dir,PropList),
+    Port=read_from_file(PathData,?PORT_FILE),
+    {port,Port}.
+
+%Assumed that if a db is provided
+% it was created in db initialization.
+get_temp_db_prop(PropList)->
+    NewValue=proplists:get_value(database,PropList,get_db_name()),
+    {database,NewValue}.
+
+% Assumed that if username is provided,
+% it was created in db initialization.
+get_temp_username("")->
+    get_db_user();
+get_temp_username(User) ->
+    User.
+
+get_temp_password(Passwd) ->
+    Passwd.
+
+configure_datadir(PathBin,PathData)->
+    case filelib:is_dir(PathData) of
+        true ->    % database instance already initialized
+            {error,already_created};
+        false ->
+            initialize_datadir(PathBin,PathData)
+    end.
+
+% Creates datadir defaults->user=$USER;authmode=trust;db=postgres
+initialize_datadir(PathBin,PathData)->
+    Res=os:cmd(PathBin++"/initdb -D "++PathData),
+    ok.
+
+start_db_instance(PathBin,PathData,Port)->
+    StartDbCmd=PathBin++"/postgres -p "++integer_to_list(Port)++" -D "++PathData,
+    StrPid=os:cmd(StartDbCmd++" & echo $!")--"\n",
+    list_to_integer(StrPid).
+
+initialize_db(PropList,Port)->
+    InitFiles= proplists:get_value(init_files,PropList),
+    ok=wait_for_db_started(Port, 0),
+    lists:map(fun(File)->
+                              os:cmd("psql -p "++integer_to_list(Port)++
+                                 " -U "++get_db_user()++
+                                 " -d "++get_db_name()++
+                                 " -f "++File)
+              end,InitFiles),
+    ok.
+
+wait_for_db_started(_Port,N) when N >=10 ->
+    {error,db_not_started};
+wait_for_db_started(Port,N)->
+    case os:cmd("psql -d "++get_db_name()++
+                    " -f /dev/null -p "++integer_to_list(Port)) of
+        "psql:"++_=Res->
+            receive
+            after 500->
+                    wait_for_db_started(Port,N+1)
+            end;
+        _ ->
+            ok
+    end.
+
+get_db_user()->
+     os:cmd("echo $USER")--"\n".
+
+get_db_name()->
+    "postgres".
+
+get_free_db_port()->
+    StartingPort=trunc(random:uniform()*(?MAX_PORT-?MIN_PORT))+?MIN_PORT,
+    get_free_db_port(StartingPort).
+
+get_free_db_port(StartingPort)->
+    get_free_db_port(StartingPort,undefined).
+
+get_free_db_port(Port,undefined) when Port > ?MAX_PORT->
+    get_free_db_port(?MIN_PORT,restarted);
+get_free_db_port(Port,restarted) when Port >?MAX_PORT ->
+    {error,no_free_port};
+get_free_db_port(Port,Tag) ->
+    case gen_tcp:listen(Port,[]) of
+       {ok,TmpSock}->
+            gen_tcp:close(TmpSock),
+            {ok,Port};
+        _ ->
+            get_free_db_port(Port+1,Tag)
+      end.
+  
+save_in_file(Term,Path,File)->
+    file:write_file(Path++"/"++File,term_to_binary(Term)).
+                         
+read_from_file(Path,File)->
+    {ok,BinaryTerm} = file:read_file(Path++"/"++File),
+    binary_to_term(BinaryTerm).
+
+del_dir(Dir) ->
+   lists:foreach(fun(D) ->
+                    ok = file:del_dir(D)
+                 end, del_all_files([Dir], [])).
+ 
+del_all_files([], EmptyDirs) ->
+    EmptyDirs;
+del_all_files([Dir | T], EmptyDirs) ->
+    {ok, FilesInDir} = file:list_dir(Dir),
+    {Files, Dirs} = lists:foldl(fun(F, {Fs, Ds}) ->
+                                        Path = Dir ++ "/" ++ F,
+                                        case filelib:is_dir(Path) of
+                                            true ->
+                                                {Fs, [Path | Ds]};
+                                            false ->
+                                                {[Path | Fs], Ds}
+                                        end
+                                end, {[],[]}, FilesInDir),
+    lists:foreach(fun(F) ->
+                          ok = file:delete(F)
+                  end, Files),
+    del_all_files(T ++ Dirs, [Dir | EmptyDirs]).
+
+kill_db_pid(Pid)->
+    os:cmd("kill -9 "++integer_to_list(Pid)).
 
             
     

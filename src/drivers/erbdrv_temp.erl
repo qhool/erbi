@@ -14,12 +14,16 @@
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
--module(erbdrv_mock).
+-module(erbdrv_temp).
 -behaviour(erbi_driver).
 
 -include("erbi.hrl").
 -include("erbi_driver.hrl").
 -include_lib("epgsql/include/pgsql.hrl").
+
+-export([start/1,
+        stop/1]).
+% erbi driver API
 -export([driver_info/0,
          validate_property/2,
          property_info/0,
@@ -39,7 +43,7 @@
          finish/2
         ]).
 
--record(mock_connection,{
+-record(temp_connection,{
 	  base_driver::atom(),
 	  base_connection::erbdrv_connection()
 			   }).
@@ -51,10 +55,22 @@
 
 -define(DEFAULT_DATA_DIR,"/tmp_data/mock_db_data").
 
+% Temp driver API implementation
+-spec start(Datasource::unicode:chardata())->
+    unicode:chardata().%datasource en vez de proplist?
+start(DataSource)->
+  run_db_setup(DataSource,fun(BaseDriver,PropList)->
+                                  BaseDriver:start_temp(PropList) end).
+
+stop(DataSource)->
+  run_db_setup(DataSource,fun(BaseDriver,PropList)->
+                                  BaseDriver:stop_temp(PropList) end).
+
+% erbi driver API implementation
 -spec driver_info() -> erbi_driver_info().
 driver_info()->
     #erbi_driver_info
-        { driver = mock,
+        { driver = temp,
           preparse_support = true,
           cursor_support = true,
           transaction_support = true,
@@ -65,11 +81,11 @@ driver_info()->
 
 -spec validate_property( atom(), any() ) ->
     ok | {ok,[property()]} | {error,any()}.
-validate_property(port,Port)->
+validate_property(port,Port) when is_list(Port)->
      {ok,[{port,list_to_integer(Port)}]};
-validate_property(base_driver,Driver)->
+validate_property(base_driver,Driver) when is_list(Driver)->
     {ok,[{base_driver,list_to_atom(Driver)}]};
-validate_property(init_files,FilesString)->
+validate_property(init_files,[H|_]=FilesString) when not is_list(H)->
     FilesList=string:tokens(FilesString,","),
     {ok,[{init_files,FilesList}]};
 validate_property( _,_ ) ->
@@ -78,72 +94,76 @@ validate_property( _,_ ) ->
 -spec property_info() -> [{atom(),any()}].
 property_info()->
     [
-     {defaults,[{port,5433},
-		{data_dir,code:get_path()++?DEFAULT_DATA_DIR}]},
+     {defaults,[{data_dir,code:get_path()}]},
      {required,[base_driver]}
-     ].
+    ].
 
 -spec parse_args([any()]) ->
     declined | {error,any()} | term().
-parse_args([])->
+parse_args(_)->
     declined.
 
 -spec connect( DS :: erbi_data_source(),
                    Username :: string(),
                    Password :: string() ) -> erbdrv_return().
-connect(#erbi{driver = mock, properties=PropList}=ErbiDriver, _Username, _Password)->
+connect(#erbi{driver = temp, properties=PropList}=ErbiDriver, Username, Password)->
     BaseDriverName=?base_driver_name(PropList),
-    BaseDriver=?base_driver(PropList),
-    {BaseDriverPropList,MockUser,MockPassword}=BaseDriver:start_mocking(PropList),
-    #erbdrv{conn=BaseConnection}=BaseDriver:connect(ErbiDriver#erbi{
-						      driver = BaseDriverName,
-						      properties=BaseDriverPropList},
-						    MockUser,
-						    MockPassword),
-    MockConnection=#mock_connection{base_driver=BaseDriver,
+    BaseDriver=?base_driver(PropList), 
+    %Get PropList with the actual data_dir
+    {NormBaseDataSource,TmpUsername,TmpPasswd}
+        = get_normalized_base_data_source(ErbiDriver,
+                                Username,
+                                Password,
+                               BaseDriver,
+                                         BaseDriverName),
+ 
+    #erbdrv{conn=BaseConnection}=BaseDriver:connect(NormBaseDataSource,
+						    TmpUsername,
+						    TmpPasswd),
+    TempConnection=#temp_connection{base_driver=BaseDriver,
 				    base_connection=BaseConnection},
     #erbdrv
         {status = ok,
-         conn = MockConnection
+         conn = TempConnection
         }.
 
 -spec disconnect( Connection :: erbdrv_connection() ) -> 
     ok | {error, erbdrv_error()}.
-disconnect(#mock_connection{base_driver=BaseDriver,
+disconnect(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection})->
     BaseDriver:disconnect(BaseConnection).
 
 -spec begin_work( Connection :: erbdrv_connection() ) ->
     erbdrv_return().
-begin_work(#mock_connection{base_driver=BaseDriver,
+begin_work(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection})->
     BaseDriver:begin_work(BaseConnection).
 
 -spec begin_work( Connection :: erbdrv_connection(),
                       Savepoint :: atom | string() ) ->
     erbdrv_return().
-begin_work(#mock_connection{base_driver=BaseDriver,
+begin_work(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection},
 	   Savepoint)->
     BaseDriver:begin_work(BaseConnection,Savepoint).
 
 -spec rollback( Connection :: erbdrv_connection() ) -> 
     erbdrv_return().
-rollback(#mock_connection{base_driver=BaseDriver,
+rollback(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection})->
    BaseDriver:rollback(BaseConnection).
 
 -spec rollback( Connection :: erbdrv_connection(),
                     Savepoint :: atom | string() ) ->  
     erbdrv_return().
-rollback(#mock_connection{base_driver=BaseDriver,
+rollback(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection},
 	 Savepoint) ->
     BaseDriver:rollback(BaseConnection,Savepoint).
   
 -spec commit( Connection :: erbdrv_connection() ) ->
     erbdrv_return().
-commit(#mock_connection{base_driver=BaseDriver,
+commit(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection})->
     BaseDriver:commit(BaseConnection).
     
@@ -151,7 +171,7 @@ commit(#mock_connection{base_driver=BaseDriver,
               Query :: string(),
               Params ::  erbi_bind_values() ) ->
     erbdrv_return().
-do(#mock_connection{base_driver=BaseDriver,
+do(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection},
    Query,
    Params)->
@@ -160,7 +180,7 @@ do(#mock_connection{base_driver=BaseDriver,
 -spec prepare( Connection :: erbdrv_connection(),
 	       Query :: string() ) ->
 		     erbdrv_return().
-prepare(#mock_connection{base_driver=BaseDriver,
+prepare(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection},Query) ->
     BaseDriver:prepare(BaseConnection,Query).
 
@@ -168,7 +188,7 @@ prepare(#mock_connection{base_driver=BaseDriver,
                        Statement :: erbdrv_statement(),
                        Params :: erbi_bind_values() ) ->
     erbdrv_return().
-bind_params(#mock_connection{base_driver=BaseDriver,
+bind_params(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection},
 	    Statement,
 	    Params)->
@@ -178,7 +198,7 @@ bind_params(#mock_connection{base_driver=BaseDriver,
                    Statement :: erbdrv_statement() | string(),
                    Params :: erbi_bind_values() ) ->
     erbdrv_return().
-execute(#mock_connection{base_driver=BaseDriver,
+execute(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection},Statement,Params)->
     BaseDriver:execute(BaseConnection,Statement,Params).
     
@@ -186,15 +206,54 @@ execute(#mock_connection{base_driver=BaseDriver,
                       Statement :: erbdrv_statement(),
                       Amount :: one | all ) ->
     erbdrv_return().
-fetch_rows(#mock_connection{base_driver=BaseDriver,
+fetch_rows(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection},Statement,Amount)->
     BaseDriver:fetch_rows(BaseConnection,Statement,Amount).
 
 -spec finish( Connection :: erbdrv_connection(),
                  Statement :: erbdrv_statement() ) ->
     erbdrv_return().
-finish(#mock_connection{base_driver=BaseDriver,
+finish(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection},Statement)->
     BaseDriver:finish(BaseConnection,Statement).
 
-	       
+%----------------------------------------
+% Erbi temp internal functions
+%---------------------------------------- 
+run_db_setup(DataSource,SetupFun)->
+  #erbi{properties=PropList} = erbi:normalize_data_source(DataSource),
+  NormDsString = erbi:data_source_to_string(DataSource),  
+  BaseDriver = ?base_driver(PropList),
+  NewPropList = add_data_dir(PropList,NormDsString),
+  SetupFun(BaseDriver,NewPropList).
+
+add_data_dir(PropList,DataSource)->
+    BaseDir = proplists:get_value(data_dir,PropList),
+    NewDir = get_data_dir_name(BaseDir,DataSource),
+    lists:keyreplace(data_dir,1,PropList,{data_dir,NewDir}).
+
+get_data_dir_name(BaseDir,DataSource)->
+    Hash = binary_to_list(base64:encode(crypto:hash(md5,DataSource))),
+    HashPrefix= if length(Hash) > 20 ->
+                        element(1,lists:split(20,Hash));
+                   true ->
+                        Hash
+                end,
+    BaseDir++"/"++HashPrefix.
+
+get_normalized_base_data_source(#erbi{driver = temp, properties=PropList, args=Args}=ErbiDriver,
+                                Username,
+                                Password,
+                               BaseDriver,
+                               BaseDriverName)->
+    NormDs=erbi:data_source_to_string(ErbiDriver),
+    DDPropList=add_data_dir(PropList,NormDs),
+    
+   {TmpPropList,TmpArgs,TmpUsername,TmpPasswd}
+        = BaseDriver:get_temp_connect_data(DDPropList,Args,Username,Password),
+
+    NormDataS=erbi:normalize_data_source(#erbi{
+						     driver = BaseDriverName,
+                             properties=TmpPropList,
+                             args=TmpArgs}),
+    {NormDataS,TmpUsername,TmpPasswd}.

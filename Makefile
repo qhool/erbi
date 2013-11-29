@@ -24,8 +24,6 @@ clean:
 	@rm -rf deps || exit 0
 	@rm -f rebar || exit 0
 	@rm -rf .eunit || exit 0
-# TODO: Think of a graceful way to stop postgres
-	@killall -9 postgres || exit 0
 
 rebar:
 	@mkdir deps || exit 0
