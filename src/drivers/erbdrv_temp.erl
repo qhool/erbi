@@ -14,6 +14,7 @@
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
+%%
 -module(erbdrv_temp).
 -behaviour(erbi_driver).
 
@@ -57,7 +58,8 @@
 
 % Temp driver API implementation
 -spec start(Datasource::unicode:chardata())->
-    unicode:chardata().%datasource en vez de proplist?
+    unicode:chardata().
+
 start(DataSource)->
   run_db_setup(DataSource,fun(BaseDriver,PropList)->
                                   BaseDriver:start_temp(PropList) end).
@@ -81,8 +83,6 @@ driver_info()->
 
 -spec validate_property( atom(), any() ) ->
     ok | {ok,[property()]} | {error,any()}.
-validate_property(port,Port) when is_list(Port)->
-     {ok,[{port,list_to_integer(Port)}]};
 validate_property(base_driver,Driver) when is_list(Driver)->
     {ok,[{base_driver,list_to_atom(Driver)}]};
 validate_property(init_files,[H|_]=FilesString) when not is_list(H)->

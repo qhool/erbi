@@ -439,11 +439,15 @@ get_temp_db_prop(PropList)->
 
 % Assumed that if username is provided,
 % it was created in db initialization.
+get_temp_username(undefined) ->
+    get_db_user();
 get_temp_username("")->
     get_db_user();
 get_temp_username(User) ->
     User.
 
+get_temp_password(undefined) ->
+    "";
 get_temp_password(Passwd) ->
     Passwd.
 

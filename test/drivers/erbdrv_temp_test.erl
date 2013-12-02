@@ -22,7 +22,7 @@ connect_temp_epgsql_test_()->
 
      end,
      fun({Datasource1,Datasource2})->
-             [?_test({ok,_}=?debugVal(erbi:connect(Datasource1,"",""))),
+             [?_test({ok,_}=?debugVal(erbi:connect(Datasource1,undefined,undefined))),
               ?_test({ok,_}=?debugVal(erbi:connect(Datasource2,"","")))]
      end}.
 
