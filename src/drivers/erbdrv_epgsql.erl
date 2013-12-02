@@ -454,9 +454,9 @@ get_temp_password(Passwd) ->
 get_db_binaries_path(PropList)->
     case proplists:get_value(bin_dir,PropList) of
         undefined ->
-            search_db_binaries();
+            search_db_binaries([]);
         Path ->
-            {ok,Path}
+            search_db_binaries([Path])
     end.
 
 -define(POSSIBLE_BIN_DIRS,["/usr/bin/pgsql/bin/",
@@ -465,10 +465,10 @@ get_db_binaries_path(PropList)->
                           "/usr/local/bin/pgsql/bin/",
                           "/Library/PostgreSQL/9.2/bin/"]).
 
-search_db_binaries()->
+search_db_binaries(DSPath)->
     case lists:filter(fun(Path)->
                               filelib:is_dir(Path)
-                      end,?POSSIBLE_BIN_DIRS) of
+                      end,DSPath++?POSSIBLE_BIN_DIRS) of
         []->
             {error,binaries_not_found};
         [H|_]->         
