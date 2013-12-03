@@ -10,7 +10,7 @@
  	 get_free_db_port/2,
 	 save_in_db_data_file/3,
 	 read_from_db_data_file/2,
-	 search_db_binaries/1,
+	 search_db_binaries/2,
 	 get_string_from_ds/1
 	]).
 
@@ -69,6 +69,17 @@ save_in_db_data_file(Term,Path,File)->
 read_from_db_data_file(Path,File)->
     {ok,BinaryTerm} = file:read_file(Path++"/"++File),
     binary_to_term(BinaryTerm).
+
+search_db_binaries(PropList,PossiblePaths)->
+    SearchPaths =
+        case proplists:get_value(bin_dir,PropList) of
+        undefined ->
+            [];
+        Path ->
+            [Path]
+    end ++
+        PossiblePaths,
+    search_db_binaries(SearchPaths).
 
 search_db_binaries(PossiblePaths)->
     case lists:filter(fun(Path)->

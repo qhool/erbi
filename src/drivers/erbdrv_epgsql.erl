@@ -45,7 +45,7 @@
 -define(MIN_FETCH,1).
 -define(MAX_FETCH,0). % 0 all rows
 
-% erbi_mockable_driver API
+% erbi_temp_db  API
 -export([start_temp/1,
          stop_temp/1,
         get_temp_connect_data/3]).
@@ -198,11 +198,17 @@ finish(Connection,_) ->
 %-----------------------------------------------------
 -define(PID_FILE,"tmp_db.pid").
 -define(PORT_FILE,"tmp_db.port").
+-define(POSSIBLE_BIN_DIRS,["/usr/bin/pgsql/bin/",
+                          "/usr/sbin/pgsql/bin/",
+                          "/usr/local/pgsql/bin/",
+                          "/usr/local/bin/pgsql/bin/",
+                          "/Library/PostgreSQL/9.2/bin/"]).
 
 -spec start_temp(ErbiDataSource::erbi_data_source())->
     ok.
 start_temp(#erbi{properties=PropList})->
-    {ok,PathBin}=get_db_binaries_path(PropList),
+    {ok,PathBin}= erbi_temp_db_helpers:search_db_binaries(PropList,
+                                                          ?POSSIBLE_BIN_DIRS),
     PathData = proplists:get_value(data_dir,PropList),
     {ok, Port}=get_free_db_port(),
     ok = configure_datadir(PathBin,PathData),
@@ -447,22 +453,6 @@ get_temp_password(undefined) ->
     "";
 get_temp_password(Passwd) ->
     Passwd.
-
--define(POSSIBLE_BIN_DIRS,["/usr/bin/pgsql/bin/",
-                          "/usr/sbin/pgsql/bin/",
-                          "/usr/local/pgsql/bin/",
-                          "/usr/local/bin/pgsql/bin/",
-                          "/Library/PostgreSQL/9.2/bin/"]).
-get_db_binaries_path(PropList)->
-    PossiblePaths =
-        case proplists:get_value(bin_dir,PropList) of
-        undefined ->
-            [];
-        Path ->
-            [Path]
-    end ++
-        ?POSSIBLE_BIN_DIRS,
-    erbi_temp_db_helpers:search_db_binaries(PossiblePaths).
       
 configure_datadir(PathBin,PathData)->
     case filelib:is_dir(PathData) of
