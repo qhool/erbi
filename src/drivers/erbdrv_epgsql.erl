@@ -16,10 +16,13 @@
 %% limitations under the License.
 -module(erbdrv_epgsql).
 -behaviour(erbi_driver).
+-behaviour(erbi_temp_db).
 
 -include("erbi.hrl").
 -include("erbi_driver.hrl").
 -include_lib("epgsql/include/pgsql.hrl").
+
+% erbi_driver API
 -export([driver_info/0,
          validate_property/2,
          property_info/0,
@@ -42,6 +45,14 @@
 -define(MIN_FETCH,1).
 -define(MAX_FETCH,0). % 0 all rows
 
+% erbi_temp_db  API
+-export([start_temp/1,
+         stop_temp/1,
+        get_temp_connect_data/3]).
+
+-define(MIN_PORT,5433).
+-define(MAX_PORT,5533).
+
 -spec driver_info() -> erbi_driver_info().
 driver_info()->
     #erbi_driver_info
@@ -56,7 +67,7 @@ driver_info()->
 
 -spec validate_property( atom(), any() ) ->
     ok | {ok,[property()]} | {error,any()}.
-validate_property(port,Port)->
+validate_property(port,Port) when is_list(Port)->
      {ok,[{port,list_to_integer(Port)}]};
 validate_property( _,_ ) ->
     ok.
@@ -70,7 +81,7 @@ property_info()->
 
 -spec parse_args([any()]) ->
     declined | {error,any()} | term().
-parse_args([])->
+parse_args(_)->
     declined.
 
 -spec connect( DS :: erbi_data_source(),
@@ -182,10 +193,54 @@ finish(Connection,Statement) when is_record(Statement,statement)->
 finish(Connection,_) ->
     erbdrv_response(pgsql:sync(Connection)).
 
+%----------------------------------------------------
+% erbi_temp_db API
+%-----------------------------------------------------
+-define(PID_FILE,"tmp_db.pid").
+-define(PORT_FILE,"tmp_db.port").
+-define(POSSIBLE_BIN_DIRS,["/usr/bin/pgsql/bin/",
+                          "/usr/sbin/pgsql/bin/",
+                          "/usr/local/pgsql/bin/",
+                          "/usr/local/bin/pgsql/bin/",
+                          "/Library/PostgreSQL/9.2/bin/"]).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-spec start_temp(ErbiDataSource::erbi_data_source())->
+    ok.
+start_temp(#erbi{properties=PropList})->
+    {ok,PathBin}= erbi_temp_db_helpers:search_db_binaries(PropList,
+                                                          ?POSSIBLE_BIN_DIRS),
+    PathData = proplists:get_value(data_dir,PropList),
+    {ok, Port}=get_free_db_port(),
+    ok = configure_datadir(PathBin,PathData),
+    DBPid = start_db_instance(PathBin,PathData,Port),
+    ok = initialize_db(PropList,Port),
+    ok = erbi_temp_db_helpers:save_in_db_data_file(DBPid,PathData,?PID_FILE),
+    ok = erbi_temp_db_helpers:save_in_db_data_file(Port,PathData,?PORT_FILE),
+    ok.
+
+-spec stop_temp(ErbiDataSource::erbi_data_source())->
+    ok.
+stop_temp(#erbi{properties=PropList})->
+    PathData = proplists:get_value(data_dir,PropList),
+    Pid = erbi_temp_db_helpers:read_from_db_data_file(PathData,?PID_FILE),
+    erbi_temp_db_helpers:kill_db_pid(Pid),
+    ok = erbi_temp_db_helpers:del_data_dir(PathData),
+    ok.
+
+-spec get_temp_connect_data(ErbiDataSource::erbi_data_source(),
+                                Username::unicode:chardata(),
+                                Password::unicode:chardata())->
+    {erbi_data_source(),
+     unicode:chardata(),
+     unicode:chardata()}.
+get_temp_connect_data(ErbiDataSource,UserName,Password)->
+    {get_temp_proplist(ErbiDataSource),
+     get_temp_username(UserName),
+     get_temp_password(Password)}.
+
+%%------------------------------------
 %% Create Responses Functions
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%------------------------------------
 erbdrv_cols_rows_response({Atom,Rows},Statement) when is_list(Rows) andalso (Atom=:= ok orelse Atom=:= partial) ->
     erbdrv_data_response(unknown,{erbdrv_cols_response(Statement#statement.columns),erbdrv_rows_response({Atom,Rows},Statement#statement.columns)});
 erbdrv_cols_rows_response(Response,_) ->
@@ -283,9 +338,9 @@ erbdrv_error_response(Error) ->
          }.
     
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%--------------------------------------------
 % ERBI <-> Driver Conversions
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%--------------------------------------------
 
 epgsql_error_to_erbdrv_error(Error) when is_record(Error,error)->
     {epgsql_code_to_erbdrv_error_code(binary_to_list(Error#error.code)),
@@ -367,9 +422,92 @@ get_size(N) ->
     N.
        
 
-            
+%-----------------------------------------------
+% Erbi temp driver internal functions
+%-----------------------------------------------
+get_temp_proplist(#erbi{properties=PropList}=DS)->
+    DS#erbi{properties = [get_temp_port_prop(PropList),
+                         get_temp_db_prop(PropList)]}.
 
-            
+get_temp_port_prop(PropList)->
+    PathData= proplists:get_value(data_dir,PropList),
+    Port=erbi_temp_db_helpers:read_from_db_data_file(PathData,?PORT_FILE),
+    {port,Port}.
+
+%Assumed that if a db is provided
+% it was created in db initialization.
+get_temp_db_prop(PropList)->
+    NewValue=proplists:get_value(database,PropList,get_db_name()),
+    {database,NewValue}.
+
+% Assumed that if username is provided,
+% it was created in db initialization.
+get_temp_username(undefined) ->
+    get_db_user();
+get_temp_username("")->
+    get_db_user();
+get_temp_username(User) ->
+    User.
+
+get_temp_password(undefined) ->
+    "";
+get_temp_password(Passwd) ->
+    Passwd.
+      
+configure_datadir(PathBin,PathData)->
+    case filelib:is_dir(PathData) of
+        true ->    % database instance already initialized
+            {error,already_created};
+        false ->
+            initialize_datadir(PathBin,PathData)
+    end.
+
+% Creates datadir defaults->user=$USER;authmode=trust;db=postgres
+initialize_datadir(PathBin,PathData)->
+    os:cmd(PathBin++"/initdb -D "++PathData),
+    ok.
+
+start_db_instance(PathBin,PathData,Port)->
+    StartDbCmd=PathBin++"/postgres -p "++integer_to_list(Port)++" -D "++PathData,
+    StrPid=os:cmd(StartDbCmd++" & echo $!")--"\n",
+    list_to_integer(StrPid).
+
+initialize_db(PropList,Port)->
+    InitFiles= proplists:get_value(init_files,PropList),
+    ok=wait_for_db_started(Port, 0),
+    lists:map(fun(File)->
+                           os:cmd("psql -p "++integer_to_list(Port)++
+                                 " -U "++get_db_user()++
+                                 " -d "++get_db_name()++
+                                 " -f "++File)
+              end,InitFiles),
+    ok.
+
+wait_for_db_started(_Port,N) when N >=10 ->
+    {error,db_not_started};
+wait_for_db_started(Port,N)->
+    case os:cmd("psql -d "++get_db_name()++
+                    " -f /dev/null -p "++integer_to_list(Port)) of
+        "psql:"++_->
+            receive
+            after 500->
+                    wait_for_db_started(Port,N+1)
+            end;
+        _ ->
+            ok
+    end.
+
+get_db_user()-> 
+     os:cmd("echo $USER")--"\n".
+
+get_db_name()->
+    "postgres".
+
+get_free_db_port()->
+    erbi_temp_db_helpers:get_free_db_port(?MIN_PORT,?MAX_PORT).
+    
+
+
     
     
    
