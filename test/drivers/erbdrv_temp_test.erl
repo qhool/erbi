@@ -11,14 +11,14 @@ connect_temp_epgsql_test_()->
              Datasource1= "erbi:temp:base_driver=epgsql;data_dir="++
                  temp_opt(data_dir,Config)++
                  ";init_files="++temp_opt(schema_files,Config),
-             Datasource2=Datasource1++";bin_dir=/Library/PostgreSQL/9.2/bin/",
-             ok=erbdrv_temp:start(Datasource1),
-             ok=erbdrv_temp:start(Datasource2),
+             Datasource2=Datasource1++";bin_dir=/casa/",
+             ok=erbi_temp_db:start(Datasource1),
+             ok=erbi_temp_db:start(Datasource2),
              {Datasource1,Datasource2}
      end,
      fun({Datasource1,Datasource2})->
-             ok=erbdrv_temp:stop(Datasource1),
-             ok=erbdrv_temp:stop(Datasource2)
+             ok=erbi_temp_db:stop(Datasource1),
+             ok=erbi_temp_db:stop(Datasource2)
 
      end,
      fun({Datasource1,Datasource2})->
@@ -35,12 +35,12 @@ driver_calls_temp_epgsql_test_()->
                  temp_opt(data_dir,Config)++
                  ";init_files="++temp_opt(schema_files,Config),
 
-             ok=erbdrv_temp:start(Datasource),
+             ok=erbi_temp_db:start(Datasource),
              {ok,Conn}=erbi:connect(Datasource,"",""),
              {Datasource,Conn}
      end,
      fun({Datasource,_Conn})->
-             ok=erbdrv_temp:stop(Datasource)
+             ok=erbi_temp_db:stop(Datasource)
      end,
      fun({_Datasource,Conn})->
              [%initialized in scripts?

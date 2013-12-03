@@ -48,7 +48,7 @@
 % erbi_mockable_driver API
 -export([start_temp/1,
          stop_temp/1,
-        get_temp_connect_data/4]).
+        get_temp_connect_data/3]).
 
 -define(MIN_PORT,5433).
 -define(MAX_PORT,5533).
@@ -199,39 +199,36 @@ finish(Connection,_) ->
 -define(PID_FILE,"tmp_db.pid").
 -define(PORT_FILE,"tmp_db.port").
 
--spec start_temp(PropList::[property()])->
+-spec start_temp(ErbiDataSource::erbi_data_source())->
     ok.
-start_temp(PropList)->
+start_temp(#erbi{properties=PropList})->
     {ok,PathBin}=get_db_binaries_path(PropList),
-    PathData= proplists:get_value(data_dir,PropList),
+    PathData = proplists:get_value(data_dir,PropList),
     {ok, Port}=get_free_db_port(),
     ok = configure_datadir(PathBin,PathData),
     DBPid = start_db_instance(PathBin,PathData,Port),
     ok = initialize_db(PropList,Port),
-    ok = save_in_file(DBPid,PathData,?PID_FILE),
-    ok = save_in_file(Port,PathData,?PORT_FILE),
+    ok = erbi_temp_db_helpers:save_in_db_data_file(DBPid,PathData,?PID_FILE),
+    ok = erbi_temp_db_helpers:save_in_db_data_file(Port,PathData,?PORT_FILE),
     ok.
 
--spec stop_temp(PropList::[property()])->
+-spec stop_temp(ErbiDataSource::erbi_data_source())->
     ok.
-stop_temp(PropList)->
-    PathData= proplists:get_value(data_dir,PropList),
-    Pid=read_from_file(PathData,?PID_FILE),
-    kill_db_pid(Pid),
-    ok=del_dir(PathData),
+stop_temp(#erbi{properties=PropList})->
+    PathData = proplists:get_value(data_dir,PropList),
+    Pid = erbi_temp_db_helpers:read_from_db_data_file(PathData,?PID_FILE),
+    erbi_temp_db_helpers:kill_db_pid(Pid),
+    ok = erbi_temp_db_helpers:del_data_dir(PathData),
     ok.
 
--spec get_temp_connect_data(PropList::[property()],
-                                Args::[any()] | atom(),
+-spec get_temp_connect_data(ErbiDataSource::erbi_data_source(),
                                 Username::unicode:chardata(),
                                 Password::unicode:chardata())->
-    {[property()],
-     [any()] | atom(),
+    {erbi_data_source(),
      unicode:chardata(),
      unicode:chardata()}.
-get_temp_connect_data(PropList,_Args,UserName,Password)->
-    {get_temp_proplist(PropList),
-     [],
+get_temp_connect_data(ErbiDataSource,UserName,Password)->
+    {get_temp_proplist(ErbiDataSource),
      get_temp_username(UserName),
      get_temp_password(Password)}.
 
@@ -422,13 +419,13 @@ get_size(N) ->
 %-----------------------------------------------
 % Erbi temp driver internal functions
 %-----------------------------------------------
-get_temp_proplist(PropList)->
-    [get_temp_port_prop(PropList),
-    get_temp_db_prop(PropList)].
+get_temp_proplist(#erbi{properties=PropList}=DS)->
+    DS#erbi{properties = [get_temp_port_prop(PropList),
+                         get_temp_db_prop(PropList)]}.
 
 get_temp_port_prop(PropList)->
     PathData= proplists:get_value(data_dir,PropList),
-    Port=read_from_file(PathData,?PORT_FILE),
+    Port=erbi_temp_db_helpers:read_from_db_data_file(PathData,?PORT_FILE),
     {port,Port}.
 
 %Assumed that if a db is provided
@@ -451,30 +448,22 @@ get_temp_password(undefined) ->
 get_temp_password(Passwd) ->
     Passwd.
 
-get_db_binaries_path(PropList)->
-    case proplists:get_value(bin_dir,PropList) of
-        undefined ->
-            search_db_binaries([]);
-        Path ->
-            search_db_binaries([Path])
-    end.
-
 -define(POSSIBLE_BIN_DIRS,["/usr/bin/pgsql/bin/",
                           "/usr/sbin/pgsql/bin/",
                           "/usr/local/pgsql/bin/",
                           "/usr/local/bin/pgsql/bin/",
                           "/Library/PostgreSQL/9.2/bin/"]).
-
-search_db_binaries(DSPath)->
-    case lists:filter(fun(Path)->
-                              filelib:is_dir(Path)
-                      end,DSPath++?POSSIBLE_BIN_DIRS) of
-        []->
-            {error,binaries_not_found};
-        [H|_]->         
-            {ok,H}
-    end.
-
+get_db_binaries_path(PropList)->
+    PossiblePaths =
+        case proplists:get_value(bin_dir,PropList) of
+        undefined ->
+            [];
+        Path ->
+            [Path]
+    end ++
+        ?POSSIBLE_BIN_DIRS,
+    erbi_temp_db_helpers:search_db_binaries(PossiblePaths).
+      
 configure_datadir(PathBin,PathData)->
     case filelib:is_dir(PathData) of
         true ->    % database instance already initialized
@@ -497,7 +486,7 @@ initialize_db(PropList,Port)->
     InitFiles= proplists:get_value(init_files,PropList),
     ok=wait_for_db_started(Port, 0),
     lists:map(fun(File)->
-                              os:cmd("psql -p "++integer_to_list(Port)++
+                           os:cmd("psql -p "++integer_to_list(Port)++
                                  " -U "++get_db_user()++
                                  " -d "++get_db_name()++
                                  " -f "++File)
@@ -518,66 +507,17 @@ wait_for_db_started(Port,N)->
             ok
     end.
 
-get_db_user()->
+get_db_user()-> 
      os:cmd("echo $USER")--"\n".
 
 get_db_name()->
     "postgres".
 
 get_free_db_port()->
-    StartingPort=trunc(random:uniform()*(?MAX_PORT-?MIN_PORT))+?MIN_PORT,
-    get_free_db_port(StartingPort).
+    erbi_temp_db_helpers:get_free_db_port(?MIN_PORT,?MAX_PORT).
+    
 
-get_free_db_port(StartingPort)->
-    get_free_db_port(StartingPort,undefined).
 
-get_free_db_port(Port,undefined) when Port > ?MAX_PORT->
-    get_free_db_port(?MIN_PORT,restarted);
-get_free_db_port(Port,restarted) when Port >?MAX_PORT ->
-    {error,no_free_port};
-get_free_db_port(Port,Tag) ->
-    case gen_tcp:listen(Port,[]) of
-       {ok,TmpSock}->
-            gen_tcp:close(TmpSock),
-            {ok,Port};
-        _ ->
-            get_free_db_port(Port+1,Tag)
-      end.
-  
-save_in_file(Term,Path,File)->
-    file:write_file(Path++"/"++File,term_to_binary(Term)).
-                         
-read_from_file(Path,File)->
-    {ok,BinaryTerm} = file:read_file(Path++"/"++File),
-    binary_to_term(BinaryTerm).
-
-del_dir(Dir) ->
-   lists:foreach(fun(D) ->
-                    ok = file:del_dir(D)
-                 end, del_all_files([Dir], [])).
- 
-del_all_files([], EmptyDirs) ->
-    EmptyDirs;
-del_all_files([Dir | T], EmptyDirs) ->
-    {ok, FilesInDir} = file:list_dir(Dir),
-    {Files, Dirs} = lists:foldl(fun(F, {Fs, Ds}) ->
-                                        Path = Dir ++ "/" ++ F,
-                                        case filelib:is_dir(Path) of
-                                            true ->
-                                                {Fs, [Path | Ds]};
-                                            false ->
-                                                {[Path | Fs], Ds}
-                                        end
-                                end, {[],[]}, FilesInDir),
-    lists:foreach(fun(F) ->
-                          ok = file:delete(F)
-                  end, Files),
-    del_all_files(T ++ Dirs, [Dir | EmptyDirs]).
-
-kill_db_pid(Pid)->
-    os:cmd("kill -9 "++integer_to_list(Pid)).
-
-            
     
     
    

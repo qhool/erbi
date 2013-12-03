@@ -1,13 +1,13 @@
-Using temp driver
+Using temp database
 =================
-Temp erbi driver is  used to wrap another erbi driver, and add to it the functionality of
+Temp erbi temp database is  used to wrap an erbi driver, and add to it the functionality of
 launching and removing an autocongigured temporary instance of the underlying database.
 Specially used for testing purposes.
 
 This driver provides two external API functions:
-- start/0 : Takes a data source descriptor and startst the temporary database instance acording
+- erbi_temp_db:start/1 : Takes a data source descriptor and startst the temporary database instance acording
 to the data provided.
-- stop/0 : Takes the data source used to start the instance, stops that instance and removes any
+- erbi_temp_db:stop/1 : Takes the data source used to start the instance, stops that instance and removes any
  data related to the temporary instance.
 
 These functions are intended to be called in test setup/cleanup.

@@ -57,16 +57,18 @@
 -define(DEFAULT_DATA_DIR,"/tmp_data/mock_db_data").
 
 % Temp driver API implementation
--spec start(Datasource::unicode:chardata())->
-    unicode:chardata().
+-spec start(Datasource::erbi_data_source())->
+    ok.
 
 start(DataSource)->
-  run_db_setup(DataSource,fun(BaseDriver,PropList)->
-                                  BaseDriver:start_temp(PropList) end).
+  run_db_setup(DataSource,fun(BaseDriver,ErbiDS)->
+                                  BaseDriver:start_temp(ErbiDS) end).
 
+-spec stop(Datasource::erbi_data_source())->
+    ok.
 stop(DataSource)->
-  run_db_setup(DataSource,fun(BaseDriver,PropList)->
-                                  BaseDriver:stop_temp(PropList) end).
+  run_db_setup(DataSource,fun(BaseDriver,ErbiDS)->
+                                  BaseDriver:stop_temp(ErbiDS) end).
 
 % erbi driver API implementation
 -spec driver_info() -> erbi_driver_info().
@@ -111,7 +113,7 @@ connect(#erbi{driver = temp, properties=PropList}=ErbiDriver, Username, Password
     BaseDriver=?base_driver(PropList), 
     %Get PropList with the actual data_dir
     {NormBaseDataSource,TmpUsername,TmpPasswd}
-        = get_normalized_base_data_source(ErbiDriver,
+        = erbi_temp_db:get_normalized_base_data_source(ErbiDriver,
                                 Username,
                                 Password,
                                BaseDriver,
@@ -220,40 +222,14 @@ finish(#temp_connection{base_driver=BaseDriver,
 %----------------------------------------
 % Erbi temp internal functions
 %---------------------------------------- 
-run_db_setup(DataSource,SetupFun)->
-  #erbi{properties=PropList} = erbi:normalize_data_source(DataSource),
-  NormDsString = erbi:data_source_to_string(DataSource),  
+run_db_setup(#erbi{properties=PropList,args=Args}=DataSource,SetupFun)->
   BaseDriver = ?base_driver(PropList),
-  NewPropList = add_data_dir(PropList,NormDsString),
-  SetupFun(BaseDriver,NewPropList).
+  BaseDriverName=?base_driver_name(PropList),
+  NewPropList = erbi_temp_db:add_data_dir(PropList,DataSource),
+  SetupFun(BaseDriver,#erbi{driver=BaseDriverName,properties=NewPropList,args=Args}).
 
-add_data_dir(PropList,DataSource)->
-    BaseDir = proplists:get_value(data_dir,PropList),
-    NewDir = get_data_dir_name(BaseDir,DataSource),
-    lists:keyreplace(data_dir,1,PropList,{data_dir,NewDir}).
 
-get_data_dir_name(BaseDir,DataSource)->
-    Hash = binary_to_list(base64:encode(crypto:hash(md5,DataSource))),
-    HashPrefix= if length(Hash) > 20 ->
-                        element(1,lists:split(20,Hash));
-                   true ->
-                        Hash
-                end,
-    BaseDir++"/"++HashPrefix.
 
-get_normalized_base_data_source(#erbi{driver = temp, properties=PropList, args=Args}=ErbiDriver,
-                                Username,
-                                Password,
-                               BaseDriver,
-                               BaseDriverName)->
-    NormDs=erbi:data_source_to_string(ErbiDriver),
-    DDPropList=add_data_dir(PropList,NormDs),
-    
-   {TmpPropList,TmpArgs,TmpUsername,TmpPasswd}
-        = BaseDriver:get_temp_connect_data(DDPropList,Args,Username,Password),
 
-    NormDataS=erbi:normalize_data_source(#erbi{
-						     driver = BaseDriverName,
-                             properties=TmpPropList,
-                             args=TmpArgs}),
-    {NormDataS,TmpUsername,TmpPasswd}.
+
+            
