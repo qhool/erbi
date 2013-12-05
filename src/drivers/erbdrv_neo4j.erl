@@ -19,6 +19,8 @@
 %% @end 
 -module(erbdrv_neo4j).
 -behaviour(erbi_driver).
+-behaviour(erbi_temp_db).
+
 -include("erbi.hrl").
 -include("erbi_driver.hrl").
 
@@ -38,6 +40,12 @@
          fetch_rows/3,
          finish/2
         ]).
+
+
+% erbi_temp_db  API
+-export([start_temp/1,
+         stop_temp/1,
+        get_temp_connect_data/3]).
 
 -record(neocon, % ;-)
         { type = transaction :: atom(),
@@ -159,8 +167,7 @@ prepare( _C, _Q ) ->
 do( _C, _Q, _P ) ->
     declined.
 
-bind_params( _C , _S, _P ) ->
-    declined.
+bind_params( _C , _S, _P ) -> declined.
 
 %% since prepare isn't supported, we should always get the raw query and a list of params
 execute( #neocon{type=cypher, url=Url}=C, Query, Params ) ->
@@ -212,6 +219,52 @@ fetch_rows(_,_,_) ->
     declined.
 finish(_,_) ->
     decline.
+
+%----------------------------------------------------
+% erbi_temp_db API
+%-----------------------------------------------------
+-define(PORT_FILE,"tmp_db.port").
+-define(MIN_PORT, 7475).
+-define(MAX_PORT, 8475).
+-define(POSSIBLE_BIN_DIRS,[]).
+
+-spec start_temp(ErbiDataSource::erbi_data_source())->
+    ok.
+start_temp(#erbi{properties=PropList})->
+    {ok,PathBin}= erbi_temp_db_helpers:search_db_binaries(PropList,
+                                                          ?POSSIBLE_BIN_DIRS),
+    PathData = proplists:get_value(data_dir,PropList),
+    {ok, Port}=erbi_temp_db_helpers:get_free_db_port(?MIN_PORT,?MAX_PORT),
+    ok = get_needed_binaries_copies(PathBin,PathData),
+    ok = configure_db_instance(PathData,Port),
+    ok = initialize_db(PropList,PathData), %starts a local neo4j-shell that populates data
+    ok = start_db_instance(PathData),
+    ok = wait_for_db_started(Port,0),
+    ok = erbi_temp_db_helpers:save_in_db_data_file(Port,PathData,?PORT_FILE),
+    ok.
+
+-spec stop_temp(ErbiDataSource::erbi_data_source())->
+    ok.
+stop_temp(#erbi{properties=PropList})->
+    PathData = proplists:get_value(data_dir,PropList),
+    Port = erbi_temp_db_helpers:read_from_db_data_file(PathData,?PORT_FILE),
+    ok = stop_db_instance(PathData),
+    ok = wait_for_db_stopped(Port,0),
+    ok = erbi_temp_db_helpers:del_data_dir(PathData),
+    ok.
+
+-spec get_temp_connect_data(ErbiDataSource::erbi_data_source(),
+                                Username::unicode:chardata(),
+                                Password::unicode:chardata())->
+    {erbi_data_source(),
+     unicode:chardata(),
+     unicode:chardata()}.
+get_temp_connect_data(ErbiDataSource,UserName,Password)->
+    {get_temp_proplist(ErbiDataSource),
+     get_temp_username(UserName),
+     get_temp_password(Password)}.
+
+
 
 %%-- Internals --%%
 
@@ -307,3 +360,125 @@ header_error( Code, HeaderName, Headers, Default ) ->
                    {Code,Val}
            end,
     #erbdrv{ status = error, data = Data }.
+
+%-----------------------------------------------
+% Erbi temp driver internal functions
+%-----------------------------------------------
+get_temp_proplist(#erbi{properties=PropList}=DS)->
+    DS#erbi{properties = [get_temp_port_prop(PropList)]++
+                         add_endpoint_if_needed(PropList)}.
+
+get_temp_port_prop(PropList)->
+    PathData= proplists:get_value(data_dir,PropList),
+    Port=erbi_temp_db_helpers:read_from_db_data_file(PathData,?PORT_FILE),
+    {port,Port}.
+
+add_endpoint_if_needed(PropList)->
+    case proplists:get_value(endpoint,PropList) of
+        undefined ->
+            [];
+        Val ->
+            [{endpoint,Val}]
+    end.
+
+get_temp_username(_) ->
+    undefined.
+
+get_temp_password(_) ->
+    undefined.
+
+get_needed_binaries_copies(PathBin,PathData)->
+    ok=filelib:ensure_dir(PathData),
+    lists:foreach(fun(SubDir)->
+                          ok=filelib:ensure_dir(PathData++"/"++SubDir),
+                          os:cmd("cp -p -r "++
+                                     PathBin++"../"++SubDir++" "++
+                                     PathData++"/"++SubDir)
+                  end,
+                  ["bin","conf","lib","plugins","system"]),
+    os:cmd("mkdir "++PathData++"/data"),
+    ok.
+
+configure_db_instance(PathData,Port)->
+    substitute_properties_in_file(PathData,Port),
+    check_disabled_remote_shell_cmd(PathData),
+    ok.
+
+substitute_properties_in_file(PathData,Port)->
+   lists:foreach(fun({Config,SubsCmd})->
+              os:cmd("mv "++
+               PathData++Config++" "++
+               PathData++Config++"_tmp"),
+               os:cmd("sed "++SubsCmd++
+               " "++PathData++Config++"_tmp > "++
+               PathData++Config)
+                  end,
+       [{"/conf/neo4j-server.properties",
+         get_substitute_server_config_cmd(Port)},
+        {"/conf/neo4j.properties",
+         "s/enable_remote_shell=.*\$/enable_remote_shell=false/g"}]).
+
+-define(DB_DATA_DIR,"data\\/erbi_tmp.db").
+get_substitute_server_config_cmd(Port)->
+    lists:flatten(lists:map(fun({Key,Val})->
+                    " -e \"s/"++Key++"=.*\$/"++Key++"="++Val++"/g\""
+            end,
+    [
+     {"org.neo4j.server.database.location",?DB_DATA_DIR},
+     {"org.neo4j.server.webserver.port",integer_to_list(Port)},
+     {"org.neo4j.server.webserver.https.enabled","false"}
+    ])).
+
+check_disabled_remote_shell_cmd(PathData)->
+    os:cmd("echo 'enable_remote_shell=false' >> "++
+               PathData++"/conf/neo4j.properties").
+
+start_db_instance(PathData)->
+    exec_neo4j_server_cmd(PathData,"start &").
+
+stop_db_instance(PathData)->
+    exec_neo4j_server_cmd(PathData,"stop").
+
+exec_neo4j_server_cmd(PathData,NeoCmd) ->
+    DbCmd=PathData++"/bin/neo4j "++NeoCmd,
+    os:cmd(DbCmd),
+    ok.
+
+wait_for_db_started(_Port,N) when N >=50 ->
+    {error,db_not_started};
+wait_for_db_started(Port,N)->
+    OnConnect = fun() -> ok end,
+    OnErrorConnect = fun()->  wait_for_db_started(Port,N+1) end,
+    wait_for_db_event(Port,OnConnect,OnErrorConnect).
+
+wait_for_db_stopped(_Port,N) when N >=50 ->
+    {error,db_not_stopped};
+wait_for_db_stopped(Port,N)->
+    OnErrorConnect = fun() -> ok end,
+    OnConnect = fun()->  wait_for_db_stopped(Port,N+1) end,
+    wait_for_db_event(Port,OnConnect,OnErrorConnect).
+
+
+wait_for_db_event(Port,OnConnect,OnErrorConnect)->
+    Url =  "http://localhost:"++ integer_to_list(Port) ++ "/db/data/",
+    ok = application:ensure_started(inets),
+    case restc:request( get, json, Url, [200] ) of
+        {ok,_Status,_,_} ->
+            OnConnect();
+        _Any ->
+            receive
+            after 500->
+                  OnErrorConnect() 
+            end
+    end.
+
+initialize_db(PropList,PathData)->
+    InitFiles= proplists:get_value(init_files,PropList,[]),
+    lists:map(fun(File)->
+                         os:cmd(PathData++"/bin/neo4j-shell -path "++PathData++
+                                      "/"++?DB_DATA_DIR++
+                                      " -config "++PathData++"/conf/ -file "++File)
+              end,InitFiles),
+    ok.
+
+

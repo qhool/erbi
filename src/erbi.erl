@@ -143,7 +143,7 @@ get_driver_module( #erbi{driver=DriverAtom} ) ->
     get_driver_module(DriverAtom);
 get_driver_module( DriverAtom ) ->
     Module = list_to_atom("erbdrv_" ++ atom_to_list(DriverAtom)),
-    {module,Module} = load_if_embedded(code:ensure_loaded(Module),Module),
+    {module,Module} = code:ensure_loaded(Module),
     Module.
 
 %% @headerfile "erbi.hrl"
@@ -377,8 +377,3 @@ scan_ds_quoted( Quote, [Q|Chars], Accum, Tokens )
 %%normal case; add character to quoted token
 scan_ds_quoted( Quote, [Char|Chars], Accum, Tokens ) ->
     scan_ds_quoted( Quote, Chars, [Char|Accum], Tokens ).
-
-load_if_embedded({error,embedded},Module)->
-    code:load_file(Module);
-load_if_embedded(Any,_) ->
-    Any.
