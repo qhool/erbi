@@ -11,9 +11,10 @@
 	 save_in_db_data_file/3,
 	 read_from_db_data_file/2,
 	 search_db_binaries/2,
-	 get_string_from_ds/1
+	 get_string_from_ds/1,
+     wait_for/3
 	]).
-
+ 
 
 % Helper functions for drivers implementing
 % erbi_temp_db behaviour
@@ -70,27 +71,33 @@ read_from_db_data_file(Path,File)->
     {ok,BinaryTerm} = file:read_file(Path++"/"++File),
     binary_to_term(BinaryTerm).
 
-search_db_binaries(PropList,PossiblePaths)->
-    SearchPaths =
-        case proplists:get_value(bin_dir,PropList) of
-        undefined ->
-            [];
-        Path ->
-            [Path]
-    end ++
-        PossiblePaths,
-    search_db_binaries(SearchPaths).
-
-search_db_binaries(PossiblePaths)->
+search_db_binaries(PossiblePaths,Filename)->
     case lists:filter(fun(Path)->
-                              filelib:is_dir(Path)
-                      end,PossiblePaths) of
+                              filelib:is_file(Path++"/"++Filename)
+                      end,PossiblePaths ++ get_os_path()) of
         []->
             {error,binaries_not_found};
         [H|_]->         
             {ok,H}
     end.
 
+get_os_path()->
+    StrPaths=os:getenv("PATH"),
+    string:tokens(StrPaths,":").
 
 get_string_from_ds(#erbi{driver = DriverName, properties=PropList, args=Args})->
     io_lib:format("erbi:~p:~p:~p",[DriverName,PropList,Args]).
+
+wait_for(_Fun,_Interval,0 ) ->
+    {error,max_tries};
+wait_for(Fun, Interval, Tries) ->
+    case Fun() of
+        wait ->
+            receive
+            after Interval->
+                    wait_for(Fun,Interval,Tries-1)
+            end;
+        _Any->
+            ok
+    end.
+

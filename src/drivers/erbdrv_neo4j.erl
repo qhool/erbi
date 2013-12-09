@@ -231,15 +231,17 @@ finish(_,_) ->
 -spec start_temp(ErbiDataSource::erbi_data_source())->
     ok.
 start_temp(#erbi{properties=PropList})->
-    {ok,PathBin}= erbi_temp_db_helpers:search_db_binaries(PropList,
-                                                          ?POSSIBLE_BIN_DIRS),
+    {ok,PathBin}= erbi_temp_db_helpers:search_db_binaries(
+                    [proplists:get_value(bin_dir,PropList,"") |
+                     ?POSSIBLE_BIN_DIRS]
+                    ,"neo4j"),
     PathData = proplists:get_value(data_dir,PropList),
     {ok, Port}=erbi_temp_db_helpers:get_free_db_port(?MIN_PORT,?MAX_PORT),
     ok = get_needed_binaries_copies(PathBin,PathData),
     ok = configure_db_instance(PathData,Port),
     ok = initialize_db(PropList,PathData), %starts a local neo4j-shell that populates data
     ok = start_db_instance(PathData),
-    ok = wait_for_db_started(Port,0),
+    ok = wait_for_db_started(Port ),
     ok = erbi_temp_db_helpers:save_in_db_data_file(Port,PathData,?PORT_FILE),
     ok.
 
@@ -249,7 +251,7 @@ stop_temp(#erbi{properties=PropList})->
     PathData = proplists:get_value(data_dir,PropList),
     Port = erbi_temp_db_helpers:read_from_db_data_file(PathData,?PORT_FILE),
     ok = stop_db_instance(PathData),
-    ok = wait_for_db_stopped(Port,0),
+    ok = wait_for_db_stopped(Port),
     ok = erbi_temp_db_helpers:del_data_dir(PathData),
     ok.
 
@@ -444,32 +446,28 @@ exec_neo4j_server_cmd(PathData,NeoCmd) ->
     os:cmd(DbCmd),
     ok.
 
-wait_for_db_started(_Port,N) when N >=50 ->
-    {error,db_not_started};
-wait_for_db_started(Port,N)->
-    OnConnect = fun() -> ok end,
-    OnErrorConnect = fun()->  wait_for_db_started(Port,N+1) end,
-    wait_for_db_event(Port,OnConnect,OnErrorConnect).
+wait_for_db_started(Port)->
+    wait_for_db_event(Port,db_ready,wait,[200],{error,db_not_started}).
 
-wait_for_db_stopped(_Port,N) when N >=50 ->
-    {error,db_not_stopped};
-wait_for_db_stopped(Port,N)->
-    OnErrorConnect = fun() -> ok end,
-    OnConnect = fun()->  wait_for_db_stopped(Port,N+1) end,
-    wait_for_db_event(Port,OnConnect,OnErrorConnect).
+wait_for_db_stopped(Port)->
+    wait_for_db_event(Port,wait,db_stopped,[],{error,db_not_stopped}).
 
-
-wait_for_db_event(Port,OnConnect,OnErrorConnect)->
-    Url =  "http://localhost:"++ integer_to_list(Port) ++ "/db/data/",
-    ok = application:ensure_started(inets),
-    case restc:request( get, json, Url, [200] ) of
-        {ok,_Status,_,_} ->
-            OnConnect();
-        _Any ->
-            receive
-            after 500->
-                  OnErrorConnect() 
-            end
+wait_for_db_event(Port,OnConnect,OnConnectErr,ExpectedHttpStatus,Error)->
+    Fun = fun() ->
+                  Url =  "http://localhost:"++ integer_to_list(Port) ++ "/db/data/",
+                  ok = application:ensure_started(inets),
+                  case restc:request( get, json, Url, ExpectedHttpStatus) of
+                      {ok,_Status,_,_} ->
+                          OnConnect;
+                      _Any ->
+                          OnConnectErr
+                  end
+          end,
+    case erbi_temp_db_helpers:wait_for(Fun,500,50) of
+        {error,max_tries}->
+            Error;
+        _ ->
+            ok
     end.
 
 initialize_db(PropList,PathData)->

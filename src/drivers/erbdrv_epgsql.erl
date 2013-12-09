@@ -202,13 +202,16 @@ finish(Connection,_) ->
                           "/usr/sbin/pgsql/bin/",
                           "/usr/local/pgsql/bin/",
                           "/usr/local/bin/pgsql/bin/",
+                          "/usr/pgsql-9.2/bin",
                           "/Library/PostgreSQL/9.2/bin/"]).
 
 -spec start_temp(ErbiDataSource::erbi_data_source())->
     ok.
 start_temp(#erbi{properties=PropList})->
-    {ok,PathBin}= erbi_temp_db_helpers:search_db_binaries(PropList,
-                                                          ?POSSIBLE_BIN_DIRS),
+    {ok,PathBin}= erbi_temp_db_helpers:search_db_binaries(
+                    [proplists:get_value(bin_dir,PropList,"") |
+                     ?POSSIBLE_BIN_DIRS]
+                    ,"postgres"),
     PathData = proplists:get_value(data_dir,PropList),
     {ok, Port}=get_free_db_port(),
     ok = configure_datadir(PathBin,PathData),
@@ -474,7 +477,7 @@ start_db_instance(PathBin,PathData,Port)->
 
 initialize_db(PropList,Port)->
     InitFiles= proplists:get_value(init_files,PropList),
-    ok=wait_for_db_started(Port, 0),
+    ok=wait_for_db_started(Port),
     lists:map(fun(File)->
                            os:cmd("psql -p "++integer_to_list(Port)++
                                  " -U "++get_db_user()++
@@ -483,17 +486,20 @@ initialize_db(PropList,Port)->
               end,InitFiles),
     ok.
 
-wait_for_db_started(_Port,N) when N >=10 ->
-    {error,db_not_started};
-wait_for_db_started(Port,N)->
-    case os:cmd("psql -d "++get_db_name()++
-                    " -f /dev/null -p "++integer_to_list(Port)) of
-        "psql:"++_->
-            receive
-            after 500->
-                    wait_for_db_started(Port,N+1)
-            end;
-        _ ->
+wait_for_db_started(Port)->
+    Fun= fun() ->
+                 case os:cmd("psql -d "++get_db_name()++
+                                 " -f /dev/null -p "++integer_to_list(Port)) of
+                     "psql:"++_->
+                         wait;
+                     _ ->
+                         db_ready
+                 end
+         end,
+    case erbi_temp_db_helpers:wait_for(Fun,500,10) of
+        {error,max_tries}->
+            {error,db_not_started};
+        _->
             ok
     end.
 
