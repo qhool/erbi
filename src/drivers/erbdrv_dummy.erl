@@ -19,6 +19,7 @@
 %% @end 
 -module(erbdrv_dummy).
 -behaviour(erbi_driver).
+-behaviour(erbi_temp_db).
 -include("erbi.hrl").
 -include("erbi_driver.hrl").
 -export([driver_info/0,
@@ -38,6 +39,11 @@
          finish/2,
          params/2
         ]).
+
+% erbi_temp_db  API
+-export([start_temp/1,
+         stop_temp/1,
+        get_temp_connect_data/3]).
 
 driver_info() ->
     #erbi_driver_info
@@ -213,6 +219,43 @@ fetch_rows( Props, {Query,Params,Rows}, Amount ) ->
 finish( Props, {Query,_,_} ) ->
     on_success( Props, finish, #erbdrv{status=ok,stmt={Query,[],undefined}} ).
 
+%----------------------------------------------------
+% erbi_temp_db API
+%-----------------------------------------------------
+-define(PORT_FILE,"tmp_db.port").
+-define(MIN_PORT, 8888).
+-define(MAX_PORT, 9888).
+-define(POSSIBLE_BIN_DIRS,[]).
+
+-spec start_temp(ErbiDataSource::erbi_data_source())->
+    ok.
+start_temp(#erbi{properties=PropList})->
+    PathData = proplists:get_value(data_dir,PropList),
+    os:cmd("mkdir -p "++PathData),
+    {ok, Port}=erbi_temp_db_helpers:get_free_db_port(?MIN_PORT,?MAX_PORT),
+    ok = erbi_temp_db_helpers:save_in_db_data_file(Port,PathData,?PORT_FILE),
+    ok.
+
+-spec stop_temp(ErbiDataSource::erbi_data_source())->
+    ok.
+stop_temp(#erbi{properties=PropList})->
+    PathData = proplists:get_value(data_dir,PropList),
+    _Port = erbi_temp_db_helpers:read_from_db_data_file(PathData,?PORT_FILE),
+    ok = erbi_temp_db_helpers:del_data_dir(PathData),
+    ok.
+
+-spec get_temp_connect_data(ErbiDataSource::erbi_data_source(),
+                                Username::unicode:chardata(),
+                                Password::unicode:chardata())->
+    {erbi_data_source(),
+     unicode:chardata(),
+     unicode:chardata()}.
+get_temp_connect_data(ErbiDataSource,_UserName,_Password)->
+    {ErbiDataSource,
+     "",
+     ""}.
+
+
 %% -----------------------------------
 %% @doc get bind parameters passed in
 %%
@@ -223,6 +266,7 @@ finish( Props, {Query,_,_} ) ->
 %% -----------------------------------
 params( _Props, {_Q,Params,_} ) ->
     #erbdrv{status=ok,data=Params}.
+
 
 
 %% ---
@@ -267,3 +311,4 @@ match_query(Props,QStr) ->
                 _ -> Found
             end,
     {C,R}.
+    
