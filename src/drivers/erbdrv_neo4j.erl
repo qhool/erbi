@@ -102,21 +102,12 @@ connect( #erbi{ properties = Props }, _Username, _Password ) ->
     Endpoint = proplists:get_value(endpoint, Props),
     BaseUrl = atom_to_list(Scheme) ++ "://" ++ Host ++ ":" ++ integer_to_list(Port),
     EndpointUrl = BaseUrl ++ "/db/data/" ++ atom_to_list(Endpoint),
-    % make sure the server is there:
-    CheckUrl = BaseUrl ++ "/db/data/",
-    ok = application:ensure_started(inets),
-    ok = case Scheme of
-             https ->
-                 application:ensure_started(restc);
-             _ ->
-                 ok
-         end,
     Info = case Endpoint of
                transaction -> same;
                cypher ->
                    (driver_info())#erbi_driver_info{transaction_support=false}
            end,
-    case restc:request( get, json, CheckUrl, [200] ) of
+    case check_db_status(Scheme,Host,Port, [200]) of
         {ok,_Status,_,_} ->
             #erbdrv{ status = ok, info = Info, conn = #neocon{type=Endpoint,url=EndpointUrl} };
         {error,Status,Headers,_} ->
@@ -447,28 +438,35 @@ exec_neo4j_server_cmd(PathData,NeoCmd) ->
     ok.
 
 wait_for_db_started(Port)->
-    wait_for_db_event(Port,db_ready,wait,[200],{error,db_not_started}).
+    wait_for_db_state(Port,started,[200],{error,db_not_started}).
 
 wait_for_db_stopped(Port)->
-    wait_for_db_event(Port,wait,db_stopped,[],{error,db_not_stopped}).
+    wait_for_db_state(Port,stopped,[],{error,db_not_stopped}).
 
-wait_for_db_event(Port,OnConnect,OnConnectErr,ExpectedHttpStatus,Error)->
+wait_for_db_state(Port,ExpectedState,ExpectedHttpStatus,Error)->
     Fun = fun() ->
-                  Url =  "http://localhost:"++ integer_to_list(Port) ++ "/db/data/",
-                  ok = application:ensure_started(inets),
-                  case restc:request( get, json, Url, ExpectedHttpStatus) of
-                      {ok,_Status,_,_} ->
-                          OnConnect;
-                      _Any ->
-                          OnConnectErr
+                  case {ExpectedState,check_db_status(http,"localhost",Port, ExpectedHttpStatus)} of
+                       {started,{ok,_,_,_}} ->
+                          ok;
+                       {stopped,{error,{failed_connect,_}}} ->
+                          ok;
+                      Any ->
+                          wait
                   end
           end,
-    case erbi_temp_db_helpers:wait_for(Fun,500,50) of
-        {error,max_tries}->
-            Error;
-        _ ->
-            ok
-    end.
+   erbi_temp_db_helpers:wait_for(Fun,Error,500,50).
+
+check_db_status(Scheme,Host,Port, ExpectedHttpCode)->
+    BaseUrl = atom_to_list(Scheme) ++ "://" ++ Host ++ ":" ++ integer_to_list(Port),
+    CheckUrl = BaseUrl ++ "/db/data/",
+    ok = application:ensure_started(inets),
+    ok = case Scheme of
+             https ->
+                 application:ensure_started(restc);
+             _ ->
+                 ok
+         end,
+    restc:request( get, json, CheckUrl, ExpectedHttpCode ).
 
 initialize_db(PropList,PathData)->
     InitFiles= proplists:get_value(init_files,PropList,[]),

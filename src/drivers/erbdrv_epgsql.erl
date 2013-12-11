@@ -493,15 +493,10 @@ wait_for_db_started(Port)->
                      "psql:"++_->
                          wait;
                      _ ->
-                         db_ready
+                         ok
                  end
          end,
-    case erbi_temp_db_helpers:wait_for(Fun,500,10) of
-        {error,max_tries}->
-            {error,db_not_started};
-        _->
-            ok
-    end.
+    erbi_temp_db_helpers:wait_for(Fun,{error,db_not_started},500,10).
 
 get_db_user()-> 
      os:cmd("echo $USER")--"\n".

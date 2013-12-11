@@ -12,7 +12,7 @@
 	 read_from_db_data_file/2,
 	 search_db_binaries/2,
 	 get_string_from_ds/1,
-     wait_for/3
+     wait_for/4
 	]).
  
 
@@ -88,16 +88,16 @@ get_os_path()->
 get_string_from_ds(#erbi{driver = DriverName, properties=PropList, args=Args})->
     io_lib:format("erbi:~p:~p:~p",[DriverName,PropList,Args]).
 
-wait_for(_Fun,_Interval,0 ) ->
-    {error,max_tries};
-wait_for(Fun, Interval, Tries) ->
+wait_for(_Fun,Error,_Interval,0 ) ->
+    Error;
+wait_for(Fun,Error, Interval, Tries) ->
     case Fun() of
         wait ->
             receive
             after Interval->
-                    wait_for(Fun,Interval,Tries-1)
+                    wait_for(Fun,Error,Interval,Tries-1)
             end;
-        _Any->
-            ok
+        Any->
+            Any
     end.
 
