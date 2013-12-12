@@ -41,9 +41,9 @@
         ]).
 
 % erbi_temp_db  API
--export([start_temp/1,
-         stop_temp/1,
-        get_temp_connect_data/3]).
+-export([start_temp/2,
+         stop_temp/2,
+        get_temp_connect_data/4]).
 
 driver_info() ->
     #erbi_driver_info
@@ -227,33 +227,27 @@ finish( Props, {Query,_,_} ) ->
 -define(MAX_PORT, 9888).
 -define(POSSIBLE_BIN_DIRS,[]).
 
--spec start_temp(ErbiDataSource::erbi_data_source())->
+-spec start_temp(ErbiDataSource::erbi_data_source(),
+                DataDir::unicode:chardata())->
     ok.
-start_temp(#erbi{properties=PropList})->
-    PathData = proplists:get_value(data_dir,PropList),
-    os:cmd("mkdir -p "++PathData),
-    {ok, Port}=erbi_temp_db_helpers:get_free_db_port(?MIN_PORT,?MAX_PORT),
-    ok = erbi_temp_db_helpers:save_in_db_data_file(Port,PathData,?PORT_FILE),
+start_temp(#erbi{},_DataDir)->
     ok.
 
--spec stop_temp(ErbiDataSource::erbi_data_source())->
+-spec stop_temp(ErbiDataSource::erbi_data_source(),
+               DataDir::unicode:chardata())->
     ok.
-stop_temp(#erbi{properties=PropList})->
-    PathData = proplists:get_value(data_dir,PropList),
-    _Port = erbi_temp_db_helpers:read_from_db_data_file(PathData,?PORT_FILE),
-    ok = erbi_temp_db_helpers:del_data_dir(PathData),
+stop_temp(#erbi{},_DataDir)->
     ok.
 
 -spec get_temp_connect_data(ErbiDataSource::erbi_data_source(),
+                            DataDir::unicode:chardata(),
                                 Username::unicode:chardata(),
                                 Password::unicode:chardata())->
     {erbi_data_source(),
      unicode:chardata(),
      unicode:chardata()}.
-get_temp_connect_data(ErbiDataSource,_UserName,_Password)->
-    {ErbiDataSource,
-     "",
-     ""}.
+get_temp_connect_data(_ErbiDataSource,_DataDir,_UserName,_Password)->
+    declined.
 
 
 %% -----------------------------------

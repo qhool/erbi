@@ -46,9 +46,9 @@
 -define(MAX_FETCH,0). % 0 all rows
 
 % erbi_temp_db  API
--export([start_temp/1,
-         stop_temp/1,
-        get_temp_connect_data/3]).
+-export([start_temp/2,
+         stop_temp/2,
+        get_temp_connect_data/4]).
 
 -define(MIN_PORT,5433).
 -define(MAX_PORT,5533).
@@ -205,39 +205,39 @@ finish(Connection,_) ->
                           "/usr/pgsql-9.2/bin",
                           "/Library/PostgreSQL/9.2/bin/"]).
 
--spec start_temp(ErbiDataSource::erbi_data_source())->
+-spec start_temp(ErbiDataSource::erbi_data_source(),
+                DataDir::unicode:chardata())->
     ok.
-start_temp(#erbi{properties=PropList})->
+start_temp(#erbi{properties=PropList},DataDir)->
     {ok,PathBin}= erbi_temp_db_helpers:search_db_binaries(
                     [proplists:get_value(bin_dir,PropList,"") |
                      ?POSSIBLE_BIN_DIRS]
                     ,"postgres"),
-    PathData = proplists:get_value(data_dir,PropList),
     {ok, Port}=get_free_db_port(),
-    ok = configure_datadir(PathBin,PathData),
-    DBPid = start_db_instance(PathBin,PathData,Port),
+    ok = configure_datadir(PathBin,DataDir),
+    DBPid = start_db_instance(PathBin,DataDir,Port),
     ok = initialize_db(PropList,Port),
-    ok = erbi_temp_db_helpers:save_in_db_data_file(DBPid,PathData,?PID_FILE),
-    ok = erbi_temp_db_helpers:save_in_db_data_file(Port,PathData,?PORT_FILE),
+    ok = erbi_temp_db_helpers:save_in_db_data_file(DBPid,DataDir,?PID_FILE),
+    ok = erbi_temp_db_helpers:save_in_db_data_file(Port,DataDir,?PORT_FILE),
     ok.
 
--spec stop_temp(ErbiDataSource::erbi_data_source())->
+-spec stop_temp(ErbiDataSource::erbi_data_source(),
+                DataDir::unicode:chardata())->
     ok.
-stop_temp(#erbi{properties=PropList})->
-    PathData = proplists:get_value(data_dir,PropList),
-    Pid = erbi_temp_db_helpers:read_from_db_data_file(PathData,?PID_FILE),
+stop_temp(#erbi{},DataDir)->
+    Pid = erbi_temp_db_helpers:read_from_db_data_file(DataDir,?PID_FILE),
     erbi_temp_db_helpers:kill_db_pid(Pid),
-    ok = erbi_temp_db_helpers:del_data_dir(PathData),
     ok.
 
 -spec get_temp_connect_data(ErbiDataSource::erbi_data_source(),
+                            DataDir::unicode:chardata(),
                                 Username::unicode:chardata(),
                                 Password::unicode:chardata())->
     {erbi_data_source(),
      unicode:chardata(),
      unicode:chardata()}.
-get_temp_connect_data(ErbiDataSource,UserName,Password)->
-    {get_temp_proplist(ErbiDataSource),
+get_temp_connect_data(ErbiDataSource,DataDir,UserName,Password)->
+    {get_temp_proplist(ErbiDataSource,DataDir),
      get_temp_username(UserName),
      get_temp_password(Password)}.
 
@@ -428,13 +428,12 @@ get_size(N) ->
 %-----------------------------------------------
 % Erbi temp driver internal functions
 %-----------------------------------------------
-get_temp_proplist(#erbi{properties=PropList}=DS)->
-    DS#erbi{properties = [get_temp_port_prop(PropList),
+get_temp_proplist(#erbi{properties=PropList}=DS,DataDir)->
+    DS#erbi{properties = [get_temp_port_prop(DataDir),
                          get_temp_db_prop(PropList)]}.
 
-get_temp_port_prop(PropList)->
-    PathData= proplists:get_value(data_dir,PropList),
-    Port=erbi_temp_db_helpers:read_from_db_data_file(PathData,?PORT_FILE),
+get_temp_port_prop(DataDir)->
+    Port=erbi_temp_db_helpers:read_from_db_data_file(DataDir,?PORT_FILE),
     {port,Port}.
 
 %Assumed that if a db is provided
@@ -456,17 +455,9 @@ get_temp_password(undefined) ->
     "";
 get_temp_password(Passwd) ->
     Passwd.
-      
-configure_datadir(PathBin,PathData)->
-    case filelib:is_dir(PathData) of
-        true ->    % database instance already initialized
-            {error,already_created};
-        false ->
-            initialize_datadir(PathBin,PathData)
-    end.
 
 % Creates datadir defaults->user=$USER;authmode=trust;db=postgres
-initialize_datadir(PathBin,PathData)->
+configure_datadir(PathBin,PathData)->
     os:cmd(PathBin++"/initdb -D "++PathData),
     ok.
 

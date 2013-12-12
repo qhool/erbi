@@ -5,7 +5,8 @@
 
 % Helper functions for drivers implementing
 % erbi_temp_db behaviour
--export([del_data_dir/1,
+-export([create_dir/1,
+         del_dir/1,
          kill_db_pid/1,
  	 get_free_db_port/2,
 	 save_in_db_data_file/3,
@@ -18,7 +19,12 @@
 
 % Helper functions for drivers implementing
 % erbi_temp_db behaviour
-del_data_dir(Dir) ->
+
+create_dir(Dir)->
+    os:cmd("mkdir -p "++ Dir).
+
+
+del_dir(Dir) ->
    lists:foreach(fun(D) ->
                     ok = file:del_dir(D)
                  end, del_all_files([Dir], [])).

@@ -43,9 +43,9 @@
 
 
 % erbi_temp_db  API
--export([start_temp/1,
-         stop_temp/1,
-        get_temp_connect_data/3]).
+-export([start_temp/2,
+         stop_temp/2,
+        get_temp_connect_data/4]).
 
 -record(neocon, % ;-)
         { type = transaction :: atom(),
@@ -219,41 +219,41 @@ finish(_,_) ->
 -define(MAX_PORT, 8475).
 -define(POSSIBLE_BIN_DIRS,[]).
 
--spec start_temp(ErbiDataSource::erbi_data_source())->
+-spec start_temp(ErbiDataSource::erbi_data_source(),
+                DataDir::unicode:chardata())->
     ok.
-start_temp(#erbi{properties=PropList})->
-    {ok,PathBin}= erbi_temp_db_helpers:search_db_binaries(
+start_temp(#erbi{properties=PropList},DataDir)->
+    {ok,BinDir}= erbi_temp_db_helpers:search_db_binaries(
                     [proplists:get_value(bin_dir,PropList,"") |
                      ?POSSIBLE_BIN_DIRS]
                     ,"neo4j"),
-    PathData = proplists:get_value(data_dir,PropList),
     {ok, Port}=erbi_temp_db_helpers:get_free_db_port(?MIN_PORT,?MAX_PORT),
-    ok = get_needed_binaries_copies(PathBin,PathData),
-    ok = configure_db_instance(PathData,Port),
-    ok = initialize_db(PropList,PathData), %starts a local neo4j-shell that populates data
-    ok = start_db_instance(PathData),
+    ok = get_needed_binaries_copies(BinDir,DataDir),
+    ok = configure_db_instance(DataDir,Port),
+    ok = initialize_db(PropList,DataDir), %starts a local neo4j-shell that populates data
+    ok = start_db_instance(DataDir),
     ok = wait_for_db_started(Port ),
-    ok = erbi_temp_db_helpers:save_in_db_data_file(Port,PathData,?PORT_FILE),
+    ok = erbi_temp_db_helpers:save_in_db_data_file(Port,DataDir,?PORT_FILE),
     ok.
 
--spec stop_temp(ErbiDataSource::erbi_data_source())->
+-spec stop_temp(ErbiDataSource::erbi_data_source(),
+                DataDir::unicode:chardata())->
     ok.
-stop_temp(#erbi{properties=PropList})->
-    PathData = proplists:get_value(data_dir,PropList),
-    Port = erbi_temp_db_helpers:read_from_db_data_file(PathData,?PORT_FILE),
-    ok = stop_db_instance(PathData),
+stop_temp(#erbi{},DataDir)->
+    Port = erbi_temp_db_helpers:read_from_db_data_file(DataDir,?PORT_FILE),
+    ok = stop_db_instance(DataDir),
     ok = wait_for_db_stopped(Port),
-    ok = erbi_temp_db_helpers:del_data_dir(PathData),
     ok.
 
 -spec get_temp_connect_data(ErbiDataSource::erbi_data_source(),
+                             DataDir::unicode:chardata(),
                                 Username::unicode:chardata(),
                                 Password::unicode:chardata())->
     {erbi_data_source(),
      unicode:chardata(),
      unicode:chardata()}.
-get_temp_connect_data(ErbiDataSource,UserName,Password)->
-    {get_temp_proplist(ErbiDataSource),
+get_temp_connect_data(ErbiDataSource,DataDir,UserName,Password)->
+    {get_temp_proplist(ErbiDataSource,DataDir),
      get_temp_username(UserName),
      get_temp_password(Password)}.
 
@@ -357,13 +357,12 @@ header_error( Code, HeaderName, Headers, Default ) ->
 %-----------------------------------------------
 % Erbi temp driver internal functions
 %-----------------------------------------------
-get_temp_proplist(#erbi{properties=PropList}=DS)->
-    DS#erbi{properties = [get_temp_port_prop(PropList)]++
+get_temp_proplist(#erbi{properties=PropList}=DS,DataDir)->
+    DS#erbi{properties = [get_temp_port_prop(DataDir)]++
                          add_endpoint_if_needed(PropList)}.
 
-get_temp_port_prop(PropList)->
-    PathData= proplists:get_value(data_dir,PropList),
-    Port=erbi_temp_db_helpers:read_from_db_data_file(PathData,?PORT_FILE),
+get_temp_port_prop(DataDir)->
+    Port=erbi_temp_db_helpers:read_from_db_data_file(DataDir,?PORT_FILE),
     {port,Port}.
 
 add_endpoint_if_needed(PropList)->
@@ -450,7 +449,7 @@ wait_for_db_state(Port,ExpectedState,ExpectedHttpStatus,Error)->
                           ok;
                        {stopped,{error,{failed_connect,_}}} ->
                           ok;
-                      Any ->
+                      _Any ->
                           wait
                   end
           end,

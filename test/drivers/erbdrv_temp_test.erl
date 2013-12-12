@@ -39,5 +39,4 @@ datasource_parameters_test()->
 
 get_data_dir(DataSource)->
     #erbi{properties=PropList} = NormDS = erbi:normalize_data_source(DataSource),
-    NewPropList = erbi_temp_db:add_data_dir(PropList,NormDS),
-    proplists:get_value(data_dir,NewPropList,"").
+   erbi_temp_db:get_data_dir_name(PropList,NormDS).
