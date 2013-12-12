@@ -10,6 +10,7 @@
          dicts_equal/2,proplists_equal/2,
          bitmap_sublist/2 ]).
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("erbi/include/erbi.hrl").
 
 start_db_test(DataSource)->
     Fun=fun(DS)->
@@ -23,10 +24,13 @@ stop_db_test(DataSource)->
     end,
     apply_if_temp(DataSource,Fun).
 
-apply_if_temp("erbi:temp:"++_ = DataSource,Fun)->
-    Fun(DataSource);
-apply_if_temp(DS,_) ->
-    ok.
+apply_if_temp(DataSource,Fun)->
+    case erbi:parse_data_source(DataSource) of
+	#erbi{driver=temp}->
+	    Fun(DataSource);
+	_->
+	    ok
+    end.
     
 config() ->
     ErbiDir = get_base_dir(),

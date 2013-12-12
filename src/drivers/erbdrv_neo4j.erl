@@ -217,7 +217,14 @@ finish(_,_) ->
 -define(PORT_FILE,"tmp_db.port").
 -define(MIN_PORT, 7475).
 -define(MAX_PORT, 8475).
--define(POSSIBLE_BIN_DIRS,[]).
+-define(POSSIBLE_BIN_DIRS,["/usr/share/neo4j/",
+                          "/var/lib/neo4j/bin",
+                          "/opt/neo4j/bin",
+                          "/usr/local/neo4j/bin",
+                          "/usr/neo4j/bin",
+                          "../deps/neo4j/bin",
+                          "../../deps/neo4j/bin",
+                          "../../../deps/neo4j/bin"]).
 
 -spec start_temp(ErbiDataSource::erbi_data_source(),
                 DataDir::unicode:chardata())->
@@ -228,7 +235,7 @@ start_temp(#erbi{properties=PropList},DataDir)->
                      ?POSSIBLE_BIN_DIRS]
                     ,"neo4j"),
     {ok, Port}=erbi_temp_db_helpers:get_free_db_port(?MIN_PORT,?MAX_PORT),
-    ok = get_needed_binaries_copies(BinDir,DataDir),
+    ok = copy_binaries(BinDir,DataDir),
     ok = configure_db_instance(DataDir,Port),
     ok = initialize_db(PropList,DataDir), %starts a local neo4j-shell that populates data
     ok = start_db_instance(DataDir),
@@ -379,16 +386,16 @@ get_temp_username(_) ->
 get_temp_password(_) ->
     undefined.
 
-get_needed_binaries_copies(PathBin,PathData)->
-    ok=filelib:ensure_dir(PathData),
+copy_binaries(Source,Dest)->
+    ok=filelib:ensure_dir(Dest),
     lists:foreach(fun(SubDir)->
-                          ok=filelib:ensure_dir(PathData++"/"++SubDir),
+                          ok=filelib:ensure_dir(Dest++"/"++SubDir),
                           os:cmd("cp -p -r "++
-                                     PathBin++"../"++SubDir++" "++
-                                     PathData++"/"++SubDir)
+                                     Source++"/../"++SubDir++" "++
+                                     Dest++"/"++SubDir)
                   end,
                   ["bin","conf","lib","plugins","system"]),
-    os:cmd("mkdir "++PathData++"/data"),
+    os:cmd("mkdir "++Dest++"/data"),
     ok.
 
 configure_db_instance(PathData,Port)->
