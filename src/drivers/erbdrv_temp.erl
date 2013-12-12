@@ -103,7 +103,7 @@ validate_property( _,_ ) ->
 -spec property_info() -> [{atom(),any()}].
 property_info()->
     [
-     {defaults,[{data_dir,code:get_path()}]},
+     {defaults,[{data_dir,filename:absname("")}]},
      {required,[base_driver]}
     ].
 

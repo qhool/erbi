@@ -47,15 +47,26 @@ main_test_() ->
              DoUncommitted = proplists:get_value(transactional_write,Config,false),
              lists:flatmap(
                fun({Type,DS}) ->
-                       [ { "connect to " ++ DS, 
-                           ?_test( { ok, _ } = ?debugVal(erbi:connect( DS )) ) },
+                       [ { "connect to " ++ DS,
+                           {setup,
+                             fun()->
+                                  ok = erbi_test_util:start_db_test(DS)
+                             end,
+                            fun(_)->
+                                  ok = erbi_test_util:stop_db_test(DS)
+                            end,
+                            fun(_)->
+                           ?_test( { ok, _ } = ?debugVal(erbi:connect( DS )) )
+                                        end}},
                          {foreach,
                           fun() ->
+                                   ok = erbi_test_util:start_db_test(DS),
                                   {ok,Conn} = erbi:connect( DS ),
                                   {Config,Type,Conn,DS}
                           end,
                           fun({_,_,Conn,_}) ->
-                                  erbi_connection:disconnect(Conn)
+                                  erbi_connection:disconnect(Conn),
+                                  ok = erbi_test_util:stop_db_test(DS)
                           end,
                           [ fun mktests_read_only/1,
                             fun mktests_errors/1 ]
@@ -225,10 +236,11 @@ gen_test_key() ->
         fun erlang:integer_to_list/1,
         lists:map(
           fun random:uniform/1, lists:duplicate(5,1000))),".").
+
 connect_temp_neo4j_test_()->
     {setup,
      fun()->
-             {ok,Config}=erbi_test_util:config(neo4j_temp),
+             Config=erbi_test_util:config(neo4j_temp),
              Datasource1= "erbi:temp:base_driver=neo4j;bin_dir=/opt/neo4j/bin/;data_dir="++
                  proplists:get_value(data_dir,Config,""),
              Datasource2=Datasource1++"2"++
@@ -251,7 +263,7 @@ connect_temp_neo4j_test_()->
 driver_calls_temp_neo4j_test_()->
         {setup,
      fun()->
-             {ok,Config}=erbi_test_util:config(neo4j_temp),
+             Config=erbi_test_util:config(neo4j_temp),
              Datasource= "erbi:temp:base_driver=neo4j;bin_dir=/opt/neo4j/bin/;data_dir="++
                  proplists:get_value(data_dir,Config,"")++
                  ";init_files="++proplists:get_value(neo4j_init_files,Config,"")++

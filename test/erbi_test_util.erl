@@ -1,5 +1,7 @@
 -module(erbi_test_util).
--export([config/0,config/1,
+-export([start_db_test/1,
+	 stop_db_test/1,
+	 config/0,config/1,
          dataset/1,
          equal_rows_list/2,equal_rows_list/3,
          equal_rows_proplist/2,equal_rows_proplist/3,
@@ -9,6 +11,23 @@
          bitmap_sublist/2 ]).
 -include_lib("eunit/include/eunit.hrl").
 
+start_db_test(DataSource)->
+    Fun=fun(DS)->
+    erbi_temp_db:start(DS)
+    end,
+    apply_if_temp(DataSource,Fun).
+    
+stop_db_test(DataSource)->
+    Fun=fun(DS)->
+    erbi_temp_db:stop(DS)
+    end,
+    apply_if_temp(DataSource,Fun).
+
+apply_if_temp("erbi:temp:"++_ = DataSource,Fun)->
+    Fun(DataSource);
+apply_if_temp(DS,_) ->
+    ok.
+    
 config() ->
     ErbiDir = get_base_dir(),
     ConfigFile = filename:join(ErbiDir,"test.config"),

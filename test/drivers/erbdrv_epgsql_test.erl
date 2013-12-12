@@ -6,7 +6,7 @@
 
 
 connection_properties_test_()->
-   
+
     [?_assertEqual( #erbi{driver=epgsql,
                           properties=[{database,"test_db"},
                                       {host,"localhost"},
@@ -24,29 +24,45 @@ connection_properties_test_()->
 
 
 connect_epgsql_test_()->
-   Config =erbi_test_util:config(epgsql),
-   Datasource=proplists:get_value(datasource,Config),
-   User= proplists:get_value(user,Config),
-   Pwd= proplists:get_value(password,Config),
-    [ ?_test( { ok, _ } = ?debugVal(erbi:connect( Datasource, User, Pwd )) ),
-      ?_test( { error, _ } = ?debugVal(erbi:connect( "erbi:epgsql:database=mydatabase", "", "" )) ),
-      ?_assertEqual( { error,
-                       {invalid_datasource,
-                        {missing_properties,[database]}} } ,
-                     ?debugVal(erbi:connect( "erbi:epgsql:", "postgres", "pass" )) ),
+    {setup,
+     fun()->
+             Config =?debugVal(erbi_test_util:config(epgsql)),
+             Datasource=proplists:get_value(datasource,Config),
+             User= proplists:get_value(user,Config),
+             Pwd= proplists:get_value(password,Config),
+             erbi_test_util:start_db_test(Datasource),
+             {Datasource,User,Pwd}
+     end,
+     fun({Datasource,User,Pwd})->
+             erbi_test_util:stop_db_test(Datasource)
+     end,
+     fun({Datasource,User,Pwd})->
+             [ ?_test( { ok, _ } = ?debugVal(erbi:connect( Datasource, User, Pwd )) ),
+               ?_test( { error, _ } = ?debugVal(erbi:connect( "erbi:epgsql:database=mydatabase", "", "" )) ),
+               ?_assertEqual( { error,
+                                {invalid_datasource,
+                                 {missing_properties,[database]}} } ,
+                              ?debugVal(erbi:connect( "erbi:epgsql:", "postgres", "pass" )) ),
 
-      ?_test({error,{unknown_host,_}}= ?debugVal(erbi:connect( "erbi:epgsql:database=mydatabase;host=myhost", "postgres", "pass" )) )
-    ].
+               ?_test({error,{unknown_host,_}}= ?debugVal(erbi:connect( "erbi:epgsql:database=mydatabase;host=myhost", "postgres", "pass" )) )
+             ]
+     end
+    }.
 
 
 all_test_()->
     {setup,
      fun()->
              Config =erbi_test_util:config(epgsql),
-             Conn= connect(Config),
+             Conn= connect(Config,false),
              {_,DataConfig}=erbi_test_util:dataset(erbdrv_epgsql),
              {Conn,Config,DataConfig}
      end,
+     fun({_Conn,Config,_DataConfig})->
+             Datasource=proplists:get_value(datasource,Config),
+             erbi_test_util:stop_db_test(Datasource)
+     end,
+
      fun({Conn,Config,DataConfig}) ->
 
              lists:flatten([
@@ -55,7 +71,7 @@ all_test_()->
                             erbi_selectall(Conn,DataConfig),
                             erbi_selectrow(Conn,DataConfig), 
                             get_some_errors(Conn,Config,DataConfig),
-                             null_value_test(Conn,DataConfig),
+                            null_value_test(Conn,DataConfig),
                             delete_table(Conn,DataConfig),
                             timestamp_test(Conn),
                             disconnect_epgsql(Conn)
@@ -74,7 +90,7 @@ create_table(Conn,DataConfig)->
 erbi_transaction(Conn,Config,DataConfig)->
     {setup,
      fun()->
-             OutsideTransConnect=connect(Config),
+             OutsideTransConnect=connect(Config,true),
 
              [Data1,Data2]=generate_rows(2,proplists:get_value(data,DataConfig)),
              SelectAll=proplists:get_value(select_all,DataConfig),
@@ -172,7 +188,7 @@ erbi_selectrow(Conn,DataConfig)->
     {setup,
      fun()->
              SelectBind=proplists:get_value(select_one_bind,DataConfig),
-            
+
              N=proplists:get_value(number_of_rows,DataConfig),
              Data=?debugVal(generate_rows(N,proplists:get_value(data,DataConfig))),
              Fields=proplists:get_value(fields,DataConfig),
@@ -208,29 +224,38 @@ get_some_errors(Conn,Config,DataConfig)->
      fun()->
              SelectBind=proplists:get_value(select_one_bind,DataConfig),
              SelectMany=proplists:get_value(select_all,DataConfig),
-             TmpConn=connect(Config),
+             % return a closed connection to get an error
+             TmpConn=connect(Config,true),
              erbi_connection:disconnect(TmpConn),
              {SelectBind,SelectMany,TmpConn}
      end,
      fun({SelectBind,SelectMany,TmpConn})->
-           [?_test({error,{missing_parameter,_}}= ?debugVal(erbi_connection:selectrow_list(Conn,SelectBind,[]))),
-            ?_test({error,{syntax_error,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values 1 ,2"))),
-            ?_test({error,{unknown_table,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values (1 ,2)"))),
-            ?_assertException(exit,{noproc,_},?debugVal(erbi_connection:selectall_list(TmpConn,SelectMany))) %this should crash/return error              
-                          
-          ]
-      end
-     }.
-     
+             [?_test({error,{missing_parameter,_}}= ?debugVal(erbi_connection:selectrow_list(Conn,SelectBind,[]))),
+              ?_test({error,{syntax_error,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values 1 ,2"))),
+              ?_test({error,{unknown_table,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values (1 ,2)"))),
+              ?_assertException(exit,{noproc,_},?debugVal(erbi_connection:selectall_list(TmpConn,SelectMany))) %this should crash/return error              
+
+             ]
+     end
+    }.
+
 
 disconnect_epgsql(Conn)->
     ?_assertEqual(ok, ?debugVal(erbi_connection:disconnect(Conn))).
 
-connect(Config)->
-   Datasource=proplists:get_value(datasource,Config),
-   User= proplists:get_value(user,Config),
-   Pwd= proplists:get_value(password,Config),
-    element(2,erbi:connect( Datasource, User, Pwd )).                       
+
+connect(Config,StartedDb)->
+    Datasource=proplists:get_value(datasource,Config),
+    start_db(Datasource,StartedDb),
+    User= proplists:get_value(user,Config),
+    Pwd= proplists:get_value(password,Config),
+    element(2,erbi:connect( Datasource, User, Pwd )).
+
+start_db(Datasource,false)->
+    erbi_test_util:start_db_test(Datasource);
+start_db(_,_) ->
+    ok.
+    
 
 
 equal_data_list(Data,List)->
@@ -274,31 +299,31 @@ generate_rows(N,Data)->
 timestamp_test(Conn)->
     {setup,
      fun()->
-    erbi_connection:do(Conn,"CREATE TABLE tiempo_test (Id int, tiempo timestamp )"),
-                 []
-                 end,
+             erbi_connection:do(Conn,"CREATE TABLE tiempo_test (Id int, tiempo timestamp )"),
+             []
+     end,
      fun(_)->
-           erbi_connection:do(Conn,"DROP TABLE tiempo_test")
-                 end,
+             erbi_connection:do(Conn,"DROP TABLE tiempo_test")
+     end,
      fun(_)->
-     ?_assertEqual({ok,1}, ?debugVal(erbi_connection:do(Conn,"insert into tiempo_test (Id,tiempo) values ($1, $2)",[1,calendar:now_to_datetime(os:timestamp())])))
-                 end}.
+             ?_assertEqual({ok,1}, ?debugVal(erbi_connection:do(Conn,"insert into tiempo_test (Id,tiempo) values ($1, $2)",[1,calendar:now_to_datetime(os:timestamp())])))
+     end}.
 
 null_value_test(Conn,DataConfig)->
     {setup,
      fun()->
-       Insert=proplists:get_value(insert_id,DataConfig),
-       SelectBind=proplists:get_value(select_one_bind,DataConfig),
-       N=proplists:get_value(number_of_rows,DataConfig),
-       insert_data(Conn,Insert,[N+7]),
-     {SelectBind,N+7}
-                 end,
+             Insert=proplists:get_value(insert_id,DataConfig),
+             SelectBind=proplists:get_value(select_one_bind,DataConfig),
+             N=proplists:get_value(number_of_rows,DataConfig),
+             insert_data(Conn,Insert,[N+7]),
+             {SelectBind,N+7}
+     end,
      fun({SelectBind,BindN})->
-          ?_assertEqual({ok,[BindN,null]} ,?debugVal(erbi_connection:selectrow_list(Conn,SelectBind,[BindN])))
-                    end}.
-       
-    
-    
+             ?_assertEqual({ok,[BindN,null]} ,?debugVal(erbi_connection:selectrow_list(Conn,SelectBind,[BindN])))
+     end}.
+
+
+
 connect_temp_epgsql_test_()->
     {setup,
      fun()->
@@ -342,20 +367,20 @@ driver_calls_temp_epgsql_test_()->
               ?_assertEqual({ok,[[{"id",0},{"name","Unknown"}],
                                  [{"id",1},{"name","This is a name"}]]},
                             ?debugVal(erbi_connection:selectall_proplist(Conn,"select * from test_temp"))),
-             % Checking if calls are made to base driver corrctly,
-             % Base driver smarts tested in driver test module
-             ?_assertEqual({ok,unknown},
-                           ?debugVal(erbi_connection:do(Conn,"CREATE TABLE test_temp2 (id bigserial,name text)"))),
-             ?_assertEqual({ok,1},
-                           ?debugVal(erbi_connection:do(Conn,"INSERT INTO test_temp2 (id, name) VALUES ($1, $2)",[2,"AnotherName"]))),
-             ?_assertEqual({ok,[[{"id",2},
-                                 {"name","AnotherName"}]]},
-                           ?debugVal(erbi_connection:selectall_proplist(Conn,"select * from test_temp2"))),
-             ?_assertEqual(ok , ?debugVal(erbi_connection:begin_work(Conn))),
-             ?_assertEqual(ok , ?debugVal(erbi_connection:rollback(Conn))),
-             ?_assertEqual(ok , ?debugVal(erbi_connection:begin_work(Conn,"savepoint"))),
-             ?_assertEqual(ok , ?debugVal(erbi_connection:rollback(Conn,"savepoint"))),
-             ?_assertEqual(ok , ?debugVal(erbi_connection:disconnect(Conn)))
-                 ]
+                                                % Checking if calls are made to base driver corrctly,
+                                                % Base driver smarts tested in driver test module
+              ?_assertEqual({ok,unknown},
+                            ?debugVal(erbi_connection:do(Conn,"CREATE TABLE test_temp2 (id bigserial,name text)"))),
+              ?_assertEqual({ok,1},
+                            ?debugVal(erbi_connection:do(Conn,"INSERT INTO test_temp2 (id, name) VALUES ($1, $2)",[2,"AnotherName"]))),
+              ?_assertEqual({ok,[[{"id",2},
+                                  {"name","AnotherName"}]]},
+                            ?debugVal(erbi_connection:selectall_proplist(Conn,"select * from test_temp2"))),
+              ?_assertEqual(ok , ?debugVal(erbi_connection:begin_work(Conn))),
+              ?_assertEqual(ok , ?debugVal(erbi_connection:rollback(Conn))),
+              ?_assertEqual(ok , ?debugVal(erbi_connection:begin_work(Conn,"savepoint"))),
+              ?_assertEqual(ok , ?debugVal(erbi_connection:rollback(Conn,"savepoint"))),
+              ?_assertEqual(ok , ?debugVal(erbi_connection:disconnect(Conn)))
+             ]
      end}.
 

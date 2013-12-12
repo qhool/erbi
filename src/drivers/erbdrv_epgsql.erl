@@ -467,7 +467,7 @@ start_db_instance(PathBin,PathData,Port)->
     list_to_integer(StrPid).
 
 initialize_db(PropList,Port)->
-    InitFiles= proplists:get_value(init_files,PropList),
+    InitFiles= proplists:get_value(init_files,PropList,[]),
     ok=wait_for_db_started(Port),
     lists:map(fun(File)->
                            os:cmd("psql -p "++integer_to_list(Port)++
