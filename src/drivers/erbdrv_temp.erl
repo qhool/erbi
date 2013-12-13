@@ -61,14 +61,21 @@
     ok.
 
 start(DataSource)->
-  run_db_setup(DataSource,fun(BaseDriver,ErbiDS)->
-                                  BaseDriver:start_temp(ErbiDS) end).
+    run_db_setup(DataSource,
+                 fun(BaseDriver,ErbiDS,DataDir)->
+                         erbi_temp_db_helpers:create_dir(DataDir),
+                         BaseDriver:start_temp(ErbiDS,DataDir)
+                 end).
 
 -spec stop(Datasource::erbi_data_source())->
     ok.
 stop(DataSource)->
-  run_db_setup(DataSource,fun(BaseDriver,ErbiDS)->
-                                  BaseDriver:stop_temp(ErbiDS) end).
+    run_db_setup(DataSource,
+                 fun(BaseDriver,ErbiDS,DataDir)->
+                         ok = BaseDriver:stop_temp(ErbiDS,DataDir),
+                         erbi_temp_db_helpers:del_dir(DataDir),
+                         ok
+                 end).
 
 % erbi driver API implementation
 -spec driver_info() -> erbi_driver_info().
@@ -96,7 +103,7 @@ validate_property( _,_ ) ->
 -spec property_info() -> [{atom(),any()}].
 property_info()->
     [
-     {defaults,[{data_dir,code:get_path()}]},
+     {defaults,[{data_dir,filename:absname("")}]},
      {required,[base_driver]}
     ].
 
@@ -222,11 +229,11 @@ finish(#temp_connection{base_driver=BaseDriver,
 %----------------------------------------
 % Erbi temp internal functions
 %---------------------------------------- 
-run_db_setup(#erbi{properties=PropList,args=Args}=DataSource,SetupFun)->
+run_db_setup(#erbi{properties=PropList}=DataSource,SetupFun)->
   BaseDriver = ?base_driver(PropList),
   BaseDriverName=?base_driver_name(PropList),
-  NewPropList = erbi_temp_db:add_data_dir(PropList,DataSource),
-  SetupFun(BaseDriver,#erbi{driver=BaseDriverName,properties=NewPropList,args=Args}).
+  DataDir = erbi_temp_db:get_data_dir_name(PropList,DataSource),
+  SetupFun(BaseDriver,DataSource#erbi{driver=BaseDriverName},DataDir).
 
 
 

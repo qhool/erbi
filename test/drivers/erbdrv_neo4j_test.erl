@@ -47,15 +47,26 @@ main_test_() ->
              DoUncommitted = proplists:get_value(transactional_write,Config,false),
              lists:flatmap(
                fun({Type,DS}) ->
-                       [ { "connect to " ++ DS, 
-                           ?_test( { ok, _ } = ?debugVal(erbi:connect( DS )) ) },
+                       [ { "connect to " ++ DS,
+                           {setup,
+                             fun()->
+                                  ok = erbi_test_util:start_db_test(DS)
+                             end,
+                            fun(_)->
+                                  ok = erbi_test_util:stop_db_test(DS)
+                            end,
+                            fun(_)->
+                           ?_test( { ok, _ } = ?debugVal(erbi:connect( DS )) )
+                                        end}},
                          {foreach,
                           fun() ->
+                                   ok = erbi_test_util:start_db_test(DS),
                                   {ok,Conn} = erbi:connect( DS ),
                                   {Config,Type,Conn,DS}
                           end,
                           fun({_,_,Conn,_}) ->
-                                  erbi_connection:disconnect(Conn)
+                                  erbi_connection:disconnect(Conn),
+                                  ok = erbi_test_util:stop_db_test(DS)
                           end,
                           [ fun mktests_read_only/1,
                             fun mktests_errors/1 ]
@@ -225,3 +236,65 @@ gen_test_key() ->
         fun erlang:integer_to_list/1,
         lists:map(
           fun random:uniform/1, lists:duplicate(5,1000))),".").
+
+connect_temp_neo4j_test_()->
+    {setup,
+     fun()->
+             Config=erbi_test_util:config(neo4j_temp),
+             Datasource1= "erbi:temp:base_driver=neo4j;bin_dir=/opt/neo4j/bin/;data_dir="++
+                 proplists:get_value(data_dir,Config,""),
+             Datasource2=Datasource1++"2"++
+                 ";init_files="++proplists:get_value(neo4j_init_files,Config,""),
+             ok=erbi_temp_db:start(Datasource1),
+             ok=erbi_temp_db:start(Datasource2),
+             {Datasource1,Datasource2}
+     end,
+     fun({Datasource1,Datasource2})->
+             ok=erbi_temp_db:stop(Datasource1),
+             ok=erbi_temp_db:stop(Datasource2)
+
+     end,
+     fun({Datasource1,Datasource2})->
+             [?_test({ok,_}=?debugVal(erbi:connect(Datasource1,undefined,undefined))),
+              ?_test({ok,_}=?debugVal(erbi:connect(Datasource2,"","")))]
+
+     end}.
+
+driver_calls_temp_neo4j_test_()->
+        {setup,
+     fun()->
+             Config=erbi_test_util:config(neo4j_temp),
+             Datasource= "erbi:temp:base_driver=neo4j;bin_dir=/opt/neo4j/bin/;data_dir="++
+                 proplists:get_value(data_dir,Config,"")++
+                 ";init_files="++proplists:get_value(neo4j_init_files,Config,"")++
+                 ";endpoint=cypher",
+             ok=erbi_temp_db:start(Datasource),
+             {ok,Connection}=?debugVal(erbi:connect(Datasource,undefined,undefined)),
+             {Datasource,Connection}
+     end,
+     fun({Datasource,_Connection})->
+             ok=erbi_temp_db:stop(Datasource)
+     end,
+     fun({_Datasource,Conn})->
+             [%initialized with script?
+              ?_assertEqual( {ok,[[0],[1],[2]]},
+                        ?debugVal( erbi_connection:selectall_list(Conn,
+                                                       "start n=node(*) return n.val"))),
+             % Checking if calls are made to base driver corrctly,
+             % Base driver smarts tested in driver test module
+             ?_assertEqual({ok,0},
+                           ?debugVal(erbi_connection:do(Conn,"create (n {name:\"node3\",val:3})"))),
+             ?_assertEqual({ok,[[0],
+                                [1],
+                                [2],
+                                [3]
+                               ]},
+                           ?debugVal(erbi_connection:selectall_list(Conn,"start n=node(*) return n.val order by n.val"))),
+             ?_assertEqual({error,driver_declined} , erbi_connection:begin_work(Conn)),
+             ?_assertEqual({error,driver_declined} , erbi_connection:rollback(Conn)),
+             ?_assertEqual({error,driver_declined} , erbi_connection:begin_work(Conn,"savepoint")),
+             ?_assertEqual({error,driver_declined} , erbi_connection:rollback(Conn,"savepoint")),
+             ?_assertEqual(ok , ?debugVal(erbi_connection:disconnect(Conn)))
+              
+              ]
+     end}.

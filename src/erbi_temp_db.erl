@@ -5,21 +5,23 @@
 -export([start/1,
          stop/1,
         get_normalized_base_data_source/5,
-        add_data_dir/2]).
+        get_data_dir_name/2]).
 
--callback start_temp(ErbiDataSource::erbi_data_source())->
+-callback start_temp(ErbiDataSource::erbi_data_source(),DataDir::unicode:chardata())->
     ok.
 
 
--callback stop_temp(ErbiDataSource::erbi_data_source())->
+-callback stop_temp(ErbiDataSource::erbi_data_source(),DataDir::unicode:chardata())->
     ok.
     
 -callback get_temp_connect_data(ErbiDataSource::erbi_data_source(),
                                 Username::unicode:chardata(),
-                                Password::unicode:chardata())->
+                                Password::unicode:chardata(),
+                               DataDir::unicode:chardata())->
     {ErbiDataSource::erbi_data_source(),
      unicode:chardata(),
-     unicode:chardata()}.
+     unicode:chardata()}
+        | declined.
 
 -spec start(Datasource::unicode:chardata())->
     ok.
@@ -46,15 +48,24 @@ get_normalized_base_data_source(#erbi{properties=PropList, args=Args}=ErbiDriver
                                 Password,
                                 BaseDriver,
                                 BaseDriverName)->
-    DDPropList=add_data_dir(PropList,ErbiDriver),
+
+    DataDir = get_data_dir_name(PropList,ErbiDriver),
+    TmpDataSource = #erbi{
+                       driver = BaseDriverName,
+                       properties=PropList,
+                       args=get_new_driver_args(Args)},
 
     {BaseDS,TmpUsername,TmpPasswd}
-        = BaseDriver:get_temp_connect_data(#erbi{
-                                              driver = BaseDriverName,
-                                              properties=DDPropList,
-                                              args=get_new_driver_args(Args)},
-                                           Username,
-                                           Password),
+        =
+        case BaseDriver:get_temp_connect_data(TmpDataSource,
+                                              DataDir,
+                                              Username,
+                                              Password) of
+            declined ->
+                {TmpDataSource,Username,Password};
+            Any->
+                Any
+        end,
 
     NormDataS=erbi:normalize_data_source(BaseDS),
     {NormDataS,TmpUsername,TmpPasswd}.
@@ -64,16 +75,10 @@ get_new_driver_args(undefined)->
 get_new_driver_args(Any) ->
     Any.
 
-
-
-add_data_dir(PropList,DataSource)->
+get_data_dir_name(PropList,DataSource)->
     NormDs=erbi_temp_db_helpers:get_string_from_ds(DataSource),
     BaseDir = proplists:get_value(data_dir,PropList),
-    NewDir = get_data_dir_name(BaseDir,NormDs),
-    lists:keyreplace(data_dir,1,PropList,{data_dir,NewDir}).
-
-get_data_dir_name(BaseDir,DataSource)->
-    Hash = binary_to_list(base64:encode(crypto:hash(md5,DataSource))),
+    Hash = binary_to_list(base64:encode(crypto:hash(md5,NormDs))),
     HashPrefix= if length(Hash) > 20 ->
                         element(1,lists:split(20,Hash));
                    true ->

@@ -19,16 +19,20 @@ instance will be created.
 - data_dir : Base directory where the data of the temporary instance will be stored.
 If it is not supplied, default is code:get_path/0.
 - init_files : Comma separated path files, that can contain any instruction to
-initialize the db (schema, data..).
+initialize the db (schema, data..). The current working directory will be used as base directory for the relative paths.
+For example, while executing common tests, base directory will be *APP_ROOT_DIR/test/logs/ct.TIMESTAMP/*, while with eunit
+the base dir will be *APP_ROOT_DIR/test/.eunit/*.
 - bin_dir : Directory where to find database binaries. If not provided the base driver 
-should try to find them auyomatically.
+should try to find them automatically, searching searching in some known paths and in system "PATH".
 - Any other parameter needed by the base driver. However, depending on the base driver
  implementation, these parameters can be overwriten in the temp initialization.
 
 
 Wraping neo4j driver
 --------------------
-Neo4j driver implementation has not been adapted to be used with temp driver.
+Erbi Neo4j driver has been adapted to be used in temporary mode.
+A separated instance of neo4j will be started in a port between 7475 and 8475.
+No neo4j specific parameters are necessary. However, the endpoint parameter can be added to modify the default one.
 
 Wraping epgsql driver
 ---------------------

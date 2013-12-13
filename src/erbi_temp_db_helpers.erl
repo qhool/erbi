@@ -5,19 +5,26 @@
 
 % Helper functions for drivers implementing
 % erbi_temp_db behaviour
--export([del_data_dir/1,
+-export([create_dir/1,
+         del_dir/1,
          kill_db_pid/1,
  	 get_free_db_port/2,
 	 save_in_db_data_file/3,
 	 read_from_db_data_file/2,
 	 search_db_binaries/2,
-	 get_string_from_ds/1
+	 get_string_from_ds/1,
+     wait_for/4
 	]).
-
+ 
 
 % Helper functions for drivers implementing
 % erbi_temp_db behaviour
-del_data_dir(Dir) ->
+
+create_dir(Dir)->
+    os:cmd("mkdir -p "++ Dir).
+
+
+del_dir(Dir) ->
    lists:foreach(fun(D) ->
                     ok = file:del_dir(D)
                  end, del_all_files([Dir], [])).
@@ -70,27 +77,33 @@ read_from_db_data_file(Path,File)->
     {ok,BinaryTerm} = file:read_file(Path++"/"++File),
     binary_to_term(BinaryTerm).
 
-search_db_binaries(PropList,PossiblePaths)->
-    SearchPaths =
-        case proplists:get_value(bin_dir,PropList) of
-        undefined ->
-            [];
-        Path ->
-            [Path]
-    end ++
-        PossiblePaths,
-    search_db_binaries(SearchPaths).
-
-search_db_binaries(PossiblePaths)->
+search_db_binaries(PossiblePaths,Filename)->
     case lists:filter(fun(Path)->
-                              filelib:is_dir(Path)
-                      end,PossiblePaths) of
+                              filelib:is_file(Path++"/"++Filename)
+                      end,PossiblePaths ++ get_os_path()) of
         []->
             {error,binaries_not_found};
         [H|_]->         
             {ok,H}
     end.
 
+get_os_path()->
+    StrPaths=os:getenv("PATH"),
+    string:tokens(StrPaths,":").
 
 get_string_from_ds(#erbi{driver = DriverName, properties=PropList, args=Args})->
     io_lib:format("erbi:~p:~p:~p",[DriverName,PropList,Args]).
+
+wait_for(_Fun,Error,_Interval,0 ) ->
+    Error;
+wait_for(Fun,Error, Interval, Tries) ->
+    case Fun() of
+        wait ->
+            receive
+            after Interval->
+                    wait_for(Fun,Error,Interval,Tries-1)
+            end;
+        Any->
+            Any
+    end.
+

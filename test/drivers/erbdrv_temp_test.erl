@@ -4,76 +4,39 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("erbi.hrl").
 
-connect_temp_epgsql_test_()->
+start_temp_test_()->
     {setup,
      fun()->
-             {ok,Config}=erbi_test_util:config(),
-             Datasource1= "erbi:temp:base_driver=epgsql;data_dir="++
-                 temp_opt(data_dir,Config)++
-                 ";init_files="++temp_opt(schema_files,Config),
-             Datasource2=Datasource1++";bin_dir=/casa/",
-             ok=erbi_temp_db:start(Datasource1),
-             ok=erbi_temp_db:start(Datasource2),
-             {Datasource1,Datasource2}
+             Config = erbi_test_util:config(dummy_temp),
+             "erbi:temp:base_driver=dummy;data_dir="++
+                 proplists:get_value(data_dir,Config,"")
      end,
-     fun({Datasource1,Datasource2})->
-             ok=erbi_temp_db:stop(Datasource1),
-             ok=erbi_temp_db:stop(Datasource2)
-
-     end,
-     fun({Datasource1,Datasource2})->
-             [?_test({ok,_}=?debugVal(erbi:connect(Datasource1,undefined,undefined))),
-              ?_test({ok,_}=?debugVal(erbi:connect(Datasource2,"","")))]
+     fun(Datasource)->
+             [?_assertEqual(ok, erbi_temp_db:start(Datasource)),
+              ?_assertEqual(true, filelib:is_dir(get_data_dir(Datasource))),
+              ?_assertEqual(ok, erbi_temp_db:stop(Datasource)),
+              ?_assertEqual(false, filelib:is_dir(get_data_dir(Datasource)))]
      end}.
 
-
-driver_calls_temp_epgsql_test_()->
+datasource_parameters_test()->
     {setup,
      fun()->
-             {ok,Config}=erbi_test_util:config(),
-             Datasource= "erbi:temp:base_driver=epgsql;data_dir="++
-                 temp_opt(data_dir,Config)++
-                 ";init_files="++temp_opt(schema_files,Config),
-
-             ok=erbi_temp_db:start(Datasource),
-             {ok,Conn}=erbi:connect(Datasource,"",""),
-             {Datasource,Conn}
+             Config = erbi_test_util:config(dummy_temp),
+             Datasource="erbi:temp:base_driver=dummy;data_dir="++
+                 proplists:get_value(data_dir,Config,"")++";connect=success",
+             erbi_temp_db:start(Datasource),
+             Datasource
      end,
-     fun({Datasource,_Conn})->
-             ok=erbi_temp_db:stop(Datasource)
-     end,
-     fun({_Datasource,Conn})->
-             [%initialized in scripts?
-              ?_assertEqual({ok,[[{"id",0},{"name","Unknown"}],
-                                 [{"id",1},{"name","This is a name"}]]},
-                            ?debugVal(erbi_connection:selectall_proplist(Conn,"select * from test_temp"))),
-             % Checkings if calls are made to base driver corrctly,
-             % Base driver smarts tested in driver test module
-             ?_assertEqual({ok,unknown},
-                           ?debugVal(erbi_connection:do(Conn,"CREATE TABLE test_temp2 (id bigserial,name text)"))),
-             ?_assertEqual({ok,1},
-                           ?debugVal(erbi_connection:do(Conn,"INSERT INTO test_temp2 (id, name) VALUES ($1, $2)",[2,"AnotherName"]))),
-             ?_assertEqual({ok,[[{"id",2},
-                                 {"name","AnotherName"}]]},
-                           ?debugVal(erbi_connection:selectall_proplist(Conn,"select * from test_temp2"))),
-             ?_assertEqual(ok , ?debugVal(erbi_connection:begin_work(Conn))),
-             ?_assertEqual(ok , ?debugVal(erbi_connection:rollback(Conn))),
-             ?_assertEqual(ok , ?debugVal(erbi_connection:begin_work(Conn,"savepoint"))),
-             ?_assertEqual(ok , ?debugVal(erbi_connection:rollback(Conn,"savepoint"))),
-             ?_assertEqual(ok , ?debugVal(erbi_connection:disconnect(Conn)))
-                 ]
+     fun(Datasource)->
+             erbi_temp_db:stop(Datasource)
+                 end,
+     fun(Datasource)->
+             [?_assertEqual(ok, erbi:connect(Datasource)),
+              ?_assertEqual(declined, erbi:disconnect(Datasource))]
      end}.
 
 
 
-
-temp_opt(Atom,PList)->
-    MockPList=proplists:get_value(temp,PList),
-    case proplists:get_value(Atom,MockPList) of
-        undefined ->
-            "";
-        Value ->
-            Value
-    end.
-
-
+get_data_dir(DataSource)->
+    #erbi{properties=PropList} = NormDS = erbi:normalize_data_source(DataSource),
+   erbi_temp_db:get_data_dir_name(PropList,NormDS).
