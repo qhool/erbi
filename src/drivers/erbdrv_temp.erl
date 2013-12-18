@@ -20,10 +20,7 @@
 
 -include("erbi.hrl").
 -include("erbi_driver.hrl").
--include_lib("epgsql/include/pgsql.hrl").
 
--export([start/1,
-        stop/1]).
 % erbi driver API
 -export([driver_info/0,
          validate_property/2,
@@ -49,34 +46,6 @@
 	  base_connection::erbdrv_connection()
 			   }).
 
--define(base_driver_name(PList), proplists:get_value(base_driver,
-						  PList) ).
--define(base_driver(PList), erbi:get_driver_module(
-			      ?base_driver_name(PList))).
-
--define(DEFAULT_DATA_DIR,"/tmp_data/mock_db_data").
-
-% Temp driver API implementation
--spec start(Datasource::erbi_data_source())->
-    ok.
-
-start(DataSource)->
-    run_db_setup(DataSource,
-                 fun(BaseDriver,ErbiDS,DataDir)->
-                         erbi_temp_db_helpers:create_dir(DataDir),
-                         BaseDriver:start_temp(ErbiDS,DataDir)
-                 end).
-
--spec stop(Datasource::erbi_data_source())->
-    ok.
-stop(DataSource)->
-    run_db_setup(DataSource,
-                 fun(BaseDriver,ErbiDS,DataDir)->
-                         ok = BaseDriver:stop_temp(ErbiDS,DataDir),
-                         erbi_temp_db_helpers:del_dir(DataDir),
-                         ok
-                 end).
-
 % erbi driver API implementation
 -spec driver_info() -> erbi_driver_info().
 driver_info()->
@@ -97,13 +66,24 @@ validate_property(base_driver,Driver) when is_list(Driver)->
 validate_property(init_files,[H|_]=FilesString) when not is_list(H)->
     FilesList=string:tokens(FilesString,","),
     {ok,[{init_files,FilesList}]};
+validate_property(autoclean,Val) ->
+    validate_property(auto_clean,Val);
+validate_property(auto_clean,Val) when is_list(Val) ->
+    case string:to_lower(Val) of
+        "true" -> {ok,[{auto_clean,true}]};
+        "false" -> {ok,[{auto_clean,false}]};
+        "1" -> {ok,[{auto_clean,true}]};
+        "0" -> {ok,[{auto_clean,false}]};
+        _ -> {error,{invalid_datasource,{auto_clean,Val}}}
+    end;
 validate_property( _,_ ) ->
     ok.
 
 -spec property_info() -> [{atom(),any()}].
 property_info()->
     [
-     {defaults,[{data_dir,filename:absname("")}]},
+     {defaults,[{data_dir,undefined},
+                {auto_clean,true}]},
      {required,[base_driver]}
     ].
 
@@ -115,20 +95,16 @@ parse_args(_)->
 -spec connect( DS :: erbi_data_source(),
                    Username :: string(),
                    Password :: string() ) -> erbdrv_return().
-connect(#erbi{driver = temp, properties=PropList}=ErbiDriver, Username, Password)->
-    BaseDriverName=?base_driver_name(PropList),
-    BaseDriver=?base_driver(PropList), 
-    %Get PropList with the actual data_dir
-    {NormBaseDataSource,TmpUsername,TmpPasswd}
-        = erbi_temp_db:get_normalized_base_data_source(ErbiDriver,
-                                Username,
-                                Password,
-                               BaseDriver,
-                                         BaseDriverName),
- 
-    #erbdrv{conn=BaseConnection}=BaseDriver:connect(NormBaseDataSource,
-						    TmpUsername,
-						    TmpPasswd),
+connect(#erbi{driver = temp}=DataSource, Username0, Password0)->
+    {BaseDriver,BaseDS0,DataDir} = erbi_temp_db:parse_temp_ds(DataSource),
+    {BaseDS1,Username,Password} = 
+        case BaseDriver:get_temp_connect_data(BaseDS0,DataDir,Username0,Password0) of
+            declined -> {BaseDS0,Username0,Password0};
+            Any -> Any
+        end,
+    BaseDS=erbi:normalize_data_source(BaseDS1),
+    #erbdrv{conn=BaseConnection}= BaseDriver:connect(BaseDS,Username,Password),
+
     TempConnection=#temp_connection{base_driver=BaseDriver,
 				    base_connection=BaseConnection},
     #erbdrv
@@ -145,97 +121,96 @@ disconnect(#temp_connection{base_driver=BaseDriver,
 -spec begin_work( Connection :: erbdrv_connection() ) ->
     erbdrv_return().
 begin_work(#temp_connection{base_driver=BaseDriver,
-		     base_connection=BaseConnection})->
-    BaseDriver:begin_work(BaseConnection).
+		     base_connection=BaseConnection}=C)->
+    wrap_ret(C,BaseDriver:begin_work(BaseConnection)).
 
 -spec begin_work( Connection :: erbdrv_connection(),
                       Savepoint :: atom | string() ) ->
     erbdrv_return().
 begin_work(#temp_connection{base_driver=BaseDriver,
-		     base_connection=BaseConnection},
+		     base_connection=BaseConnection}=C,
 	   Savepoint)->
-    BaseDriver:begin_work(BaseConnection,Savepoint).
+    wrap_ret(C,BaseDriver:begin_work(BaseConnection,Savepoint)).
 
 -spec rollback( Connection :: erbdrv_connection() ) -> 
     erbdrv_return().
 rollback(#temp_connection{base_driver=BaseDriver,
-		     base_connection=BaseConnection})->
-   BaseDriver:rollback(BaseConnection).
+		     base_connection=BaseConnection}=C)->
+    wrap_ret(C,BaseDriver:rollback(BaseConnection)).
 
 -spec rollback( Connection :: erbdrv_connection(),
                     Savepoint :: atom | string() ) ->  
     erbdrv_return().
 rollback(#temp_connection{base_driver=BaseDriver,
-		     base_connection=BaseConnection},
+		     base_connection=BaseConnection}=C,
 	 Savepoint) ->
-    BaseDriver:rollback(BaseConnection,Savepoint).
+    wrap_ret(C,BaseDriver:rollback(BaseConnection,Savepoint)).
   
 -spec commit( Connection :: erbdrv_connection() ) ->
     erbdrv_return().
 commit(#temp_connection{base_driver=BaseDriver,
-		     base_connection=BaseConnection})->
-    BaseDriver:commit(BaseConnection).
+		     base_connection=BaseConnection}=C)->
+    wrap_ret(C,BaseDriver:commit(BaseConnection)).
     
 -spec do( Connection :: erbdrv_connection(),
               Query :: string(),
               Params ::  erbi_bind_values() ) ->
     erbdrv_return().
 do(#temp_connection{base_driver=BaseDriver,
-		     base_connection=BaseConnection},
+		     base_connection=BaseConnection}=C,
    Query,
    Params)->
-    BaseDriver:do(BaseConnection,Query,Params).
+    wrap_ret(C,BaseDriver:do(BaseConnection,Query,Params)).
     
 -spec prepare( Connection :: erbdrv_connection(),
 	       Query :: string() ) ->
 		     erbdrv_return().
 prepare(#temp_connection{base_driver=BaseDriver,
-		     base_connection=BaseConnection},Query) ->
-    BaseDriver:prepare(BaseConnection,Query).
+		     base_connection=BaseConnection}=C,Query) ->
+    wrap_ret(C,BaseDriver:prepare(BaseConnection,Query)).
 
 -spec bind_params( Connection :: erbdrv_connection(),
                        Statement :: erbdrv_statement(),
                        Params :: erbi_bind_values() ) ->
     erbdrv_return().
 bind_params(#temp_connection{base_driver=BaseDriver,
-		     base_connection=BaseConnection},
+		     base_connection=BaseConnection}=C,
 	    Statement,
 	    Params)->
-    BaseDriver:bind_params(BaseConnection,Statement,Params).
+    wrap_ret(C,BaseDriver:bind_params(BaseConnection,Statement,Params)).
 
 -spec execute( Connection :: erbdrv_connection(),
                    Statement :: erbdrv_statement() | string(),
                    Params :: erbi_bind_values() ) ->
     erbdrv_return().
 execute(#temp_connection{base_driver=BaseDriver,
-		     base_connection=BaseConnection},Statement,Params)->
-    BaseDriver:execute(BaseConnection,Statement,Params).
+		     base_connection=BaseConnection}=C,Statement,Params)->
+    wrap_ret(C,BaseDriver:execute(BaseConnection,Statement,Params)).
     
 -spec fetch_rows( Connection :: erbdrv_connection(),
                       Statement :: erbdrv_statement(),
                       Amount :: one | all ) ->
     erbdrv_return().
 fetch_rows(#temp_connection{base_driver=BaseDriver,
-		     base_connection=BaseConnection},Statement,Amount)->
-    BaseDriver:fetch_rows(BaseConnection,Statement,Amount).
+		     base_connection=BaseConnection}=C,Statement,Amount)->
+    wrap_ret(C,BaseDriver:fetch_rows(BaseConnection,Statement,Amount)).
 
 -spec finish( Connection :: erbdrv_connection(),
                  Statement :: erbdrv_statement() ) ->
     erbdrv_return().
 finish(#temp_connection{base_driver=BaseDriver,
-		     base_connection=BaseConnection},Statement)->
-    BaseDriver:finish(BaseConnection,Statement).
-
-%----------------------------------------
-% Erbi temp internal functions
-%---------------------------------------- 
-run_db_setup(#erbi{properties=PropList}=DataSource,SetupFun)->
-  BaseDriver = ?base_driver(PropList),
-  BaseDriverName=?base_driver_name(PropList),
-  DataDir = erbi_temp_db:get_data_dir_name(PropList,DataSource),
-  SetupFun(BaseDriver,DataSource#erbi{driver=BaseDriverName},DataDir).
+		     base_connection=BaseConnection}=C,Statement)->
+    wrap_ret(C,BaseDriver:finish(BaseConnection,Statement)).
 
 
+%% erbi drivers are allowed to update their connection state
+%% this handles that
+wrap_ret(TempConn,#erbdrv{conn=NewBaseConnection}=Ret) when NewBaseConnection =/= same ->
+    NewTempConn = TempConn#temp_connection{base_connection=NewBaseConnection},
+    Ret#erbdrv{conn=NewTempConn};
+%% this case covers 'declined' and conn=same
+wrap_ret(_TempConn,Ret) ->
+    Ret.
 
 
 

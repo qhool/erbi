@@ -45,7 +45,7 @@
 % erbi_temp_db  API
 -export([start_temp/2,
          stop_temp/2,
-        get_temp_connect_data/4]).
+         get_temp_connect_data/4]).
 
 -record(neocon, % ;-)
         { type = transaction :: atom(),
@@ -166,7 +166,7 @@ execute( #neocon{type=cypher, url=Url}=C, Query, Params ) ->
     do_req(post,C,Url,[200],Q,
            fun(_S,_H,Body) ->
                    Cols = proplists:get_value(<<"columns">>,Body,[]),
-                   Rows = proplists:get_value(<<"data">>,Body,[]),
+                   Rows = extract_rows(Body),
                    RowCount = case proplists:get_value(<<"stats">>,Body) of
                                   undefined ->
                                       length(Rows);
@@ -190,21 +190,12 @@ execute( #neocon{trans = Trans, url=Url}=C, Query, Params ) ->
     do_req(post,C,ToUrl,[200],[{statements,[Q]}],
            fun(_S,_H,Body) ->
                    % Results = 
-                   case proplists:get_value(<<"errors">>,Body) of
-                       X when X =:= [] ; X =:= undefined ->
-                           [Result|_] = proplists:get_value(<<"results">>,Body),
-                           %io:format(user,"~n~nResult: ~p~n",[Result]),
-                           Cols = proplists:get_value(<<"columns">>,Result,[]),
-                           %io:format(user,"columns: ~p~n",[Cols]),
-                           %% my neo4j differs from the docs here:
-                           %Data = proplists:get_value(<<"data">>,Result,[]),
-                           %Rows = proplists:get_all_values(<<"row">>,Data),
-                           Rows = proplists:get_value(<<"data">>,Result,[]),
-                           #erbdrv{status=ok,rows=length(Rows),data={Cols,Rows}};
-                       Errors ->
-                           #erbdrv{status=error,data=Errors}
-                   end
-           end).  
+                   [Result|_] = proplists:get_value(<<"results">>,Body),
+                   Cols = proplists:get_value(<<"columns">>,Result,[]),
+                   %handle different output formats
+                   Rows = extract_rows(Result),
+                   #erbdrv{status=ok,rows=length(Rows),data={Cols,Rows}}
+           end).
 
 fetch_rows(_,_,_) ->
     declined.
@@ -229,12 +220,10 @@ finish(_,_) ->
 -spec start_temp(ErbiDataSource::erbi_data_source(),
                 DataDir::unicode:chardata())->
     ok.
-start_temp(#erbi{properties=PropList},DataDir)->
-    {ok,BinDir}= erbi_temp_db_helpers:search_db_binaries(
-                    [proplists:get_value(bin_dir,PropList,"") |
-                     ?POSSIBLE_BIN_DIRS]
-                    ,"neo4j"),
+start_temp(#erbi{properties=PropList}=DataSource,DataDir)->
+    {ok,BinDir}= erbi_temp_db_helpers:find_bin_dir(DataSource,?POSSIBLE_BIN_DIRS,"neo4j"),
     {ok, Port}=erbi_temp_db_helpers:get_free_db_port(?MIN_PORT,?MAX_PORT),
+    io:format(user,"Creating temp Neo4j DB in ~p on port ~p~n",[DataDir,Port]),
     ok = copy_binaries(BinDir,DataDir),
     ok = configure_db_instance(DataDir,Port),
     ok = initialize_db(PropList,DataDir), %starts a local neo4j-shell that populates data
@@ -253,9 +242,9 @@ stop_temp(#erbi{},DataDir)->
     ok.
 
 -spec get_temp_connect_data(ErbiDataSource::erbi_data_source(),
-                             DataDir::unicode:chardata(),
-                                Username::unicode:chardata(),
-                                Password::unicode:chardata())->
+                   DataDir::unicode:chardata(),
+                   Username::unicode:chardata(),
+                   Password::unicode:chardata()) ->
     {erbi_data_source(),
      unicode:chardata(),
      unicode:chardata()}.
@@ -287,7 +276,13 @@ format_query({QAtom,Query},{PAtom,Params}) ->
     %% neo4j cares about the order
     Q++QParams.
 
-
+extract_rows(Result) ->
+    RawRows = proplists:get_value(<<"data">>,Result,[]),
+    lists:map( fun([{<<"row">>,Row}]) -> Row;
+                  (Row) -> Row
+               end,
+               RawRows ).
+                       
 do_req(Method,#neocon{trans=undefined,url=Url}=Conn,Statuses,Body,Func) ->
     do_req(Method,Conn,Url,Statuses,Body,Func);
 do_req(Method,#neocon{trans=Trans}=Conn,Statuses,Body,Func) ->
@@ -302,7 +297,7 @@ rest_response(#neocon{type=Type},Func,RestStat) ->
 rest_response(_,Func,{_,Stat,Headers,Body}) when (Stat >= 200) and (Stat < 300) ->
     case proplists:get_value(<<"errors">>,Body) of
         X when X =:= [] ; X =:= undefined ->
-            Func(200,Headers,Body);
+            Func(Stat,Headers,Body);
         [Error|_] ->
             Code = proplists:get_value(<<"code">>,Error),
             Status = proplists:get_value(<<"status">>,Error),
@@ -312,9 +307,17 @@ rest_response(_,Func,{_,Stat,Headers,Body}) when (Stat >= 200) and (Stat < 300) 
                     42000 -> execution_error;
                     42001 -> syntax_error;
                     42002 -> missing_parameter;
+                    %% error format changed with 2.0.0
+                    <<"Neo.ClientError.Statement.InvalidSyntax">> ->
+                        syntax_error;
                     _ -> unmapped_error
                 end,
-            #erbdrv{status=error,data={ErbiError,{Code,Status,Message}}}
+            case Status of
+                undefined ->
+                    #erbdrv{status=error,data={ErbiError,{Code,Message}}};
+                _ ->
+                    #erbdrv{status=error,data={ErbiError,{Code,Status,Message}}}
+            end
     end;
 rest_response(_,_Func,{_, 400, _H, Body}) ->  
     ExcpName = proplists:get_value(<<"exception">>,Body),
@@ -400,7 +403,7 @@ copy_binaries(Source,Dest)->
 
 configure_db_instance(PathData,Port)->
     substitute_properties_in_file(PathData,Port),
-    check_disabled_remote_shell_cmd(PathData),
+    disable_remote_shell_cmd(PathData),
     ok.
 
 substitute_properties_in_file(PathData,Port)->
@@ -417,30 +420,39 @@ substitute_properties_in_file(PathData,Port)->
         {"/conf/neo4j.properties",
          "s/enable_remote_shell=.*\$/enable_remote_shell=false/g"}]).
 
--define(DB_DATA_DIR,"data\\/erbi_tmp.db").
+-define(DB_DATA_DIR,"data/erbi_tmp.db").
 get_substitute_server_config_cmd(Port)->
     lists:flatten(lists:map(fun({Key,Val})->
                     " -e \"s/"++Key++"=.*\$/"++Key++"="++Val++"/g\""
             end,
     [
-     {"org.neo4j.server.database.location",?DB_DATA_DIR},
+     {"org.neo4j.server.database.location",esc_slashes(?DB_DATA_DIR)},
      {"org.neo4j.server.webserver.port",integer_to_list(Port)},
      {"org.neo4j.server.webserver.https.enabled","false"}
     ])).
+esc_slashes(Str) ->
+    esc_slashes(Str,[]).
+esc_slashes([$/|Str],Acc) ->
+    esc_slashes(Str,"/\\"++Acc);
+esc_slashes([C|Str],Acc) ->
+    esc_slashes(Str,[C|Acc]);
+esc_slashes([],Acc) ->
+    lists:reverse(Acc).
 
-check_disabled_remote_shell_cmd(PathData)->
+disable_remote_shell_cmd(PathData)->
     os:cmd("echo 'enable_remote_shell=false' >> "++
                PathData++"/conf/neo4j.properties").
 
 start_db_instance(PathData)->
-    exec_neo4j_server_cmd(PathData,"start &").
+    exec_neo4j_server_cmd(PathData,"start").
 
 stop_db_instance(PathData)->
     exec_neo4j_server_cmd(PathData,"stop").
 
 exec_neo4j_server_cmd(PathData,NeoCmd) ->
     DbCmd=PathData++"/bin/neo4j "++NeoCmd,
-    os:cmd(DbCmd),
+    io:format(user,"Executing: ~p~n",[DbCmd]),
+    io:format(user,"~s",[os:cmd(DbCmd)]),
     ok.
 
 wait_for_db_started(Port)->
@@ -477,9 +489,11 @@ check_db_status(Scheme,Host,Port, ExpectedHttpCode)->
 initialize_db(PropList,PathData)->
     InitFiles= proplists:get_value(init_files,PropList,[]),
     lists:map(fun(File)->
-                         os:cmd(PathData++"/bin/neo4j-shell -path "++PathData++
-                                      "/"++?DB_DATA_DIR++
-                                      " -config "++PathData++"/conf/ -file "++File)
+                      Cmd = PathData++"/bin/neo4j-shell -path "++PathData++
+                          "/"++?DB_DATA_DIR++
+                          " -config "++PathData++"/conf/ -file "++File,
+                      io:format(user,"Executing ~s:~n",[Cmd]),
+                      io:format(user,"~s",[os:cmd(Cmd)])
               end,InitFiles),
     ok.
 

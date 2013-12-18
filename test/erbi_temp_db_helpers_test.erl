@@ -35,9 +35,9 @@ save_read_from_db_data_file_test_()->
     
 search_db_binaries_test_()->
    %Check that if provided path is invalid, finds it anyway
-   [?_test({ok,_Path}= erbi_temp_db_helpers:search_db_binaries(["/invalid/path/"],"ls")),
+   [?_test({ok,_Path}= erbi_temp_db_helpers:search_dirs(["/invalid/path/"],"ls")),
    % Check that uses system PATH
-   ?_test({ok,_Path}= erbi_temp_db_helpers:search_db_binaries([],"ls"))].
+   ?_test({ok,_Path}= erbi_temp_db_helpers:search_dirs([],"ls"))].
 
 wait_for_test_()->
     Error = waited_too_much,

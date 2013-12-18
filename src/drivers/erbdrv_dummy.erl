@@ -43,7 +43,7 @@
 % erbi_temp_db  API
 -export([start_temp/2,
          stop_temp/2,
-        get_temp_connect_data/4]).
+         get_temp_connect_data/4]).
 
 driver_info() ->
     #erbi_driver_info
@@ -227,25 +227,12 @@ finish( Props, {Query,_,_} ) ->
 -define(MAX_PORT, 9888).
 -define(POSSIBLE_BIN_DIRS,[]).
 
--spec start_temp(ErbiDataSource::erbi_data_source(),
-                DataDir::unicode:chardata())->
-    ok.
 start_temp(#erbi{},_DataDir)->
     ok.
 
--spec stop_temp(ErbiDataSource::erbi_data_source(),
-               DataDir::unicode:chardata())->
-    ok.
 stop_temp(#erbi{},_DataDir)->
     ok.
 
--spec get_temp_connect_data(ErbiDataSource::erbi_data_source(),
-                            DataDir::unicode:chardata(),
-                                Username::unicode:chardata(),
-                                Password::unicode:chardata())->
-    {erbi_data_source(),
-     unicode:chardata(),
-     unicode:chardata()}.
 get_temp_connect_data(_ErbiDataSource,_DataDir,_UserName,_Password)->
     declined.
 

@@ -54,7 +54,8 @@ all_test_()->
     {setup,
      fun()->
              Config =erbi_test_util:config(epgsql),
-             Conn= connect(Config,false),
+             start_db(Config),
+             Conn= connect(Config),
              {_,DataConfig}=erbi_test_util:dataset(erbdrv_epgsql),
              {Conn,Config,DataConfig}
      end,
@@ -90,7 +91,7 @@ create_table(Conn,DataConfig)->
 erbi_transaction(Conn,Config,DataConfig)->
     {setup,
      fun()->
-             OutsideTransConnect=connect(Config,true),
+             OutsideTransConnect=connect(Config),
 
              [Data1,Data2]=generate_rows(2,proplists:get_value(data,DataConfig)),
              SelectAll=proplists:get_value(select_all,DataConfig),
@@ -225,7 +226,7 @@ get_some_errors(Conn,Config,DataConfig)->
              SelectBind=proplists:get_value(select_one_bind,DataConfig),
              SelectMany=proplists:get_value(select_all,DataConfig),
              % return a closed connection to get an error
-             TmpConn=connect(Config,true),
+             TmpConn=connect(Config),
              erbi_connection:disconnect(TmpConn),
              {SelectBind,SelectMany,TmpConn}
      end,
@@ -244,18 +245,15 @@ disconnect_epgsql(Conn)->
     ?_assertEqual(ok, ?debugVal(erbi_connection:disconnect(Conn))).
 
 
-connect(Config,StartedDb)->
+connect(Config)->
     Datasource=proplists:get_value(datasource,Config),
-    start_db(Datasource,StartedDb),
     User= proplists:get_value(user,Config),
     Pwd= proplists:get_value(password,Config),
     element(2,erbi:connect( Datasource, User, Pwd )).
 
-start_db(Datasource,false)->
-    erbi_test_util:start_db_test(Datasource);
-start_db(_,_) ->
-    ok.
-    
+start_db(Config)->
+    Datasource=proplists:get_value(datasource,Config),
+    ok = erbi_test_util:start_db_test(Datasource).
 
 
 equal_data_list(Data,List)->
@@ -328,10 +326,10 @@ connect_temp_epgsql_test_()->
     {setup,
      fun()->
              Config=erbi_test_util:config(epgsql_temp),
-             Datasource1= "erbi:temp:base_driver=epgsql;data_dir="++
-                 proplists:get_value(data_dir,Config,"")++
-                 ";init_files="++proplists:get_value(sql_init_files,Config,""),
-             Datasource2=Datasource1++";bin_dir=/casa/",
+             Datasource1= "erbi:temp:base_driver=epgsql;" ++ 
+                 ";init_files="++proplists:get_value(sql_init_files,Config,"") ++
+                 ";data_dir="++proplists:get_value(data_dir,Config,""),
+             Datasource2=Datasource1++"2",
              ok=erbi_temp_db:start(Datasource1),
              ok=erbi_temp_db:start(Datasource2),
              {Datasource1,Datasource2}

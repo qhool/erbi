@@ -8,12 +8,13 @@
 -export([create_dir/1,
          del_dir/1,
          kill_db_pid/1,
- 	 get_free_db_port/2,
-	 save_in_db_data_file/3,
-	 read_from_db_data_file/2,
-	 search_db_binaries/2,
-	 get_string_from_ds/1,
-     wait_for/4
+         get_free_db_port/2,
+         save_in_db_data_file/3,
+         read_from_db_data_file/2,
+         find_bin_dir/3,
+         search_dirs/2,
+         wait_for/4,
+         getenv/2
 	]).
  
 
@@ -52,37 +53,46 @@ kill_db_pid(Pid)->
 
 get_free_db_port(MinPort,MaxPort)->
     StartingPort=trunc(random:uniform()*(MaxPort-MinPort))+MinPort,
-    get_free_db_port(StartingPort,MinPort,MaxPort).
+    get_free_db_port(StartingPort+1,StartingPort,MinPort,MaxPort).
 
-get_free_db_port(StartingPort,MinPort,MaxPort)->
-    get_free_db_port(StartingPort,undefined,MinPort,MaxPort).
-
-get_free_db_port(Port,undefined,MinPort,MaxPort) when Port > MaxPort->
-    get_free_db_port(MinPort,restarted);
-get_free_db_port(Port,restarted,_MinPort,MaxPort) when Port > MaxPort ->
+get_free_db_port(Port,StartingPort,MinPort,MaxPort) when Port > MaxPort-> 
+    get_free_db_port(MinPort,StartingPort,MinPort,MaxPort);
+get_free_db_port(Port,StartingPort,_MinPort,_MaxPort) when Port == StartingPort ->
     {error,no_free_port};
-get_free_db_port(Port,Tag,MinPort,MaxPort) ->
+get_free_db_port(Port,StartingPort,MinPort,MaxPort) ->
     case gen_tcp:listen(Port,[]) of
        {ok,TmpSock}->
             gen_tcp:close(TmpSock),
             {ok,Port};
         _ ->
-            get_free_db_port(Port+1,Tag,MinPort,MaxPort)
+            get_free_db_port(Port+1,StartingPort,MinPort,MaxPort)
       end.
 
 save_in_db_data_file(Term,Path,File)->
-    file:write_file(Path++"/"++File,term_to_binary(Term)).
+                                                %file:write_file(Path++"/"++File,term_to_binary(Term)).
+    ok = file:write_file(Path++"/"++File,io_lib:fwrite("~p.\n",[Term])).
                          
 read_from_db_data_file(Path,File)->
-    {ok,BinaryTerm} = file:read_file(Path++"/"++File),
-    binary_to_term(BinaryTerm).
+    %{ok,BinaryTerm} = file:read_file(Path++"/"++File),
+    %binary_to_term(BinaryTerm).
+    {ok,[Term]} = file:consult(Path++"/"++File),
+    Term.
 
-search_db_binaries(PossiblePaths,Filename)->
+find_bin_dir(#erbi{properties=Props}=DataSource,Candidates,File) ->
+    case getenv(DataSource,bin) of
+        false ->
+            search_dirs([proplists:get_value(bin_dir,Props,"") | Candidates],File);
+        File ->
+            {ok,File}
+    end.
+
+search_dirs(PossiblePaths,Filename)->
+    SearchPath = PossiblePaths ++ get_os_path(),
     case lists:filter(fun(Path)->
                               filelib:is_file(Path++"/"++Filename)
-                      end,PossiblePaths ++ get_os_path()) of
+                      end,SearchPath) of
         []->
-            {error,binaries_not_found};
+            {error,{not_found,Filename,{search_path,SearchPath}}};
         [H|_]->         
             {ok,H}
     end.
@@ -90,9 +100,6 @@ search_db_binaries(PossiblePaths,Filename)->
 get_os_path()->
     StrPaths=os:getenv("PATH"),
     string:tokens(StrPaths,":").
-
-get_string_from_ds(#erbi{driver = DriverName, properties=PropList, args=Args})->
-    io_lib:format("erbi:~p:~p:~p",[DriverName,PropList,Args]).
 
 wait_for(_Fun,Error,_Interval,0 ) ->
     Error;
@@ -107,3 +114,6 @@ wait_for(Fun,Error, Interval, Tries) ->
             Any
     end.
 
+getenv(#erbi{driver=Driver},Key) ->
+    EnvName = "ERBI_TEMPDB_" ++ string:to_upper(atom_to_list(Key) ++ "_" ++ atom_to_list(Driver)),
+    os:getenv(EnvName).
