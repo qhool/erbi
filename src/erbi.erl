@@ -162,8 +162,10 @@ normalize_data_source(Module,#erbi{properties=Props,args=Args}=DataSource ) ->
             end
     end.
     
--spec normalize_args( Module :: atom(), Args :: [any()] ) ->
+-spec normalize_args( Module :: atom(), Args :: undefined | [any()] ) ->
                             undefined | {error,any()} | term().
+normalize_args( _, undefined ) ->
+    undefined;
 normalize_args( Module, Args ) ->
     case {Args,Module:parse_args(Args)} of
         {[],declined} ->
