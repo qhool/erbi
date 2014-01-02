@@ -79,6 +79,12 @@ property_info() ->
                  {bind,fallthrough},
                  {fetch,fallthrough},
                  {finish,fallthrough},
+                 %temp db operations
+                 {start_temp,fallthrough},
+                 {stop_temp,fallthrough},
+                 {temp_conn,fallthrough},
+                 {temp_db,fallthrough},
+                 %the buck stops here:
                  {default,success},
                  %driver info flags:
                  {preparse_support,false},
@@ -227,15 +233,14 @@ finish( Props, {Query,_,_} ) ->
 -define(MAX_PORT, 9888).
 -define(POSSIBLE_BIN_DIRS,[]).
 
-start_temp(#erbi{},_DataDir)->
-    ok.
+start_temp(#erbi{properties=Props},_DataDir)->
+    on_success( Props, [start_temp,temp_db], ok ).
 
-stop_temp(#erbi{},_DataDir)->
-    ok.
+stop_temp(#erbi{properties=Props},_DataDir)->
+    on_success( Props, [stop_temp,temp_db], ok ).
 
-get_temp_connect_data(_ErbiDataSource,_DataDir,_UserName,_Password)->
-    declined.
-
+get_temp_connect_data(#erbi{properties=Props}=DataSource,_DataDir,UserName,Password)->
+    on_success( Props, [temp_conn,temp_db], {DataSource,UserName,Password} ).
 
 %% -----------------------------------
 %% @doc get bind parameters passed in

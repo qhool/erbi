@@ -66,6 +66,36 @@ wait_for_test_()->
       ?_assertEqual(WaitCount-1,erase(wait_count))
     ].
               
-                            
+exec_test_() ->
+    Tests =
+        [{"true",
+          fun(True) -> 
+                  [?_test( {ok,{exit_status,0},_} = erbi_temp_db_helpers:exec_cmd(True,[],wait) )]
+          end},
+         {"false",
+          fun(False) ->
+                  [?_test( {ok,{exit_status,1},_} = erbi_temp_db_helpers:exec_cmd(False,[],wait) )]
+          end},
+         {"sleep",
+          fun(Sleep) ->
+                  [?_test( {ok,{os_pid,_Pid},_} = erbi_temp_db_helpers:exec_cmd(Sleep,["3"],nowait) )]
+          end},
+         {"echo",
+          fun(Echo) ->
+                  [?_test( {ok,{exit_status,0},"foo"++_} = 
+                               erbi_temp_db_helpers:exec_cmd(Echo,["foo"],
+                                                             {fun(Dat,Acc) -> Dat++Acc end,""},
+                                                             standard_io ) )]
+          end}
+        ],
+    lists:concat(
+      [ case erbi_temp_db_helpers:search_dirs([],C) of
+            {ok,Cmd} ->
+                F(Cmd++"/"++C);
+            _ -> []
+        end || {C,F} <- Tests ]
+     ).
+
+                           
                                   
                               

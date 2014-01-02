@@ -16,6 +16,8 @@
 %%
 %% @doc
 %% erbi neo4j driver, using the neo4j REST interface.
+%%
+%% 
 %% @end 
 -module(erbdrv_neo4j).
 -behaviour(erbi_driver).
@@ -111,7 +113,7 @@ connect( #erbi{ properties = Props }, _Username, _Password ) ->
         {ok,_Status,_,_} ->
             #erbdrv{ status = ok, info = Info, conn = #neocon{type=Endpoint,url=EndpointUrl} };
         {error,Status,Headers,_} ->
-            #erbdrv{ status = error, data = {connect_failed,Status,Headers} }
+            #erbdrv{ status = error, data = {connection_refused,{Status,Headers}} }
     end.
 
 %% there was no real connection to start with
@@ -132,7 +134,7 @@ begin_work( _C, _ ) ->
 rollback( #neocon{type=cypher} ) ->
     declined;
 rollback( #neocon{trans=undefined} ) ->
-    #erbdrv{ status = error, data = no_transaction };
+    #erbdrv{ status = error, data = {transaction_error,no_transaction} };
 rollback( C ) ->
     do_req(delete,C,[200],[],
            fun(_S,_H,_B) ->
@@ -144,7 +146,7 @@ rollback( _C, _ ) ->
 commit( #neocon{type=cypher} ) ->
     declined;
 commit( #neocon{trans=undefined} ) ->
-    #erbdrv{ status = error, data = no_open_transaction };
+    #erbdrv{ status = error, data = {transaction_error,no_transaction} };
 commit( #neocon{trans=Trans}=C ) ->
     do_req(post,C,Trans ++ "/commit",[200],[{statements,[]}],
            fun(_S,_H,_B) ->
@@ -200,7 +202,7 @@ execute( #neocon{trans = Trans, url=Url}=C, Query, Params ) ->
 fetch_rows(_,_,_) ->
     declined.
 finish(_,_) ->
-    decline.
+    declined.
 
 %----------------------------------------------------
 % erbi_temp_db API
@@ -217,9 +219,6 @@ finish(_,_) ->
                           "../../deps/neo4j/bin",
                           "../../../deps/neo4j/bin"]).
 
--spec start_temp(ErbiDataSource::erbi_data_source(),
-                DataDir::unicode:chardata())->
-    ok.
 start_temp(#erbi{properties=PropList}=DataSource,DataDir)->
     {ok,BinDir}= erbi_temp_db_helpers:find_bin_dir(DataSource,?POSSIBLE_BIN_DIRS,"neo4j"),
     {ok, Port}=erbi_temp_db_helpers:get_free_db_port(?MIN_PORT,?MAX_PORT),
@@ -232,22 +231,12 @@ start_temp(#erbi{properties=PropList}=DataSource,DataDir)->
     ok = erbi_temp_db_helpers:save_in_db_data_file(Port,DataDir,?PORT_FILE),
     ok.
 
--spec stop_temp(ErbiDataSource::erbi_data_source(),
-                DataDir::unicode:chardata())->
-    ok.
 stop_temp(#erbi{},DataDir)->
     Port = erbi_temp_db_helpers:read_from_db_data_file(DataDir,?PORT_FILE),
     ok = stop_db_instance(DataDir),
     ok = wait_for_db_stopped(Port),
     ok.
 
--spec get_temp_connect_data(ErbiDataSource::erbi_data_source(),
-                   DataDir::unicode:chardata(),
-                   Username::unicode:chardata(),
-                   Password::unicode:chardata()) ->
-    {erbi_data_source(),
-     unicode:chardata(),
-     unicode:chardata()}.
 get_temp_connect_data(ErbiDataSource,DataDir,UserName,Password)->
     {get_temp_proplist(ErbiDataSource,DataDir),
      get_temp_username(UserName),
@@ -443,16 +432,15 @@ disable_remote_shell_cmd(PathData)->
     os:cmd("echo 'enable_remote_shell=false' >> "++
                PathData++"/conf/neo4j.properties").
 
-start_db_instance(PathData)->
-    exec_neo4j_server_cmd(PathData,"start").
+start_db_instance(DataDir)->
+    exec_neo4j_server_cmd(DataDir,"start").
 
-stop_db_instance(PathData)->
-    exec_neo4j_server_cmd(PathData,"stop").
+stop_db_instance(DataDir)->
+    exec_neo4j_server_cmd(DataDir,"stop").
 
-exec_neo4j_server_cmd(PathData,NeoCmd) ->
-    DbCmd=PathData++"/bin/neo4j "++NeoCmd,
-    io:format(user,"Executing: ~p~n",[DbCmd]),
-    io:format(user,"~s",[os:cmd(DbCmd)]),
+exec_neo4j_server_cmd(DataDir,NeoCmd) ->
+    {ok,_,_} = 
+        erbi_temp_db_helpers:exec_cmd(DataDir++"/bin/neo4j",[NeoCmd]),
     ok.
 
 wait_for_db_started(Port)->
