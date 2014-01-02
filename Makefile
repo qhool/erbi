@@ -9,15 +9,24 @@ all: rebar
 test: all
 	@./rebar eunit skip_deps=true
 
-dialyze: all ../dialyzer.plt
-	dialyzer --plt ../dialyzer.plt \
-           -Wno_return -Wno_unused --src \
-           src/
+dialyze: all ./.dialyzer.plt
+	dialyzer \
+	-pa ebin --plts ../dialyzer.plt ./.dialyzer.plt  \
+	-Wno_return -Wno_unused \
+	-I deps/ -I include/ --no_native --src -r src/
 
+#project specific plt for dependencies
+.dialyzer.plt: ../dialyzer.plt
+	dialyzer --build_plt --output_plt ./.dialyzer.plt \
+	--apps deps/epgsql deps/restc
+
+#shared plt, which contains otp standard stuff
 ../dialyzer.plt:
 	dialyzer --build_plt --output_plt ../dialyzer.plt \
-           --apps erts kernel stdlib mnesia crypto inets xmerl sasl \
-                       compiler debugger ssl tools
+           --apps erts kernel stdlib mnesia crypto public_key inets xmerl sasl \
+                       eunit compiler debugger ssl tools
+
+rebuild:
 
 clean:
 	@(test -f rebar && ./rebar clean) || exit 0
