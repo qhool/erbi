@@ -14,7 +14,8 @@
          find_bin_dir/3,
          search_dirs/2,
          wait_for/4,
-         getenv/2
+         getenv/2,
+         exec_cmd/2, exec_cmd/3, exec_cmd/4
 	]).
  
 
@@ -117,3 +118,116 @@ wait_for(Fun,Error, Interval, Tries) ->
 getenv(#erbi{driver=Driver},Key) ->
     EnvName = "ERBI_TEMPDB_" ++ string:to_upper(atom_to_list(Key) ++ "_" ++ atom_to_list(Driver)),
     os:getenv(EnvName).
+
+%%@doc execute command, returning OS PID
+%%
+%% Arguments:
+%% 
+%%@end
+-type exec_cmd_return() :: {ok,{os_pid,integer()},any()} | 
+                           {ok,{exit_status,integer()},any()} |
+                           {error,any()}.
+-type exec_cmd_scanfn() :: fun( (string(),any()) -> any() ).
+
+-spec exec_cmd( Command :: unicode:chardata(),
+                Args :: [unicode:chardata()] ) -> exec_cmd_return().
+                                              
+exec_cmd( Command, Args ) ->
+    exec_cmd(Command,Args,wait).
+
+-spec exec_cmd( Command :: unicode:chardata(),
+                Args :: [unicode:chardata()],
+                wait | nowait | {exec_cmd_scanfn(),any()}
+              ) -> exec_cmd_return().
+
+
+exec_cmd( Command, Args, wait ) ->
+    WaitScanner =
+        fun(_Data,_Acc) ->
+                undefined %returning undefined means output processor goes until exit.
+        end,
+    exec_cmd( Command, Args, {WaitScanner,undefined}, standard_error );
+exec_cmd( Command, Args, nowait ) ->
+    NoWaitScanner =
+        fun(_Data,_Acc) ->
+                {ok,undefined} % returning {ok,Acc} ends scanning phase
+        end,
+    exec_cmd( Command, Args, {NoWaitScanner,undefined}, standard_error );
+exec_cmd( Command, Args, {Scanner,Acc} ) ->
+    exec_cmd( Command, Args, {Scanner,Acc}, standard_error ).
+
+-spec exec_cmd( Command :: unicode:chardata(),
+                Args :: [unicode:chardata()],
+                wait | nowait | {exec_cmd_scanfn(),any()},
+                none | io:device()
+              ) -> exec_cmd_return().
+
+
+exec_cmd( Command, Args, {Scanner,Acc}, Output ) ->
+    StrCmd = string:join( lists:map( fun unicode:characters_to_list/1, 
+                                     [Command|Args] ), " " ),
+    OutFun =
+        case Output of
+            none -> 
+                fun(_) ->
+                        ok
+                end;          
+            H when is_atom(H) ->
+                io:format( H, "Executing ~s: ",[StrCmd]),
+                fun(Data) ->
+                        io:format(Output,"~s",[Data])
+                end
+        end,
+    TopPid = self(),
+    _Pid = 
+        spawn(
+          fun() ->
+                  Port = 
+                      open_port
+                        ( {spawn_executable, 
+                           unicode:characters_to_list(Command)},
+                        %{spawn,StrCmd},
+                          [{args,lists:map
+                                   ( fun unicode:characters_to_binary/1, Args )},
+                           stream,use_stdio,stderr_to_stdout,exit_status,
+                           {cd, filename:absname("")} ] ),
+                  TopPid ! erlang:port_info(Port,os_pid),
+                  port_loop(Port,TopPid, OutFun)
+          end),
+    receive 
+        {os_pid,OSPid} ->
+            output_loop( OSPid, Scanner, Acc, {data,""} )
+    after 1000 ->
+            {error,timeout}
+    end.
+
+output_loop(OSPid,Scanner,Acc,Recv) ->
+    case Recv of
+        {data,Data} ->
+            case Scanner(Data,Acc) of
+                {ok,Acc1} ->
+                    {ok,{os_pid,OSPid},Acc1};
+                {error,Reason} ->
+                    {error,Reason};
+                Acc2 ->
+                    receive 
+                        X ->
+                            output_loop(OSPid,Scanner,Acc2,X)
+                    end
+            end;
+        {exit_status,Status} ->
+            {ok,{exit_status,Status},Acc}
+    end.
+
+port_loop(Port,Parent,Logger) ->
+    receive
+        {Port,{data,Data}} ->
+            Parent ! {data,Data},
+            Logger(Data),
+            port_loop(Port,Parent,Logger);
+        {Port,{exit_status,Status}} ->
+            Parent ! {exit_status,Status},
+            exit(port_exit);
+        {'EXIT',Port,_Reason}->
+            exit(port_terminated)
+    end.

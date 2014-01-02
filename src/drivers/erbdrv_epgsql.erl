@@ -76,7 +76,7 @@ validate_property( _,_ ) ->
 property_info()->
     [{aliases, [{db,database},{dbname,database},{hostaddr,host},{hostname,host},{sslmode,ssl}]},
      {defaults,[{host,"localhost"},{port,5432}]},
-     {required,[database]}
+     {required,[]}
      ].
 
 -spec parse_args([any()]) ->
@@ -460,20 +460,19 @@ get_temp_password(Passwd) ->
 
 % Creates datadir defaults->user=$USER;authmode=trust;db=postgres
 configure_datadir(PathBin,PathData)->
-    os:cmd(PathBin++"/initdb -D "++PathData),
+    os:cmd(PathBin++"/initdb -D "++PathData),%]),
     ok.
 
 start_db_instance(PathBin,PathData,Port)->
     io:format(user,"Starting temp postgres from ~p on port ~p~n",[PathData,Port]),
-    StartDbCmd=PathBin++"/postgres -p "++integer_to_list(Port)++" -D "++PathData ++ " -c unix_socket_directory="++PathData,
-    io:format(user,"Executing ~p:~n~n",[StartDbCmd]),
-    T = now(),
-    OutputFile = PathData ++ "/temp_db.log." ++ lists:flatmap(fun erlang:integer_to_list/1, tuple_to_list(now())),
-    StrPid=os:cmd(StartDbCmd++" > "++OutputFile++" 2>&1 & echo $!")--"\n",
-    Result=wait_for_db_started(Port),
-    io:format(user,"~s~n",[os:cmd("cat " ++ OutputFile)]),
-    ok=Result,
-    list_to_integer(StrPid).
+    Postgres = PathBin++"/postgres",
+    Args = [ "-p", integer_to_list(Port),
+             "-c", "unix_socket_directory="++PathData,
+             "-D", PathData
+           ],
+    {ok,{os_pid,Pid},_} = erbi_temp_db_helpers:exec_cmd(Postgres,Args,nowait),
+    ok=wait_for_db_started(Port),
+    Pid.
 
 initialize_db(PropList,Port)->
     InitFiles= proplists:get_value(init_files,PropList,[]),

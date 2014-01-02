@@ -134,8 +134,8 @@
 %% @doc Establish a new connection to the database
 %% @end
 -callback connect( DS :: erbi_data_source(),
-                   Username :: string(),
-                   Password :: string() ) -> erbdrv_return().
+                   Username :: string() | undefined,
+                   Password :: string() | undefined) -> erbdrv_return().
 
 %%-----------------------------------------------
 %% CONNECTION LEVEL DRIVER CALLS

@@ -39,10 +39,11 @@ connect_epgsql_test_()->
      fun({Datasource,User,Pwd})->
              [ ?_test( { ok, _ } = ?debugVal(erbi:connect( Datasource, User, Pwd )) ),
                ?_test( { error, _ } = ?debugVal(erbi:connect( "erbi:epgsql:database=mydatabase", "", "" )) ),
-               ?_assertEqual( { error,
-                                {invalid_datasource,
-                                 {missing_properties,[database]}} } ,
-                              ?debugVal(erbi:connect( "erbi:epgsql:", "postgres", "pass" )) ),
+               % epgsql driver does not require database name -- why add this restriction?
+               %?_assertEqual( { error,
+               %                 {invalid_datasource,
+               %                  {missing_properties,[database]}} } ,
+               %               ?debugVal(erbi:connect( "erbi:epgsql:", "postgres", "pass" )) ),
 
                ?_test({error,{unknown_host,_}}= ?debugVal(erbi:connect( "erbi:epgsql:database=mydatabase;host=myhost", "postgres", "pass" )) )
              ]

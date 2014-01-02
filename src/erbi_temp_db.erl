@@ -15,7 +15,7 @@
 %% Responsible for provisioning and starting a temporary database.
 %% DataDir will already exist, and should be used to store any/all files required.
 %% @end
--callback start_temp(ErbiDataSource::erbi_data_source(),DataDir::unicode:chardata())->
+-callback start_temp(DataSource::erbi_data_source(),DataDir::unicode:chardata())->
     ok.
 
 %% @doc Shutdown temp database (driver callback)
@@ -25,7 +25,7 @@
 %% this is performed by erbi_tmp_db (or not; cleanup can be 
 %% disabled using the auto_clean option).
 %% @end
--callback stop_temp(ErbiDataSource::erbi_data_source(),DataDir::unicode:chardata())->
+-callback stop_temp(DataSource::erbi_data_source(),DataDir::unicode:chardata())->
     ok.
 
 %% @doc Get connection parameters for temp db
@@ -46,8 +46,8 @@
                                 Username::unicode:chardata(),
                                 Password::unicode:chardata())->
     {ErbiDataSource::erbi_data_source(),
-     unicode:chardata(),
-     unicode:chardata()}
+     unicode:chardata() | undefined,
+     unicode:chardata() | undefined}
         | declined.
 
 %% @doc start temp db
@@ -74,6 +74,7 @@ stop(DataSource)->
     DoCleanup = proplists:get_value(auto_clean,Props),
     case DoCleanup of
         true ->
+            io:format(standard_error,"Cleaning ~p~n",[DataDir]),
             erbi_temp_db_helpers:del_dir(DataDir),
             ok;
         _ -> ok
@@ -99,7 +100,7 @@ parse_temp_ds(#erbi{properties=Props,args=Args}=DataSource)->
         end,
     BaseDS = DataSource#erbi{driver=BaseDriver,
                              args=default_value(Args,[])},
-    {BaseModule,BaseDS,filename:absname(DataDir)};
+    {BaseModule,erbi:normalize_data_source(BaseDS),filename:absname(DataDir)};
 parse_temp_ds(StringDS) ->
     parse_temp_ds(erbi:normalize_data_source(StringDS)).
 
