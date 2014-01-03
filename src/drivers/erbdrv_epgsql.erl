@@ -218,7 +218,7 @@ start_temp(#erbi{properties=PropList}=DataSource,DataDir)->
     {ok, Port}=get_free_db_port(),
     ok = configure_datadir(PathBin,DataDir),
     DBPid = start_db_instance(PathBin,DataDir,Port),
-    ok = initialize_db(PropList,Port),
+    ok = initialize_db(PropList,PathBin,Port),
     ok = erbi_temp_db_helpers:save_in_db_data_file(DBPid,DataDir,?PID_FILE),
     ok = erbi_temp_db_helpers:save_in_db_data_file(Port,DataDir,?PORT_FILE),
     ok.
@@ -460,7 +460,7 @@ get_temp_password(Passwd) ->
 
 % Creates datadir defaults->user=$USER;authmode=trust;db=postgres
 configure_datadir(PathBin,PathData)->
-    os:cmd(PathBin++"/initdb -D "++PathData),%]),
+    {ok,{exit_status,0},_} = erbi_temp_db_helpers:exec_cmd(PathBin++"/initdb",["-D",PathData]),
     ok.
 
 start_db_instance(PathBin,PathData,Port)->
@@ -471,13 +471,13 @@ start_db_instance(PathBin,PathData,Port)->
              "-D", PathData
            ],
     {ok,{os_pid,Pid},_} = erbi_temp_db_helpers:exec_cmd(Postgres,Args,nowait),
-    ok=wait_for_db_started(Port),
+    ok=wait_for_db_started(PathBin,Port),
     Pid.
 
-initialize_db(PropList,Port)->
+initialize_db(PropList,PathBin,Port)->
     InitFiles= proplists:get_value(init_files,PropList,[]),
     lists:map(fun(File)->
-                      Cmd = "psql -p "++integer_to_list(Port)++ " -h localhost " ++
+                      Cmd = PathBin++"/psql -p "++integer_to_list(Port)++ " -h localhost " ++
                           " -U "++get_db_user()++
                           " -d "++get_db_name()++
                           " -f "++File,
@@ -486,9 +486,9 @@ initialize_db(PropList,Port)->
               end,InitFiles),
     ok.
 
-wait_for_db_started(Port)->
+wait_for_db_started(PathBin,Port)->
     Fun= fun() ->
-                 case os:cmd("psql -d "++get_db_name()++ " -h localhost " ++
+                 case os:cmd(PathBin++"/psql -d "++get_db_name()++ " -h localhost " ++
                                  " -f /dev/null -p "++integer_to_list(Port)) of
                      "psql:"++_->
                          wait;
