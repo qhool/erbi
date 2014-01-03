@@ -156,6 +156,48 @@ exec_cmd( Command, Args, nowait ) ->
 exec_cmd( Command, Args, {Scanner,Acc} ) ->
     exec_cmd( Command, Args, {Scanner,Acc}, standard_error ).
 
+
+%%@doc execute command, with processing of output
+%%
+%% Allows a command to be executed, while capturing the OS pid or exit status, and the output.
+%% Output can be printed or logged, and can also be scanned or collected.  
+%% Arguments:
+%% <ul>
+%%   <li>Command: absolute path to executable</li>
+%%   <li>Args: List of arguments; these do not need to be quoted or escaped; command is exec'ed
+%%       directly.</li>
+%%   <li>Scanner -- output parser/accumulator, and flow control function.  See below.</li>
+%%   <li>Logger -- output/logging control.  Can be:
+%%     <ul><li>A device, like the first arg of io:format/3</li>
+%%         <li>A fun, accepting string(); will be called for all output of Command;
+%%             return is ignored.</li>
+%%         <li>'none'</li>
+%%     </ul></li>
+%% </ul>
+%% Return values:
+%% <ul>
+%%   <li>{ok,{os_pid,Pid},Acc} -- Acc is the accumulated output of Scanner (q.v.)</li>
+%%   <li>{ok,{exit_status,Status},Acc}</li>
+%%   <li>{error,Reason}</li>
+%% </ul>
+%%
+%% Scanner
+%%
+%% The scanner argument is a pair of {Scanner,InitAcc}.  Scanner takes two arguments:
+%% <ul>
+%%   <li>Data: string() -- a chunk of output from the command.</li> 
+%%   <li>Acc: any() -- accumulator; starts with InitAcc</li>
+%% </ul>
+%% Scanner returns one of:
+%% <ul>
+%%   <li>{ok,Acc} -- exec_cmd will return immediately, with {ok,{os_pid,Pid},Acc}</li>
+%%   <li>{error,Reason} -- exec_cmd returns immediately with this value</li>
+%%   <li>{acc,Acc} -- continue processing output, with new accumulator value</li>
+%% </ul>
+%% Scanner can also accept 'wait' and 'nowait' which make the function wait (or not) for 
+%% Command to finish; output Acc will be 'undefined'.ls
+%%@end
+
 -spec exec_cmd( Command :: unicode:chardata(),
                 Args :: [unicode:chardata()],
                 wait | nowait | {exec_cmd_scanfn(),any()},
