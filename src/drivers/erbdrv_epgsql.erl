@@ -476,24 +476,30 @@ start_db_instance(PathBin,PathData,Port)->
 
 initialize_db(PropList,PathBin,Port)->
     InitFiles= proplists:get_value(init_files,PropList,[]),
-    lists:map(fun(File)->
-                      Cmd = PathBin++"/psql -p "++integer_to_list(Port)++ " -h localhost " ++
-                          " -U "++get_db_user()++
-                          " -d "++get_db_name()++
-                          " -f "++File,
+    lists:foreach(fun(File)->
+                      Cmd = PathBin++"/psql",
+                      Args = ["-p", integer_to_list(Port),
+                              "-h", "localhost",
+                              "-U", get_db_user(),
+                              "-d", get_db_name(),
+                              "-f", File],
                       io:format(user,"Running pg init file: ~p~n~p:~n",[File,Cmd]),
-                      io:format(user,"~s",[os:cmd(Cmd)])
+                      {ok,{exit_status,0},_} = erbi_temp_db_helpers:exec_cmd(Cmd,Args)
               end,InitFiles),
     ok.
 
 wait_for_db_started(PathBin,Port)->
-    Fun= fun() ->
-                 case os:cmd(PathBin++"/psql -d "++get_db_name()++ " -h localhost " ++
-                                 " -f /dev/null -p "++integer_to_list(Port)) of
-                     "psql:"++_->
-                         wait;
+    Cmd = PathBin++"/psql",
+    Args = ["-d",get_db_name(),
+            "-h", "localhost",
+            "-f","/dev/null",
+            "-p",integer_to_list(Port)],
+    Fun = fun() ->
+                 case erbi_temp_db_helpers:exec_cmd(Cmd,Args) of
+                     {ok,{exit_status,0},_}->
+                         ok;
                      _ ->
-                         ok
+                         wait
                  end
          end,
     erbi_temp_db_helpers:wait_for(Fun,{error,db_not_started},500,10).
