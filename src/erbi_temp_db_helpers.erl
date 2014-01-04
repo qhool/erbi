@@ -215,15 +215,15 @@ exec_cmd( Command, Args, {Scanner,Acc}, Output ) ->
                         ok
                 end;          
             H when is_atom(H) ->
-                io:format( H, "Executing ~s: ",[StrCmd]),
-                fun(Data) ->
-                        io:format(Output,"~s",[Data])
+                fun(Fmt,Dat) ->
+                        io:format(Output,Fmt,Dat)
                 end
         end,
     TopPid = self(),
-    _Pid = 
-        spawn(
+    {SpawnPid,Mon} = 
+        spawn_monitor(
           fun() ->
+                  OutFun("Executing ~s: ",[StrCmd]),
                   Port = 
                       open_port
                         ( {spawn_executable, 
@@ -233,18 +233,41 @@ exec_cmd( Command, Args, {Scanner,Acc}, Output ) ->
                                    ( fun unicode:characters_to_binary/1, Args )},
                            stream,use_stdio,stderr_to_stdout,exit_status,
                            {cd, filename:absname("")} ] ),
-                  TopPid ! erlang:port_info(Port,os_pid),
-                  port_loop(Port,TopPid, OutFun)
+                  {os_pid,OSPid} = erlang:port_info(Port,os_pid),
+                  TopPid ! {{self(),undefined},{os_pid,OSPid}},
+                  Ret = port_loop(Port,TopPid,{self(),OSPid},OutFun),
+                  OutFun("'~s' terminated: ~p~n",[StrCmd,Ret])
           end),
+    output_loop( SpawnPid, Scanner, Acc ).
+
+output_loop( SpawnPid, Scanner, Acc ) ->
+    output_loop( SpawnPid, undefined, Scanner, Acc ).
+
+output_loop(SpawnPid,OSPid,Scanner,Acc) ->
     receive 
-        {os_pid,OSPid} ->
-            output_loop( OSPid, Scanner, Acc, {data,""} )
+        {{SpawnPid,OSPid},{os_pid,OSPid1}} ->
+            output_loop(SpawnPid,OSPid1,Scanner,Acc,{data,""});
+        {{SpawnPid,OSPid},Msg} ->
+            output_loop(SpawnPid,OSPid,Scanner,Acc,Msg);
+        {'DOWN',_,process,SpawnPid,Reason} ->
+            case OSPid of
+                undefined -> {error,{exec_failed,Reason}};
+                _ ->         {error,{unexpected_termination,Reason}}
+            end;
+        {'DOWN',_,process,_,_} ->
+            output_loop(SpawnPid,OSPid,Scanner,Acc);
+        {{_OtherPid,_},_} ->
+            output_loop(SpawnPid,OSPid,Scanner,Acc)
     after 1000 ->
-            {error,timeout}
+            case OSPid of
+                undefined -> {error,timeout};
+                _ ->
+                    output_loop(SpawnPid,OSPid,Scanner,Acc)
+            end
     end.
 
-output_loop(OSPid,Scanner,Acc,Recv) ->
-    case Recv of
+output_loop(SpawnPid,OSPid,Scanner,Acc,Msg) ->
+    case Msg of
         {data,Data} ->
             case Scanner(Data,Acc) of
                 {ok,Acc1} ->
@@ -252,24 +275,40 @@ output_loop(OSPid,Scanner,Acc,Recv) ->
                 {error,Reason} ->
                     {error,Reason};
                 Acc2 ->
-                    receive 
-                        X ->
-                            output_loop(OSPid,Scanner,Acc2,X)
-                    end
+                    output_loop(SpawnPid,OSPid,Scanner,Acc2)
             end;
         {exit_status,Status} ->
-            {ok,{exit_status,Status},Acc}
+            {ok,{exit_status,Status},Acc};
+        Other ->
+            Other
     end.
 
-port_loop(Port,Parent,Logger) ->
+
+port_loop(Port,Parent,Ident,Logger) ->
     receive
         {Port,{data,Data}} ->
-            Parent ! {data,Data},
-            Logger(Data),
-            port_loop(Port,Parent,Logger);
+            Parent ! {Ident,{data,Data}},
+            Logger("~s",[Data]),
+            port_loop(Port,Parent,Ident,Logger);
         {Port,{exit_status,Status}} ->
-            Parent ! {exit_status,Status},
-            exit(port_exit);
-        {'EXIT',Port,_Reason}->
-            exit(port_terminated)
+            Parent ! {Ident,{exit_status,Status}},
+            {exit_status,Status};
+        {'EXIT',Port,Reason}->
+            Parent ! {Ident,{error,Reason}},
+            {port_terminated,Reason};
+        {Port,closed} ->
+            Parent ! {Ident,{error,port_closed}},
+            {port_terminated,closed};
+        Other ->
+            Parent ! {Ident,{error,{unhandled_message,Other}}},
+            {unhandled_message,Other}
+    after 1000 ->
+            case erlang:port_info(Port) of
+                undefined ->
+                    Parent ! {Ident,{error,port_gone}},
+                    {error,port_gone};
+                _ ->
+                    port_loop(Port,Parent,Ident,Logger)
+            end
     end.
+    
