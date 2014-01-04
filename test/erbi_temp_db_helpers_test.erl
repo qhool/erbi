@@ -67,35 +67,89 @@ wait_for_test_()->
     ].
               
 exec_test_() ->
-    Tests =
+    CMDs =
         [{"true",
           fun(True) -> 
-                  [?_test( {ok,{exit_status,0},_} = erbi_temp_db_helpers:exec_cmd(True,[],wait) )]
+                  [{ "exec_cmd true",
+                     ?_test( {ok,{exit_status,0},_} = 
+                                 ?debugVal(erbi_temp_db_helpers:exec_cmd(?debugVal(True),[],wait)) )}]
           end},
          {"false",
           fun(False) ->
-                  [?_test( {ok,{exit_status,1},_} = erbi_temp_db_helpers:exec_cmd(False,[],wait) )]
+                  [{ "exec_cmd false",
+                     ?_test( {ok,{exit_status,1},_} = 
+                                 ?debugVal(erbi_temp_db_helpers:exec_cmd(?debugVal(False),[],wait)) )}]
           end},
          {"sleep",
           fun(Sleep) ->
-                  [?_test( {ok,{os_pid,_Pid},_} = erbi_temp_db_helpers:exec_cmd(Sleep,["3"],nowait) )]
+                  [{ "exec_cmd get pid",
+                     ?_test( {ok,{os_pid,_Pid},_} = 
+                                 ?debugVal(erbi_temp_db_helpers:exec_cmd(?debugVal(Sleep),["3"],nowait)) )}]
           end},
          {"echo",
           fun(Echo) ->
-                  [?_test( {ok,{exit_status,0},"foo"++_} = 
-                               erbi_temp_db_helpers:exec_cmd(Echo,["foo"],
-                                                             {fun(Dat,Acc) -> Dat++Acc end,""},
-                                                             standard_io ) )]
-          end}
-        ],
-    lists:concat(
-      [ case erbi_temp_db_helpers:search_dirs([],C) of
-            {ok,Cmd} ->
-                F(Cmd++"/"++C);
-            _ -> []
-        end || {C,F} <- Tests ]
-     ).
+                  [{ "exec_cmd read output",
+                     ?_test( {ok,{exit_status,0},"foo"++_} = 
+                                 ?debugVal
+                                    (erbi_temp_db_helpers:exec_cmd
+                                       (?debugVal(Echo),["foo"],
+                                        {fun(Dat,Acc) -> Dat++Acc end,""},
+                                        standard_io )) )}]
+          end}],
+    NormalTests = 
+        lists:concat(
+          [ case erbi_temp_db_helpers:search_dirs([],C) of
+                {ok,Cmd} ->
+                    F(Cmd++"/"++C);
+                _ -> []
+            end || {C,F} <- CMDs ]
+         ),
+    BadCmd = 
+        { "exec_cmd bad command",
+          ?_test( {error,{exec_failed,_}} = 
+                      ?debugVal(erbi_temp_db_helpers:exec_cmd
+                                  ("/never/no/no/uoefnv08234028408",[]))
+                )},
+    Killer =
+        fun(Output,Method) ->
+                case re:run(Output,"[0-9]+") of
+                    {match,[{Start,Len}|_]} ->
+                        OSPid = list_to_integer(lists:sublist(Output,Start+1,Len)),
+                        kill_port_by_os_pid(OSPid,Method);
+                    _ ->
+                        Method
+                end
+        end,
+    MkTerminator =
+        fun(Method) ->
+                { "exec_cmd " ++ atom_to_list(Method),
+                  ?_test( {error,_} =
+                              ?debugVal(erbi_temp_db_helpers:exec_cmd
+                                          ("/bin/sh",["-c","echo $$; sleep 3"],
+                                           {Killer,Method}))
+                        )}
+        end,
+    Terminators = [ MkTerminator(Mth) 
+                    || Mth <- [port_close,close_by_owner,kill_owner] ],
+    NormalTests ++ [BadCmd,Terminators].
 
-                           
-                                  
+kill_port_by_os_pid(OSPid,Method) ->
+    [Port] = 
+        lists:filter(fun(P) ->
+                             case erlang:port_info(P,os_pid) of
+                                 {os_pid,OSPid} ->
+                                     true;
+                                 _ -> false
+                             end
+                     end, erlang:ports()),
+    {connected,Owner} = ?debugVal(erlang:port_info(Port,connected)),
+    ?debugFmt("Found port: ~p   Owner: ~p",[Port,Owner]),
+    case Method of
+        port_close ->
+            ?debugVal(port_close(Port));
+        close_by_owner ->
+            Port ! { Owner, close };
+        kill_owner ->
+            exit(Owner,kill)
+    end.
                               
