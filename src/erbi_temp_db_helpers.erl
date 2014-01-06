@@ -83,8 +83,8 @@ find_bin_dir(#erbi{properties=Props}=DataSource,Candidates,File) ->
     case getenv(DataSource,bin) of
         false ->
             search_dirs([proplists:get_value(bin_dir,Props,"") | Candidates],File);
-        File ->
-            {ok,File}
+        EnvFile ->
+            {ok,EnvFile}
     end.
 
 search_dirs(PossiblePaths,Filename)->
