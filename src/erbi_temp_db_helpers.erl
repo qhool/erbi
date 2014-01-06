@@ -220,7 +220,7 @@ exec_cmd( Command, Args, {Scanner,Acc}, Output ) ->
                 end
         end,
     TopPid = self(),
-    {SpawnPid,Mon} = 
+    {SpawnPid,_Mon} = 
         spawn_monitor(
           fun() ->
                   OutFun("Executing ~s: ",[StrCmd]),

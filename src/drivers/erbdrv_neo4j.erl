@@ -465,14 +465,21 @@ wait_for_db_state(Port,ExpectedState,ExpectedHttpStatus,Error)->
 check_db_status(Scheme,Host,Port, ExpectedHttpCode)->
     BaseUrl = atom_to_list(Scheme) ++ "://" ++ Host ++ ":" ++ integer_to_list(Port),
     CheckUrl = BaseUrl ++ "/db/data/",
-    ok = application:ensure_started(inets),
+    ok = ensure_started(inets),
     ok = case Scheme of
              https ->
-                 application:ensure_started(restc);
+                 ensure_started(restc);
              _ ->
                  ok
          end,
     restc:request( get, json, CheckUrl, ExpectedHttpCode ).
+
+ensure_started(App) ->
+    case application:start(App) of
+        ok -> ok;
+        {error,{already_started,App}} -> ok;
+        Other -> Other
+    end.
 
 initialize_db(PropList,PathData)->
     InitFiles= proplists:get_value(init_files,PropList,[]),
