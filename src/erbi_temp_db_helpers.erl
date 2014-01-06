@@ -28,12 +28,14 @@ create_dir(Dir)->
 
 del_dir(Dir) ->
    lists:foreach(fun(D) ->
-                    ok = file:del_dir(D)
+                         io:format(standard_error,"del_dir ~p~n",[D]),
+                         ok = file:del_dir(D)
                  end, del_all_files([Dir], [])).
  
 del_all_files([], EmptyDirs) ->
     EmptyDirs;
 del_all_files([Dir | T], EmptyDirs) ->
+    io:format(standard_error,"deleting files in ~p~n",[Dir]),
     {ok, FilesInDir} = file:list_dir(Dir),
     {Files, Dirs} = lists:foldl(fun(F, {Fs, Ds}) ->
                                         Path = Dir ++ "/" ++ F,
@@ -44,9 +46,14 @@ del_all_files([Dir | T], EmptyDirs) ->
                                                 {[Path | Fs], Ds}
                                         end
                                 end, {[],[]}, FilesInDir),
-    lists:foreach(fun(F) ->
-                          ok = file:delete(F)
-                  end, Files),
+    case search_dirs([],"sh") of
+        {ok,Path} ->
+            exec_cmd(Path++"/sh",["-c","rm " ++ Dir ++ "/* " ++ Dir ++ "/.*"]);
+        _ ->
+            lists:foreach(fun(F) ->
+                                  ok = file:delete(F)
+                          end, Files)
+    end,
     del_all_files(T ++ Dirs, [Dir | EmptyDirs]).
 
 kill_db_pid(Pid)->
