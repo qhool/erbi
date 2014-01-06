@@ -200,10 +200,15 @@ finish(Connection,_) ->
 -define(PORT_FILE,"tmp_db.port").
 -define(POSSIBLE_BIN_DIRS,["/usr/bin/pgsql/bin/",
                           "/usr/sbin/pgsql/bin/",
+                          "/usr/lib/postgresql/9.2/bin/",
+                          "/usr/lib/postgresql/9.1/bin/",
                           "/usr/local/pgsql/bin/",
                           "/usr/local/bin/pgsql/bin/",
                           "/usr/pgsql-9.2/bin",
-                          "/Library/PostgreSQL/9.2/bin/"]).
+                          "/usr/pgsql-9.1/bin",
+                          "/Library/PostgreSQL/9.2/bin/",
+                          "/Library/PostgreSQL/9.1/bin/"
+                          ]).
 
 -spec start_temp(ErbiDataSource::erbi_data_source(),
                 DataDir::unicode:chardata())->
@@ -459,24 +464,32 @@ configure_datadir(PathBin,PathData)->
     ok.
 
 start_db_instance(PathBin,PathData,Port)->
-    StartDbCmd=PathBin++"/postgres -p "++integer_to_list(Port)++" -D "++PathData,
-    StrPid=os:cmd(StartDbCmd++" & echo $!")--"\n",
+    io:format(user,"Starting temp postgres from ~p on port ~p~n",[PathData,Port]),
+    StartDbCmd=PathBin++"/postgres -p "++integer_to_list(Port)++" -D "++PathData ++ " -c unix_socket_directory="++PathData,
+    io:format(user,"Executing ~p:~n~n",[StartDbCmd]),
+    T = now(),
+    OutputFile = PathData ++ "/temp_db.log." ++ lists:flatmap(fun erlang:integer_to_list/1, tuple_to_list(now())),
+    StrPid=os:cmd(StartDbCmd++" > "++OutputFile++" 2>&1 & echo $!")--"\n",
+    Result=wait_for_db_started(Port),
+    io:format(user,"~s~n",[os:cmd("cat " ++ OutputFile)]),
+    ok=Result,
     list_to_integer(StrPid).
 
 initialize_db(PropList,Port)->
     InitFiles= proplists:get_value(init_files,PropList,[]),
-    ok=wait_for_db_started(Port),
     lists:map(fun(File)->
-                           os:cmd("psql -p "++integer_to_list(Port)++
-                                 " -U "++get_db_user()++
-                                 " -d "++get_db_name()++
-                                 " -f "++File)
+                      Cmd = "psql -p "++integer_to_list(Port)++ " -h localhost " ++
+                          " -U "++get_db_user()++
+                          " -d "++get_db_name()++
+                          " -f "++File,
+                      io:format(user,"Running pg init file: ~p~n~p:~n",[File,Cmd]),
+                      io:format(user,"~s",[os:cmd(Cmd)])
               end,InitFiles),
     ok.
 
 wait_for_db_started(Port)->
     Fun= fun() ->
-                 case os:cmd("psql -d "++get_db_name()++
+                 case os:cmd("psql -d "++get_db_name()++ " -h localhost " ++
                                  " -f /dev/null -p "++integer_to_list(Port)) of
                      "psql:"++_->
                          wait;
