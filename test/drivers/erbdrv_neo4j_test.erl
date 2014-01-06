@@ -42,47 +42,56 @@ main_test_() ->
              CypherDS = proplists:get_all_values(cypher_datasource,Config),
              {Config,TransDS,CypherDS}
      end,
+     fun(_) ->
+             ok
+     end,
      fun({Config,TransDS,CypherDS}) ->
              DoCommitted = proplists:get_value(nontransactional_write,Config,false),
              DoUncommitted = proplists:get_value(transactional_write,Config,false),
-             lists:flatmap(
+             lists:map(
                fun({Type,DS}) ->
-                       [ { "connect to " ++ DS,
-                           {setup,
-                             fun()->
-                                  ok = erbi_test_util:start_db_test(DS)
-                             end,
-                            fun(_)->
-                                  ok = erbi_test_util:stop_db_test(DS)
-                            end,
-                            fun(_)->
-                           ?_test( { ok, _ } = ?debugVal(erbi:connect( DS )) )
-                                        end}},
-                         {foreach,
-                          fun() ->
-                                   ok = erbi_test_util:start_db_test(DS),
-                                  {ok,Conn} = erbi:connect( DS ),
-                                  {Config,Type,Conn,DS}
-                          end,
-                          fun({_,_,Conn,_}) ->
-                                  erbi_connection:disconnect(Conn),
-                                  ok = erbi_test_util:stop_db_test(DS)
-                          end,
-                          [ fun mktests_read_only/1,
-                            fun mktests_errors/1 ]
-                          ++ case DoCommitted of
-                                 true ->
-                                     [fun mktests_non_transactional/1];
-                                 false -> []
-                             end
-                          ++ case DoUncommitted of
-                                 true ->
-                                     [fun mktests_transactional/1];
-                                 false ->
-                                     []
-                             end
-                         }
-                       ]
+                       {setup,
+                        fun() ->
+                                ?debugMsg("Starting Neo4j"),
+                                ok = erbi_test_util:start_db_test(DS)
+                        end,
+                        fun(_) ->
+                                ?debugMsg("Stopping Neo4j"),
+                                ok = erbi_test_util:stop_db_test(DS)
+                        end,
+                        [ { "connect to " ++ DS,
+                                    fun()->
+                                            ?debugMsg("Connect test"),
+                                            ?_test( { ok, _ } = ?debugVal(erbi:connect( DS )) )
+                                      end},
+                                    {foreach,
+                                     fun() ->
+                                             ?debugMsg("Foreach SETUP"),
+                                             {ok,Conn} = erbi:connect( DS ),
+                                             {Config,Type,Conn,DS}
+                                     end,
+                                     fun({_,_,Conn,_}) ->
+                                             ?debugMsg("Foreach DISCONN"),
+                                             erbi_connection:disconnect(Conn)
+                                     end,
+                                     [ fun mktests_read_only/1,
+                                       fun mktests_errors/1 ]
+                                     ++ case DoCommitted of
+                                            true ->
+                                                [fun mktests_non_transactional/1];
+                                            false -> []
+                                        end
+                                     ++ case DoUncommitted of
+                                            true ->
+                                                [fun mktests_transactional/1];
+                                            false ->
+                                                []
+                                        end
+                                   
+                                    }
+                                  ]
+                        
+                       }
                end, lists:map(fun(X) -> {transaction,X} end, TransDS) ++
                    lists:map(fun(X) -> {cypher,X} end, CypherDS ) 
               )

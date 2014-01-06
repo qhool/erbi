@@ -251,9 +251,9 @@ stop_temp(#erbi{},DataDir)->
     ok.
 
 -spec get_temp_connect_data(ErbiDataSource::erbi_data_source(),
-                             DataDir::unicode:chardata(),
-                                Username::unicode:chardata(),
-                                Password::unicode:chardata())->
+                   DataDir::unicode:chardata(),
+                   Username::unicode:chardata(),
+                   Password::unicode:chardata()) ->
     {erbi_data_source(),
      unicode:chardata(),
      unicode:chardata()}.
@@ -398,7 +398,7 @@ copy_binaries(Source,Dest)->
 
 configure_db_instance(PathData,Port)->
     substitute_properties_in_file(PathData,Port),
-    check_disabled_remote_shell_cmd(PathData),
+    disable_remote_shell_cmd(PathData),
     ok.
 
 substitute_properties_in_file(PathData,Port)->
@@ -415,30 +415,39 @@ substitute_properties_in_file(PathData,Port)->
         {"/conf/neo4j.properties",
          "s/enable_remote_shell=.*\$/enable_remote_shell=false/g"}]).
 
--define(DB_DATA_DIR,"data\\/erbi_tmp.db").
+-define(DB_DATA_DIR,"data/erbi_tmp.db").
 get_substitute_server_config_cmd(Port)->
     lists:flatten(lists:map(fun({Key,Val})->
                     " -e \"s/"++Key++"=.*\$/"++Key++"="++Val++"/g\""
             end,
     [
-     {"org.neo4j.server.database.location",?DB_DATA_DIR},
+     {"org.neo4j.server.database.location",esc_slashes(?DB_DATA_DIR)},
      {"org.neo4j.server.webserver.port",integer_to_list(Port)},
      {"org.neo4j.server.webserver.https.enabled","false"}
     ])).
+esc_slashes(Str) ->
+    esc_slashes(Str,[]).
+esc_slashes([$/|Str],Acc) ->
+    esc_slashes(Str,"/\\"++Acc);
+esc_slashes([C|Str],Acc) ->
+    esc_slashes(Str,[C|Acc]);
+esc_slashes([],Acc) ->
+    lists:reverse(Acc).
 
-check_disabled_remote_shell_cmd(PathData)->
+disable_remote_shell_cmd(PathData)->
     os:cmd("echo 'enable_remote_shell=false' >> "++
                PathData++"/conf/neo4j.properties").
 
 start_db_instance(PathData)->
-    exec_neo4j_server_cmd(PathData,"start &").
+    exec_neo4j_server_cmd(PathData,"start").
 
 stop_db_instance(PathData)->
     exec_neo4j_server_cmd(PathData,"stop").
 
 exec_neo4j_server_cmd(PathData,NeoCmd) ->
     DbCmd=PathData++"/bin/neo4j "++NeoCmd,
-    os:cmd(DbCmd),
+    io:format(user,"Executing: ~p~n",[DbCmd]),
+    io:format(user,"~s",[os:cmd(DbCmd)]),
     ok.
 
 wait_for_db_started(Port)->
@@ -475,9 +484,11 @@ check_db_status(Scheme,Host,Port, ExpectedHttpCode)->
 initialize_db(PropList,PathData)->
     InitFiles= proplists:get_value(init_files,PropList,[]),
     lists:map(fun(File)->
-                         os:cmd(PathData++"/bin/neo4j-shell -path "++PathData++
-                                      "/"++?DB_DATA_DIR++
-                                      " -config "++PathData++"/conf/ -file "++File)
+                      Cmd = PathData++"/bin/neo4j-shell -path "++PathData++
+                          "/"++?DB_DATA_DIR++
+                          " -config "++PathData++"/conf/ -file "++File,
+                      io:format(user,"Executing ~s:~n",[Cmd]),
+                      io:format(user,"~s",[os:cmd(Cmd)])
               end,InitFiles),
     ok.
 
