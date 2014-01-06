@@ -166,7 +166,7 @@ execute( #neocon{type=cypher, url=Url}=C, Query, Params ) ->
     do_req(post,C,Url,[200],Q,
            fun(_S,_H,Body) ->
                    Cols = proplists:get_value(<<"columns">>,Body,[]),
-                   Rows = proplists:get_value(<<"data">>,Body,[]),
+                   Rows = extract_rows(Body),
                    RowCount = case proplists:get_value(<<"stats">>,Body) of
                                   undefined ->
                                       length(Rows);
@@ -190,21 +190,12 @@ execute( #neocon{trans = Trans, url=Url}=C, Query, Params ) ->
     do_req(post,C,ToUrl,[200],[{statements,[Q]}],
            fun(_S,_H,Body) ->
                    % Results = 
-                   case proplists:get_value(<<"errors">>,Body) of
-                       X when X =:= [] ; X =:= undefined ->
-                           [Result|_] = proplists:get_value(<<"results">>,Body),
-                           %io:format(user,"~n~nResult: ~p~n",[Result]),
-                           Cols = proplists:get_value(<<"columns">>,Result,[]),
-                           %io:format(user,"columns: ~p~n",[Cols]),
-                           %% my neo4j differs from the docs here:
-                           %Data = proplists:get_value(<<"data">>,Result,[]),
-                           %Rows = proplists:get_all_values(<<"row">>,Data),
-                           Rows = proplists:get_value(<<"data">>,Result,[]),
-                           #erbdrv{status=ok,rows=length(Rows),data={Cols,Rows}};
-                       Errors ->
-                           #erbdrv{status=error,data=Errors}
-                   end
-           end).  
+                   [Result|_] = proplists:get_value(<<"results">>,Body),
+                   Cols = proplists:get_value(<<"columns">>,Result,[]),
+                   %handle different output formats
+                   Rows = extract_rows(Result),
+                   #erbdrv{status=ok,rows=length(Rows),data={Cols,Rows}}
+           end).
 
 fetch_rows(_,_,_) ->
     declined.
@@ -285,7 +276,13 @@ format_query({QAtom,Query},{PAtom,Params}) ->
     %% neo4j cares about the order
     Q++QParams.
 
-
+extract_rows(Result) ->
+    RawRows = proplists:get_value(<<"data">>,Result,[]),
+    lists:map( fun([{<<"row">>,Row}]) -> Row;
+                  (Row) -> Row
+               end,
+               RawRows ).
+                       
 do_req(Method,#neocon{trans=undefined,url=Url}=Conn,Statuses,Body,Func) ->
     do_req(Method,Conn,Url,Statuses,Body,Func);
 do_req(Method,#neocon{trans=Trans}=Conn,Statuses,Body,Func) ->
@@ -300,7 +297,7 @@ rest_response(#neocon{type=Type},Func,RestStat) ->
 rest_response(_,Func,{_,Stat,Headers,Body}) when (Stat >= 200) and (Stat < 300) ->
     case proplists:get_value(<<"errors">>,Body) of
         X when X =:= [] ; X =:= undefined ->
-            Func(200,Headers,Body);
+            Func(Stat,Headers,Body);
         [Error|_] ->
             Code = proplists:get_value(<<"code">>,Error),
             Status = proplists:get_value(<<"status">>,Error),
@@ -310,9 +307,17 @@ rest_response(_,Func,{_,Stat,Headers,Body}) when (Stat >= 200) and (Stat < 300) 
                     42000 -> execution_error;
                     42001 -> syntax_error;
                     42002 -> missing_parameter;
+                    %% error format changed with 2.0.0
+                    <<"Neo.ClientError.Statement.InvalidSyntax">> ->
+                        syntax_error;
                     _ -> unmapped_error
                 end,
-            #erbdrv{status=error,data={ErbiError,{Code,Status,Message}}}
+            case Status of
+                undefined ->
+                    #erbdrv{status=error,data={ErbiError,{Code,Message}}};
+                _ ->
+                    #erbdrv{status=error,data={ErbiError,{Code,Status,Message}}}
+            end
     end;
 rest_response(_,_Func,{_, 400, _H, Body}) ->  
     ExcpName = proplists:get_value(<<"exception">>,Body),

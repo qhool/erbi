@@ -122,16 +122,24 @@ mktests_errors({_Config,Type,Conn,_DS}) ->
                     ?debugVal(erbi_connection:do(Conn,"create (n:foo {")) )
       },
       { "missing param" ++ TypeStr,
-        ?_test( {error,{missing_parameter,_}} = 
-                    ?debugVal(erbi_connection:selectrow_list(
-                                Conn,"start n=node(*) where id(n)={x} return n",[]))
-              )
+        fun() -> 
+                case ?debugVal(erbi_connection:selectrow_list(
+                                 Conn,"start n=node(*) where id(n)={x} return n",[])) of
+                    %% 2.0.0 neo4j doesn't give missing_paramter error
+                    exhausted ->
+                        ok;
+                    {error,{missing_parameter,_}} ->
+                        ok;
+                    Badness ->
+                        ok = {should_not_get,Badness}
+                end
+        end
       },
       { "negone node" ++ TypeStr,
         fun() ->
                 {error,{Err,_}} = ?debugVal(erbi_connection:selectrow_list(
                                 Conn,"start n=node(-1) return n")),
-                ?assert( (Err =:= unknown_object) or (Err =:= execution_error) )
+                ?assert( (Err =:= unknown_object) or (Err =:= syntax_error) )
         end
       }
     ].
@@ -144,8 +152,8 @@ mktests_non_transactional({Config,Type,Conn,_DS}) ->
               {Config,Type,Conn,TestKey}
       end,
       fun({_Config,_Type,C,TestKey}) ->
-              erbi_connection:do(C,"start n=node(*) where n.erbi_test! = {k} delete n",[{k,TestKey}]),
-              erbi_connection:do(C,"start r=relationship(*) where r.erbi_test! = {k} delete r",[{k,TestKey}])
+              erbi_connection:do(C,"start n=node(*) where n.erbi_test = {k} delete n",[{k,TestKey}]),
+              erbi_connection:do(C,"start r=relationship(*) where r.erbi_test = {k} delete r",[{k,TestKey}])
       end,
       fun({Cfg,_Type,C,TestKey}) ->
               basic_crud("non-transactional",{Cfg,C,TestKey})
@@ -171,7 +179,7 @@ mktests_transactional({Config,transaction,Conn,DS}) ->
                             {ok, Conn2} = erbi:connect(DS),
                             ?assertEqual( exhausted,
                                           ?debugVal( erbi_connection:selectrow_list
-                                                       (Conn2,"start n=node(*) where n.erbi_test! = {key} return n.val",
+                                                       (Conn2,"start n=node(*) where n.erbi_test = {key} return n.val",
                                                         [{key,TestKey}]) ) )
                     end
                   }
@@ -188,16 +196,16 @@ basic_crud(Type,{_Config,Conn,TestKey}) ->
       },
       { "check node" ++ TypeStr,
         ?_assertEqual
-           ( {ok,[7]},
-             ?debugVal( erbi_connection:selectrow_list
-                          (Conn,"start n=node(*) where n.erbi_test! = {key} and n.val = {val} return n.val",
+           ( {ok,[{<<"n.erbi_test">>,list_to_binary(TestKey)},{<<"n.val">>,7}]},
+             ?debugVal( erbi_connection:selectrow_proplist
+                          (Conn,"start n=node(*) where n.erbi_test = {key} and n.val = {val} return n.erbi_test, n.val",
                            [{key,TestKey},{val,7}]) ) )
       },
       { "null property" ++ TypeStr,
         ?_assertEqual
            ( {ok,[null]},
              ?debugVal( erbi_connection:selectrow_list
-                          (Conn,"start n=node(*) where n.erbi_test! = {key} return n.sovnsdojn? limit 1",
+                          (Conn,"start n=node(*) where n.erbi_test = {key} return n.sovnsdojn limit 1",
                            [{key,TestKey}]) ) ) 
       },
       { "create node part 2" ++ TypeStr,
@@ -209,21 +217,21 @@ basic_crud(Type,{_Config,Conn,TestKey}) ->
         ?_assertEqual
            ( {ok,[[7],[101]]},
              ?debugVal( erbi_connection:selectall_list
-                          (Conn,"start n=node(*) where n.erbi_test! = {key} return n.val order by n.val",
+                          (Conn,"start n=node(*) where n.erbi_test = {key} return n.val order by n.val",
                            [{key,TestKey}]) ) )
       },
       { "delete node"++TypeStr,
         ?_assertEqual
            ( {ok,0},
              ?debugVal(erbi_connection:do
-                         (Conn,"start n=node(*) where n.erbi_test! = {key} and n.val = {val} delete n",
+                         (Conn,"start n=node(*) where n.erbi_test = {key} and n.val = {val} delete n",
                           [{key,TestKey},{val,101}])) )
       },
       { "update node"++TypeStr,
         ?_assertEqual
            ( {ok,[9]},
              ?debugVal( erbi_connection:selectrow_list
-                          (Conn,"start n=node(*) where n.erbi_test! = {key} and n.val= {val_old} " ++ 
+                          (Conn,"start n=node(*) where n.erbi_test = {key} and n.val= {val_old} " ++ 
                                " set n.val = {val_new} return n.val",
                            [{key,TestKey},{val_old,7},{val_new,9}]) ) )
       },
@@ -231,7 +239,7 @@ basic_crud(Type,{_Config,Conn,TestKey}) ->
         ?_assertEqual
            ( {ok,[[9]]},
              ?debugVal( erbi_connection:selectall_list
-                          (Conn,"start n=node(*) where n.erbi_test! = {key} return n.val",
+                          (Conn,"start n=node(*) where n.erbi_test = {key} return n.val",
                            [{key,TestKey}]) ) )
       }
     ].
