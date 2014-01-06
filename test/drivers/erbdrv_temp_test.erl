@@ -13,9 +13,9 @@ start_temp_test_()->
      end,
      fun(Datasource)->
              [?_assertEqual(ok, erbi_temp_db:start(Datasource)),
-              ?_assertEqual(true, filelib:is_dir(get_data_dir(Datasource))),
+              ?_assertEqual(true, filelib:is_dir(erbi_temp_db:data_dir(Datasource))),
               ?_assertEqual(ok, erbi_temp_db:stop(Datasource)),
-              ?_assertEqual(false, filelib:is_dir(get_data_dir(Datasource)))]
+              ?_assertEqual(false, filelib:is_dir(erbi_temp_db:data_dir(Datasource)))]
      end}.
 
 datasource_parameters_test()->
@@ -35,8 +35,3 @@ datasource_parameters_test()->
               ?_assertEqual(declined, erbi:disconnect(Datasource))]
      end}.
 
-
-
-get_data_dir(DataSource)->
-    #erbi{properties=PropList} = NormDS = erbi:normalize_data_source(DataSource),
-   erbi_temp_db:get_data_dir_name(PropList,NormDS).

@@ -208,11 +208,8 @@ finish(Connection,_) ->
 -spec start_temp(ErbiDataSource::erbi_data_source(),
                 DataDir::unicode:chardata())->
     ok.
-start_temp(#erbi{properties=PropList},DataDir)->
-    {ok,PathBin}= erbi_temp_db_helpers:search_db_binaries(
-                    [proplists:get_value(bin_dir,PropList,"") |
-                     ?POSSIBLE_BIN_DIRS]
-                    ,"postgres"),
+start_temp(#erbi{properties=PropList}=DataSource,DataDir)->
+    {ok,PathBin}= erbi_temp_db_helpers:find_bin_dir(DataSource,?POSSIBLE_BIN_DIRS,"postgres"),
     {ok, Port}=get_free_db_port(),
     ok = configure_datadir(PathBin,DataDir),
     DBPid = start_db_instance(PathBin,DataDir,Port),

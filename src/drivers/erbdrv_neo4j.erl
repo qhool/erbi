@@ -45,7 +45,7 @@
 % erbi_temp_db  API
 -export([start_temp/2,
          stop_temp/2,
-        get_temp_connect_data/4]).
+         get_temp_connect_data/4]).
 
 -record(neocon, % ;-)
         { type = transaction :: atom(),
@@ -229,12 +229,10 @@ finish(_,_) ->
 -spec start_temp(ErbiDataSource::erbi_data_source(),
                 DataDir::unicode:chardata())->
     ok.
-start_temp(#erbi{properties=PropList},DataDir)->
-    {ok,BinDir}= erbi_temp_db_helpers:search_db_binaries(
-                    [proplists:get_value(bin_dir,PropList,"") |
-                     ?POSSIBLE_BIN_DIRS]
-                    ,"neo4j"),
+start_temp(#erbi{properties=PropList}=DataSource,DataDir)->
+    {ok,BinDir}= erbi_temp_db_helpers:find_bin_dir(DataSource,?POSSIBLE_BIN_DIRS,"neo4j"),
     {ok, Port}=erbi_temp_db_helpers:get_free_db_port(?MIN_PORT,?MAX_PORT),
+    io:format(user,"Creating temp Neo4j DB in ~p on port ~p~n",[DataDir,Port]),
     ok = copy_binaries(BinDir,DataDir),
     ok = configure_db_instance(DataDir,Port),
     ok = initialize_db(PropList,DataDir), %starts a local neo4j-shell that populates data
