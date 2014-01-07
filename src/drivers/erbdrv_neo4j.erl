@@ -232,10 +232,14 @@ start_temp(#erbi{properties=PropList}=DataSource,DataDir)->
     ok.
 
 stop_temp(#erbi{},DataDir)->
-    Port = erbi_temp_db_helpers:read_from_db_data_file(DataDir,?PORT_FILE),
-    ok = stop_db_instance(DataDir),
-    ok = wait_for_db_stopped(Port),
-    ok.
+    case erbi_temp_db_helpers:read_from_db_data_file(DataDir,?PORT_FILE) of 
+        {error,_} = Error ->
+          Error; 
+        Port ->
+          ok = stop_db_instance(DataDir),
+          ok = wait_for_db_stopped(Port),
+          ok
+  end.
 
 get_temp_connect_data(ErbiDataSource,DataDir,UserName,Password)->
     {get_temp_proplist(ErbiDataSource,DataDir),

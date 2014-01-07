@@ -225,11 +225,15 @@ start_temp(#erbi{properties=PropList}=DataSource,DataDir)->
 
 -spec stop_temp(ErbiDataSource::erbi_data_source(),
                 DataDir::unicode:chardata())->
-    ok.
+    ok | {error, term()}.
 stop_temp(#erbi{},DataDir)->
-    Pid = erbi_temp_db_helpers:read_from_db_data_file(DataDir,?PID_FILE),
-    erbi_temp_db_helpers:kill_db_pid(Pid),
-    ok.
+    case erbi_temp_db_helpers:read_from_db_data_file(DataDir,?PID_FILE) of 
+        {error,_} = Error ->
+            Error; 
+         Pid ->
+            erbi_temp_db_helpers:kill_db_pid(Pid),
+            ok
+        end.
 
 -spec get_temp_connect_data(ErbiDataSource::erbi_data_source(),
                             DataDir::unicode:chardata(),

@@ -83,8 +83,12 @@ save_in_db_data_file(Term,Path,File)->
 read_from_db_data_file(Path,File)->
     %{ok,BinaryTerm} = file:read_file(Path++"/"++File),
     %binary_to_term(BinaryTerm).
-    {ok,[Term]} = file:consult(Path++"/"++File),
-    Term.
+    case file:consult(Path++"/"++File) of 
+        {ok,[Term]} ->
+            Term;
+        Any->
+            Any 
+    end.
 
 find_bin_dir(#erbi{properties=Props}=DataSource,Candidates,File) ->
     case getenv(DataSource,bin) of

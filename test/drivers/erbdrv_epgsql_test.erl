@@ -383,3 +383,35 @@ driver_calls_temp_epgsql_test_()->
              ]
      end}.
 
+temp_epgsql_autoclean_on_start_test_()->
+    [{setup,
+     fun()->
+             Config = erbi_test_util:config(epgsql_temp),
+             Datasource = "erbi:temp:base_driver=epgsql;data_dir="++
+                 proplists:get_value(data_dir,Config,""),
+             erbi_temp_db:start(Datasource),
+             Datasource
+     end,
+     fun(Datasource)->
+        erbi_temp_db:stop(Datasource)
+    end,
+     fun(Datasource)->
+             [{timeout, 500,?_assertEqual(ok, erbi_temp_db:start(Datasource))}, % Cleans previous instance and starts another
+              ?_assertEqual(true, filelib:is_dir(erbi_temp_db:data_dir(Datasource)))]
+     end},
+     {setup,
+     fun()->
+             Config = erbi_test_util:config(epgsql_temp),
+             Datasource = "erbi:temp:base_driver=epgsql;auto_clean=false;
+                data_dir="++
+                 proplists:get_value(data_dir,Config,""),
+              erbi_temp_db:start(Datasource),
+             Datasource
+     end,
+     fun(Datasource)->
+        erbi_temp_db:stop(Datasource)
+    end,
+     fun(Datasource)->
+             [?_assertException(error,{badmatch,{ok,{exit_status,1},undefined}}, erbi_temp_db:start(Datasource)), % Cleans previous instance and starts another
+              ?_assertEqual(true, filelib:is_dir(erbi_temp_db:data_dir(Datasource)))]
+     end}].
