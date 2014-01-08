@@ -3,9 +3,9 @@
 -module(erbi_temp_db).
 -include("erbi.hrl").
 -export([start/1,
-         stop/1,
-         parse_temp_ds/1,
-         data_dir/1]).
+    stop/1,
+    parse_temp_ds/1,
+    data_dir/1]).
 %%-----------------------------------------------
 %% TEMP DB DRIVER CALLS
 %%-----------------------------------------------
@@ -26,7 +26,7 @@
 %% disabled using the auto_clean option).
 %% @end
 -callback stop_temp(DataSource::erbi_data_source(),DataDir::unicode:chardata())->
-    ok.
+    ok | {error, term()}.
 
 %% @doc Get connection parameters for temp db
 %%
@@ -42,13 +42,13 @@
 %% the values will be passed to your driver's connect/3 function.
 %% @end
 -callback get_temp_connect_data(ErbiDataSource::erbi_data_source(),
-                                DataDir::unicode:chardata(),
-                                Username::unicode:chardata(),
-                                Password::unicode:chardata())->
+        DataDir::unicode:chardata(),
+        Username::unicode:chardata(),
+        Password::unicode:chardata())->
     {ErbiDataSource::erbi_data_source(),
-     unicode:chardata() | undefined,
-     unicode:chardata() | undefined}
-        | declined.
+        unicode:chardata() | undefined,
+        unicode:chardata() | undefined}
+    | declined.
 
 %% @doc start temp db
 %%
@@ -59,6 +59,17 @@
     ok.
 start(DataSource)->
     {BaseDriver,BaseDS,DataDir} = parse_temp_ds(DataSource),
+    CleanupFun  = fun() ->
+            case filelib:is_dir(DataDir) of
+                true ->
+                    io:format(standard_error,"Cleaning previous instance ~p~n",[DataDir]),
+                    BaseDriver:stop_temp(BaseDS,DataDir),
+                    erbi_temp_db_helpers:del_dir(DataDir);
+                false ->
+                    ok
+            end
+    end,
+    do_cleanup(BaseDS,CleanupFun),
     erbi_temp_db_helpers:create_dir(DataDir),
     BaseDriver:start_temp(BaseDS,DataDir).
 
@@ -69,16 +80,13 @@ start(DataSource)->
 -spec stop(Datasource::unicode:chardata() | erbi_data_source())->
     ok.
 stop(DataSource)->
-    {BaseDriver,#erbi{properties=Props}=BaseDS,DataDir} = parse_temp_ds(DataSource),
+    {BaseDriver,BaseDS,DataDir} = parse_temp_ds(DataSource),
     ok = BaseDriver:stop_temp(BaseDS,DataDir),
-    DoCleanup = proplists:get_value(auto_clean,Props),
-    case DoCleanup of
-        true ->
+    CleanupFun  = fun() ->
             io:format(standard_error,"Cleaning ~p~n",[DataDir]),
-            erbi_temp_db_helpers:del_dir(DataDir),
-            ok;
-        _ -> ok
-    end.
+            erbi_temp_db_helpers:del_dir(DataDir)
+    end,
+    do_cleanup(BaseDS,CleanupFun).
 
 data_dir(DS)->
     {_,_,DataDir} = parse_temp_ds(DS),
@@ -92,14 +100,14 @@ parse_temp_ds(#erbi{properties=Props,args=Args}=DataSource)->
     BaseModule=erbi:get_driver_module(BaseDriver),
     DataDir =
         case proplists:get_value(data_dir,Props) of
-            undefined ->
-                HashPrefix= hash_ds(DataSource,20),
-                atom_to_list(BaseDriver)++"_"++HashPrefix;
-            DD -> 
-                DD
-        end,
+        undefined ->
+            HashPrefix= hash_ds(DataSource,20),
+            atom_to_list(BaseDriver)++"_"++HashPrefix;
+        DD -> 
+            DD
+    end,
     BaseDS = DataSource#erbi{driver=BaseDriver,
-                             args=default_value(Args,[])},
+            args=default_value(Args,[])},
     {BaseModule,erbi:normalize_data_source(BaseDS),filename:absname(DataDir)};
 parse_temp_ds(StringDS) ->
     parse_temp_ds(erbi:normalize_data_source(StringDS)).
@@ -112,9 +120,9 @@ hash_ds(#erbi{driver = DriverName, properties=PropList, args=Args},Length)->
     % / and + aren't incredibly filename-friendly
     Hash = 
         lists:map( fun($/) -> $.;
-                      ($+) -> $_;
-                      (X) -> X
-                   end, binary_to_list(base64:encode(crypto:hash(md5,Str))) ),
+                ($+) -> $_;
+                (X) -> X
+            end, binary_to_list(base64:encode(crypto:hash(md5,Str))) ),
     case Length of
         L when is_integer(L) andalso length(Hash) > L ->
             element(1,lists:split(20,Hash));
@@ -126,4 +134,14 @@ default_value(undefined,Default)->
     Default;
 default_value(Any,_) ->
     Any.
+
+do_cleanup(#erbi{properties=Props},CleanupFun)->
+    DoCleanup = proplists:get_value(auto_clean,Props),
+    case DoCleanup of
+        true ->
+            CleanupFun(),
+            ok;
+        _ -> 
+            ok
+    end.
 

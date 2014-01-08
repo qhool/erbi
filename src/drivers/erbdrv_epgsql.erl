@@ -225,11 +225,9 @@ start_temp(#erbi{properties=PropList}=DataSource,DataDir)->
 
 -spec stop_temp(ErbiDataSource::erbi_data_source(),
                 DataDir::unicode:chardata())->
-    ok.
+    ok | {error, term()}.
 stop_temp(#erbi{},DataDir)->
-    Pid = erbi_temp_db_helpers:read_from_db_data_file(DataDir,?PID_FILE),
-    erbi_temp_db_helpers:kill_db_pid(Pid),
-    ok.
+    erbi_temp_db_helpers:kill_db_pid(DataDir,?PID_FILE).
 
 -spec get_temp_connect_data(ErbiDataSource::erbi_data_source(),
                             DataDir::unicode:chardata(),
@@ -435,7 +433,7 @@ get_temp_proplist(#erbi{properties=PropList}=DS,DataDir)->
                          get_temp_db_prop(PropList)]}.
 
 get_temp_port_prop(DataDir)->
-    Port=erbi_temp_db_helpers:read_from_db_data_file(DataDir,?PORT_FILE),
+    Port = erbi_temp_db_helpers:read_integer(DataDir,?PORT_FILE),
     {port,Port}.
 
 %Assumed that if a db is provided

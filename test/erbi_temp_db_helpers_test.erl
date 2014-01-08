@@ -15,7 +15,7 @@ get_free_db_port_test()->
     {ok,Port}=erbi_temp_db_helpers:get_free_db_port(7777,8777),
     {ok,_}=gen_tcp:listen(Port,[]).
 
-save_read_from_db_data_file_test_()->
+save_read_integer_test_()->
     {setup,
      fun()->
              BaseDir="/tmp/testdir/",
@@ -26,10 +26,10 @@ save_read_from_db_data_file_test_()->
              erbi_temp_db_helpers:del_dir(BaseDir)
      end,
      fun(BaseDir)->
-             Term="This is a term",
-             File="termfile",
+             Term = 585,
+             File = "termfile",
              [?_assertEqual(ok,erbi_temp_db_helpers:save_in_db_data_file(Term,BaseDir,File)),
-              ?_assertEqual(Term,erbi_temp_db_helpers:read_from_db_data_file(BaseDir,File))]
+              ?_assertEqual(Term,erbi_temp_db_helpers:read_integer(BaseDir,File))]
      end
     }.
     

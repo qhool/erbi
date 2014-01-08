@@ -208,6 +208,7 @@ finish(_,_) ->
 % erbi_temp_db API
 %-----------------------------------------------------
 -define(PORT_FILE,"tmp_db.port").
+-define(PID_FILE,"/data/neo4j-service.pid").
 -define(MIN_PORT, 7475).
 -define(MAX_PORT, 8475).
 -define(POSSIBLE_BIN_DIRS,["/usr/share/neo4j/",
@@ -232,10 +233,14 @@ start_temp(#erbi{properties=PropList}=DataSource,DataDir)->
     ok.
 
 stop_temp(#erbi{},DataDir)->
-    Port = erbi_temp_db_helpers:read_from_db_data_file(DataDir,?PORT_FILE),
-    ok = stop_db_instance(DataDir),
-    ok = wait_for_db_stopped(Port),
-    ok.
+    case erbi_temp_db_helpers:read_integer(DataDir,?PORT_FILE) of 
+        {error,_} = Error ->
+          Error; 
+        Port ->
+          ok = stop_db_instance(DataDir),
+          ok = wait_for_db_stopped(Port),
+          ok
+  end.
 
 get_temp_connect_data(ErbiDataSource,DataDir,UserName,Password)->
     {get_temp_proplist(ErbiDataSource,DataDir),
@@ -361,7 +366,7 @@ get_temp_proplist(#erbi{properties=PropList}=DS,DataDir)->
                          add_endpoint_if_needed(PropList)}.
 
 get_temp_port_prop(DataDir)->
-    Port=erbi_temp_db_helpers:read_from_db_data_file(DataDir,?PORT_FILE),
+    Port=erbi_temp_db_helpers:read_integer(DataDir,?PORT_FILE),
     {port,Port}.
 
 add_endpoint_if_needed(PropList)->
@@ -433,15 +438,19 @@ disable_remote_shell_cmd(PathData)->
                PathData++"/conf/neo4j.properties").
 
 start_db_instance(DataDir)->
-    exec_neo4j_server_cmd(DataDir,"start").
+    {ok,_,_} = exec_neo4j_server_cmd(DataDir,"start"),
+    ok.
 
 stop_db_instance(DataDir)->
-    exec_neo4j_server_cmd(DataDir,"stop").
+    case exec_neo4j_server_cmd(DataDir,"stop") of 
+      {ok,_,_} ->
+        ok;
+      {error,_} ->
+        erbi_temp_db_helpers:kill_db_pid(DataDir, ?PID_FILE)
+    end. 
 
 exec_neo4j_server_cmd(DataDir,NeoCmd) ->
-    {ok,_,_} = 
-        erbi_temp_db_helpers:exec_cmd(DataDir++"/bin/neo4j",[NeoCmd]),
-    ok.
+    erbi_temp_db_helpers:exec_cmd(DataDir++"/bin/neo4j",[NeoCmd]).
 
 wait_for_db_started(Port)->
     wait_for_db_state(Port,started,[200],{error,db_not_started}).
