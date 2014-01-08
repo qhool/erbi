@@ -7,10 +7,10 @@
 % erbi_temp_db behaviour
 -export([create_dir/1,
          del_dir/1,
-         kill_db_pid/1,
+         kill_db_pid/2,
          get_free_db_port/2,
          save_in_db_data_file/3,
-         read_from_db_data_file/2,
+         read_integer/2,
          find_bin_dir/3,
          search_dirs/2,
          wait_for/4,
@@ -56,8 +56,15 @@ del_all_files([Dir | T], EmptyDirs) ->
     end,
     del_all_files(T ++ Dirs, [Dir | EmptyDirs]).
 
-kill_db_pid(Pid)->
-    os:cmd("kill -9 "++integer_to_list(Pid)).
+kill_db_pid(Dir,PidFile)->
+    case read_integer(Dir,PidFile) of 
+        {error,_} = Error ->
+            Error; 
+         Pid ->
+            os:cmd("kill -9 "++integer_to_list(Pid)),        
+            ok
+        end.
+    
 
 get_free_db_port(MinPort,MaxPort)->
     StartingPort=trunc(random:uniform()*(MaxPort-MinPort))+MinPort,
@@ -78,17 +85,19 @@ get_free_db_port(Port,StartingPort,MinPort,MaxPort) ->
 
 save_in_db_data_file(Term,Path,File)->
                                                 %file:write_file(Path++"/"++File,term_to_binary(Term)).
-    ok = file:write_file(Path++"/"++File,io_lib:fwrite("~p.\n",[Term])).
-                         
-read_from_db_data_file(Path,File)->
-    %{ok,BinaryTerm} = file:read_file(Path++"/"++File),
-    %binary_to_term(BinaryTerm).
-    case file:consult(Path++"/"++File) of 
-        {ok,[Term]} ->
-            Term;
-        Any->
-            Any 
+    ok = file:write_file(Path++"/"++File,io_lib:fwrite("~p\n",[Term])).
+                 
+read_integer(Path,File)->
+    case file:read_file(Path++"/"++File) of 
+        {ok, Binary} ->
+            to_integer(Binary);
+        Any ->
+            Any
     end.
+
+to_integer(Binary)->
+    [Value] = string:tokens(binary_to_list(Binary), "\n" ),
+    list_to_integer(Value). 
 
 find_bin_dir(#erbi{properties=Props}=DataSource,Candidates,File) ->
     case getenv(DataSource,bin) of
