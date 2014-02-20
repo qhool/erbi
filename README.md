@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/qhool/erbi.png?branch=master)](https://travis-ci.org/qhool/erbi)
+
 ERBI (ERlang dataBase Interface)
 ================================
 This package intends to provide a simple database interface for erlang code,
