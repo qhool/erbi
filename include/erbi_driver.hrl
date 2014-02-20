@@ -34,7 +34,6 @@
 
 -type erbdrv_statement_error() :: syntax_error |
                                   missing_parameter |
-                                  unknown_object |
                                   execution_error |
                                   unknown_table |
                                   unknown_column |
@@ -42,11 +41,13 @@
 
 -type erbdrv_execution_error() :: transaction_error |
                                   insufficient_resources |
+                                  insufficient_permissions |
+                                  constraint_violation |
                                   statement_closed |
                                   connection_closed |
                                   no_more_rows.
 
--type erbdrv_error_code() :: erbdrv_general_error | erbdrv_connection_error() |
+-type erbdrv_error_code() :: erbdrv_general_error() | erbdrv_connection_error() |
                              erbdrv_statement_error() | erbdrv_execution_error().
 
 -type erbdrv_error() :: { erbdrv_error_code(), any() }.
