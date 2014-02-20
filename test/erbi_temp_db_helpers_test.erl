@@ -32,7 +32,7 @@ save_read_integer_test_()->
               ?_assertEqual(Term,erbi_temp_db_helpers:read_integer(BaseDir,File))]
      end
     }.
-    
+
 search_db_binaries_test_()->
    %Check that if provided path is invalid, finds it anyway
    [?_test({ok,_Path}= erbi_temp_db_helpers:search_dirs(["/invalid/path/"],"ls")),
@@ -65,38 +65,38 @@ wait_for_test_()->
      ?_assertEqual(Error,erbi_temp_db_helpers:wait_for(FunWaitN,Error,Interval,WaitCount-1)),
       ?_assertEqual(WaitCount-1,erase(wait_count))
     ].
-              
+
 exec_test_() ->
     CMDs =
         [{"true",
-          fun(True) -> 
+          fun(True) ->
                   [{ "exec_cmd true",
-                     ?_test( {ok,{exit_status,0},_} = 
+                     ?_test( {ok,{exit_status,0},_} =
                                  ?debugVal(erbi_temp_db_helpers:exec_cmd(?debugVal(True),[],wait)) )}]
           end},
          {"false",
           fun(False) ->
                   [{ "exec_cmd false",
-                     ?_test( {ok,{exit_status,1},_} = 
+                     ?_test( {ok,{exit_status,1},_} =
                                  ?debugVal(erbi_temp_db_helpers:exec_cmd(?debugVal(False),[],wait)) )}]
           end},
          {"sleep",
           fun(Sleep) ->
                   [{ "exec_cmd get pid",
-                     ?_test( {ok,{os_pid,_Pid},_} = 
+                     ?_test( {ok,{os_pid,_Pid},_} =
                                  ?debugVal(erbi_temp_db_helpers:exec_cmd(?debugVal(Sleep),["3"],nowait)) )}]
           end},
          {"echo",
           fun(Echo) ->
                   [{ "exec_cmd read output",
-                     ?_test( {ok,{exit_status,0},"foo"++_} = 
+                     ?_test( {ok,{exit_status,0},"foo"++_} =
                                  ?debugVal
                                     (erbi_temp_db_helpers:exec_cmd
                                        (?debugVal(Echo),["foo"],
                                         {fun(Dat,Acc) -> Dat++Acc end,""},
                                         standard_io )) )}]
           end}],
-    NormalTests = 
+    NormalTests =
         lists:concat(
           [ case erbi_temp_db_helpers:search_dirs([],C) of
                 {ok,Cmd} ->
@@ -104,9 +104,9 @@ exec_test_() ->
                 _ -> []
             end || {C,F} <- CMDs ]
          ),
-    BadCmd = 
+    BadCmd =
         { "exec_cmd bad command",
-          ?_test( {error,{exec_failed,_}} = 
+          ?_test( {error,{exec_failed,_}} =
                       ?debugVal(erbi_temp_db_helpers:exec_cmd
                                   ("/never/no/no/uoefnv08234028408",[]))
                 )},
@@ -129,12 +129,12 @@ exec_test_() ->
                                            {Killer,Method}))
                         )}
         end,
-    Terminators = [ MkTerminator(Mth) 
+    Terminators = [ MkTerminator(Mth)
                     || Mth <- [port_close,close_by_owner,kill_owner] ],
     NormalTests ++ [BadCmd,Terminators].
 
 kill_port_by_os_pid(OSPid,Method) ->
-    [Port] = 
+    [Port] =
         lists:filter(fun(P) ->
                              case erlang:port_info(P,os_pid) of
                                  {os_pid,OSPid} ->
@@ -152,4 +152,4 @@ kill_port_by_os_pid(OSPid,Method) ->
         kill_owner ->
             exit(Owner,kill)
     end.
-                              
+

@@ -7,7 +7,7 @@
 -include("erbi_driver.hrl").
 
 params_test_() ->
-    [ { "normalize 1", 
+    [ { "normalize 1",
         ?_assertEqual( #erbi{driver=neo4j,
                              properties=[{endpoint,transaction},
                                          {host,"localhost"},
@@ -15,7 +15,7 @@ params_test_() ->
                                          {scheme,http}],
                              args=undefined},
                        ?debugVal(erbi:normalize_data_source( "erbi:neo4j:" )) ) },
-      { "normalize 2", 
+      { "normalize 2",
         ?_assertEqual(  #erbi{driver=neo4j,
                               properties=[{endpoint,cypher},
                                           {host,"www.xxx"},
@@ -23,10 +23,10 @@ params_test_() ->
                                           {scheme,https}],
                               args=undefined},
                         ?debugVal
-                           (erbi:normalize_data_source( 
-                              "erbi:neo4j:scheme=https;endpoint=cypher;host=www.xxx;port=1234" 
+                           (erbi:normalize_data_source(
+                              "erbi:neo4j:scheme=https;endpoint=cypher;host=www.xxx;port=1234"
                              ) ) ) },
-      { "bad datasource 1", 
+      { "bad datasource 1",
         ?_assertEqual( {error,{invalid_datasource,{unsupported_scheme,ftp}}},
                        ?debugVal(erbi:normalize_data_source( "erbi:neo4j:scheme=ftp" ) ) ) },
       { "bad datasource 2",
@@ -87,15 +87,15 @@ main_test_() ->
                                             false ->
                                                 []
                                         end
-                                   
+
                                     }
                                   ]
-                        
+
                        }
                end, lists:map(fun(X) -> {transaction,X} end, TransDS) ++
-                   lists:map(fun(X) -> {cypher,X} end, CypherDS ) 
+                   lists:map(fun(X) -> {cypher,X} end, CypherDS )
               )
-     end   
+     end
     }.
 
 mktests_read_only({_Config,_Type,Conn,_DS}) ->
@@ -122,7 +122,7 @@ mktests_errors({_Config,Type,Conn,_DS}) ->
                     ?debugVal(erbi_connection:do(Conn,"create (n:foo {")) )
       },
       { "missing param" ++ TypeStr,
-        fun() -> 
+        fun() ->
                 case ?debugVal(erbi_connection:selectrow_list(
                                  Conn,"start n=node(*) where id(n)={x} return n",[])) of
                     %% 2.0.0 neo4j doesn't give missing_paramter error
@@ -143,7 +143,7 @@ mktests_errors({_Config,Type,Conn,_DS}) ->
         end
       }
     ].
-                                
+
 mktests_non_transactional({Config,Type,Conn,_DS}) ->
     { setup,
       fun() ->
@@ -173,7 +173,7 @@ mktests_transactional({Config,transaction,Conn,DS}) ->
               ok = erbi_connection:rollback(C)
       end,
       [ fun({_Cfg,_C,TestKey}=Tparms) ->
-                basic_crud("transactional",Tparms) 
+                basic_crud("transactional",Tparms)
                 ++ [ { "look outside transaction",
                     fun() ->
                             {ok, Conn2} = erbi:connect(DS),
@@ -206,7 +206,7 @@ basic_crud(Type,{_Config,Conn,TestKey}) ->
            ( {ok,[null]},
              ?debugVal( erbi_connection:selectrow_list
                           (Conn,"start n=node(*) where n.erbi_test = {key} return n.sovnsdojn limit 1",
-                           [{key,TestKey}]) ) ) 
+                           [{key,TestKey}]) ) )
       },
       { "create node part 2" ++ TypeStr,
         ?_assertEqual
@@ -231,7 +231,7 @@ basic_crud(Type,{_Config,Conn,TestKey}) ->
         ?_assertEqual
            ( {ok,[9]},
              ?debugVal( erbi_connection:selectrow_list
-                          (Conn,"start n=node(*) where n.erbi_test = {key} and n.val= {val_old} " ++ 
+                          (Conn,"start n=node(*) where n.erbi_test = {key} and n.val= {val_old} " ++
                                " set n.val = {val_new} return n.val",
                            [{key,TestKey},{val_old,7},{val_new,9}]) ) )
       },
@@ -312,7 +312,7 @@ driver_calls_temp_neo4j_test_()->
              ?_assertEqual({error,driver_declined} , erbi_connection:begin_work(Conn,"savepoint")),
              ?_assertEqual({error,driver_declined} , erbi_connection:rollback(Conn,"savepoint")),
              ?_assertEqual(ok , ?debugVal(erbi_connection:disconnect(Conn)))
-              
+
               ]
      end}.
 
@@ -357,7 +357,7 @@ temp_neo4j_kill_instance_test_()->
              Datasource = "erbi:temp:base_driver=neo4j;data_dir="++
                  DataDir,
              erbi_temp_db:start(Datasource),
-             erbi_temp_db_helpers:del_dir(DataDir++"/bin/"), 
+             erbi_temp_db_helpers:del_dir(DataDir++"/bin/"),
              Datasource
      end,
      fun(Datasource)->

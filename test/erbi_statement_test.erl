@@ -52,7 +52,7 @@ fetchrow_meta(Dataset,ConnProps,EqualFunc,FetchFunc) ->
                             { ok, Row } -> Self(Self,Stmt,[Row|Out])
                         end
                 end,
-    { atom_to_list(FetchFunc), 
+    { atom_to_list(FetchFunc),
       fun() ->
               Stmt = get_stmt(Dataset,ConnProps),
               {ok,_} = erbi_statement:execute(Stmt),
@@ -71,7 +71,7 @@ exec_on_stmt(Dataset,ConnProps,Fun) ->
 get_stmt(Dataset,Props) ->
     {Cols,Rows} = erbi_test_util:dataset(Dataset),
     { ok, Conn } = erbi:connect( #erbi{ driver = dummy,
-                                        properties = Props++ 
+                                        properties = Props++
                                             [{queries,
                                               [{".*",Cols,Rows}
                                               ]

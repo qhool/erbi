@@ -2,13 +2,13 @@
 %%% ex: set softtabstop=4 tabstop=4 shiftwidth=4 expandtab fileencoding=utf-8:
 %%
 %% @copyright 2013 Voalte Inc. <ccorral@voalte.com>
-%% 
+%%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
 %% You may obtain a copy of the License at
 %%
 %%   http://www.apache.org/licenses/LICENSE-2.0
-%% 
+%%
 %% Unless required by applicable law or agreed to in writing, software
 %% distributed under the License is distributed on an "AS IS" BASIS,
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -94,7 +94,7 @@ connect(#erbi{driver = epgsql, properties=PropList}, Username, Password)->
 connect(Host,Username,Password,PropList)->
     erbdrv_response(pgsql:connect(Host, Username, Password, PropList)).
 
--spec disconnect( Connection :: erbdrv_connection() ) -> 
+-spec disconnect( Connection :: erbdrv_connection() ) ->
     ok | {error, erbdrv_error()}.
 disconnect(Connection) when is_pid(Connection)->
     pgsql:close(Connection);
@@ -120,13 +120,13 @@ begin_work(Connection,Savepoint) when is_atom(Savepoint)->
 savepoint(Connection,Savepoint,{ok,[],[]})->
     erbdrv_response(pgsql:squery(Connection, [$S,$A,$V,$E,$P,$O,$I,$N,$T,$  |Savepoint])).
 
--spec rollback( Connection :: erbdrv_connection() ) -> 
+-spec rollback( Connection :: erbdrv_connection() ) ->
     erbdrv_return().
 rollback(Connection)->
    erbdrv_response(pgsql:squery(Connection, "ROLLBACK")).
 
 -spec rollback( Connection :: erbdrv_connection(),
-                    Savepoint :: atom | string() ) ->  
+                    Savepoint :: atom | string() ) ->
     erbdrv_return().
 rollback(Connection,Savepoint) when is_list(Savepoint)->
     erbdrv_response(pgsql:squery(Connection,[$R,$O,$L,$L,$B,$A,$C,$K,$ ,$T,$O, $ | Savepoint]));
@@ -137,7 +137,7 @@ rollback(Connection,Savepoint) when is_atom(Savepoint) ->
     erbdrv_return().
 commit(Connection)->
     erbdrv_response(pgsql:squery(Connection,"END")).
-    
+
 -spec do( Connection :: erbdrv_connection(),
               Query :: string(),
               Params ::  erbi_bind_values() ) ->
@@ -163,7 +163,7 @@ check_bindable_statement(Connection,Statement,Params)->
     bind_params_query(Connection,Statement,Params).
 
 bind_params_query(Connection,Statement,Params)->
-   pgsql:bind(Connection,Statement,"",erbi_bind_values_to_epgsql(Params)). 
+   pgsql:bind(Connection,Statement,"",erbi_bind_values_to_epgsql(Params)).
 
 -spec execute( Connection :: erbdrv_connection(),
                    Statement :: erbdrv_statement() | string(),
@@ -304,7 +304,7 @@ erbdrv_squery_response(Sth) ->
 erbdrv_count_response(Count)->
     erbdrv_response(ok,same,same,Count,[]).
 
-erbdrv_data_response(_Count,Rows)->    
+erbdrv_data_response(_Count,Rows)->
     erbdrv_response(ok,same,same,unknown,Rows).
 
 erbdrv_statement_response(Statement)->
@@ -321,7 +321,7 @@ erbdrv_response(Status,Connection,Statement,Rows,Data)->
           stmt = Statement,
           rows= Rows,
           data = Data }.
-        
+
 erbdrv_simple_ok_response()->
     #erbdrv
         {status = ok,
@@ -339,7 +339,7 @@ erbdrv_error_response(Error) ->
         {status = error,
          data = epgsql_error_to_erbdrv_error(Error)
          }.
-    
+
 
 %--------------------------------------------
 % ERBI <-> Driver Conversions
@@ -391,7 +391,7 @@ erbi_value_to_epgsql(Value) when is_list(Value)->
     list_to_binary(Value);
 erbi_value_to_epgsql(Value) ->
     Value.
-    
+
 erbi_type_to_epgsql(text,Value)->
     list_to_binary(Value);
 erbi_type_to_epgsql(varchar,Value) ->
@@ -418,12 +418,12 @@ epgsql_column_to_erbdrv_field(Column)->
          length = get_size(Column#column.size),
          precision = 1 %% Get precision by type?
          }.
- 
+
 get_size(N) when N < 0 ->
     unlimited;
 get_size(N) ->
     N.
-       
+
 
 %-----------------------------------------------
 % Erbi temp driver internal functions
@@ -502,7 +502,7 @@ wait_for_db_started(PathBin,Port)->
          end,
     erbi_temp_db_helpers:wait_for(Fun,{error,db_not_started},500,10).
 
-get_db_user()-> 
+get_db_user()->
      os:cmd("echo $USER")--"\n".
 
 get_db_name()->
@@ -510,12 +510,3 @@ get_db_name()->
 
 get_free_db_port()->
     erbi_temp_db_helpers:get_free_db_port(?MIN_PORT,?MAX_PORT).
-    
-
-
-    
-    
-   
-
-
-    

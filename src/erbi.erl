@@ -1,13 +1,13 @@
 %%% -*- coding: utf-8; Mode: erlang; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*-
 %%% ex: set softtabstop=4 tabstop=4 shiftwidth=4 expandtab fileencoding=utf-8:
 %% @copyright 2013 Voalte Inc. <jburroughs@voalte.com>
-%% 
+%%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
 %% You may obtain a copy of the License at
 %%
 %%   http://www.apache.org/licenses/LICENSE-2.0
-%% 
+%%
 %% Unless required by applicable law or agreed to in writing, software
 %% distributed under the License is distributed on an "AS IS" BASIS,
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,7 +16,7 @@
 %%
 %% @doc
 %% Main erbi module.
-%% @end 
+%% @end
 -module(erbi).
 -export([connect/3,connect/1,
          driver_call/3,
@@ -30,7 +30,7 @@
 
 %% --------------------------------------
 %% @doc Connect to a database.
-%% 
+%%
 %% <ul><li>DataSource  - DB connect term or string "erbi:Driver:params"</li>
 %% <li>Username</li>
 %% <li>Password</li>
@@ -39,15 +39,15 @@
 %% --------------------------------------
 -spec connect( DataSource :: unicode:chardata() | erbi_data_source() | erbi_connect_tuple(),
                Username :: undefined | unicode:chardata() ,
-               Password :: undefined | unicode:chardata() ) -> 
+               Password :: undefined | unicode:chardata() ) ->
                      { ok, erbi_connection() } | { error, any() }.
-connect( DataSource, Username, Password ) when is_list(DataSource) ->                    
+connect( DataSource, Username, Password ) when is_list(DataSource) ->
     connect( parse_data_source( DataSource ), Username, Password );
 connect( {erbi,Driver}, Username, Password ) ->
     connect( #erbi{ driver = Driver }, Username, Password );
 connect( {erbi,Driver,Props}, Username, Password ) ->
     connect( #erbi{ driver = Driver, properties = Props }, Username, Password );
-connect( DataSource, Username, Password ) -> 
+connect( DataSource, Username, Password ) ->
     Module = get_driver_module(DataSource),
     case normalize_data_source(Module,DataSource) of
         {error,_}=E -> E;
@@ -70,9 +70,9 @@ connect( DataSource, Username, Password ) ->
 %% Same as {@link connect/3} with undefined for the 2nd and 3rd args.
 %% @end
 %% --------------------------------------
--spec connect( DataSource :: unicode:chardata() | erbi_data_source() ) -> 
+-spec connect( DataSource :: unicode:chardata() | erbi_data_source() ) ->
                      { ok, erbi_connection() } | { error, any() }.
-connect( DataSource ) ->         
+connect( DataSource ) ->
     connect( DataSource, undefined, undefined ).
 
 %% --------------------------------------
@@ -95,7 +95,7 @@ normalize_data_source( DataSource ) when is_list(DataSource) ->
 normalize_data_source( DataSource ) ->
     Module = get_driver_module(DataSource),
     normalize_data_source( Module, DataSource ).
-             
+
 %% --------------------------------------
 %% @doc Parse data source string.
 %%
@@ -119,7 +119,7 @@ parse_data_source( DataSource ) ->
 %% with the given args.  This is exactly the same as
 %% {@link erlang:apply/3}, except that the actual module
 %% of the driver is resolved for you -- driver can be specified
-%% using any valid datasource term (string or record), 
+%% using any valid datasource term (string or record),
 %% or an atom.  This function is mainly here for completeness
 %% for something much more useful, see {@link erbi_connection:driver_call}
 %% and {@link erbi_statement:driver_call}
@@ -161,7 +161,7 @@ normalize_data_source(Module,#erbi{properties=Props,args=Args}=DataSource ) ->
                     DataSource#erbi{properties = Props1, args=Args1}
             end
     end.
-    
+
 -spec normalize_args( Module :: atom(), Args :: undefined | [any()] ) ->
                             undefined | {error,any()} | term().
 normalize_args( _, undefined ) ->
@@ -177,12 +177,12 @@ normalize_args( Module, Args ) ->
         {_,A} ->
             A
     end.
-          
+
 %normalize the driver properties;
-%uses driver callbacks property_info; does similar 
+%uses driver callbacks property_info; does similar
 -spec normalize_properties( Module :: atom(), Props :: [property()] ) ->
                                   [property()] | {error,any()}.
-                                     
+
 normalize_properties(Module,Props) ->
     PropInfo = Module:property_info(),
     %decompose PropInfo:
@@ -200,7 +200,7 @@ normalize_properties(Module,Props) ->
         {ok,Props2} ->
             Props3 = proplists:normalize(Props2,[{negations,Negations}|Expands]),
             % get the list of default values which are not present
-            NeedDefaults = 
+            NeedDefaults =
                 lists:filter(fun({DefK,_Val}) ->
                                      case proplists:lookup(DefK,Props3) of
                                          none -> true;
@@ -214,7 +214,7 @@ normalize_properties(Module,Props) ->
                                       end
                               end, Required) of
                 [] -> %nothing missing
-                    Props4 = 
+                    Props4 =
                         case MakeUnique of
                             true ->
                                 Keys = proplists:get_keys(Props3),
@@ -252,7 +252,7 @@ proplist_uncompact(Props) ->
                        {P,true};
                   ({P,V}) -> {P,V}
                end, Props ).
-                                  
+
 
 -spec parse_ds( Tokens :: list(string()) ) ->
                       erbi_data_source() | { error, any() }.
@@ -287,7 +287,7 @@ parse_ds_props( [ PropName, "=", Value | Tokens ], Props ) ->
 parse_ds_props( [ "" | Tokens ], Props ) ->
     parse_ds_prop_sep(Tokens,Props);
 %% bare-atom property
-parse_ds_props(  [ PropName | [P|_]=Tokens ], Props ) 
+parse_ds_props(  [ PropName | [P|_]=Tokens ], Props )
   when (P == ":") or (P == ";") ->
     parse_ds_prop_sep(Tokens,[list_to_atom(PropName)|Props]);
 parse_ds_props( [ [_] | _ ] = Tokens, Props ) ->
@@ -309,14 +309,14 @@ parse_ds_prop_sep( [], Props ) ->
 %%---------------------------------------------------------------
 %% Parser for positional args.  Unlike name-value, empty items are allowed
 %%---------------------------------------------------------------
-parse_ds_args( [ ":" | Tokens ], Accum, Args ) -> 
+parse_ds_args( [ ":" | Tokens ], Accum, Args ) ->
     Arg = lists:concat(lists:reverse(Accum)),
     parse_ds_args( Tokens, [], [Arg|Args] );
-parse_ds_args( [Tok|Tokens] , Accum, Args ) -> 
+parse_ds_args( [Tok|Tokens] , Accum, Args ) ->
     parse_ds_args( Tokens, [Tok|Accum], Args );
-parse_ds_args( [], [], Args ) -> 
+parse_ds_args( [], [], Args ) ->
     lists:reverse(Args);
-parse_ds_args( [], Accum, Args ) -> 
+parse_ds_args( [], Accum, Args ) ->
     Arg = lists:concat(lists:reverse(Accum)),
     parse_ds_args( [], [], [Arg|Args] ).
 
@@ -331,20 +331,20 @@ parse_ds_args( [], Accum, Args ) ->
 scan_ds( [Q|Chars], Accum, Tokens )
   when ?isQuote(Q) ->
     %%if quoted string is immediately after a delimiter, accum will be empty
-    Tokens1 = case Accum of 
+    Tokens1 = case Accum of
                   [] -> Tokens;
                   _ -> [Accum|Tokens]
               end,
     scan_ds_quoted( Q, Chars, [], Tokens1 );
 %%process escape char
-scan_ds( [Esc , Char | Chars], Accum, Tokens ) 
+scan_ds( [Esc , Char | Chars], Accum, Tokens )
 %%escape char is not special unless it precedes an escapable char
   when ?isEscape(Esc) and (?isEscape(Char) or ?isQuote(Char) or ?isPunctuation(Char)) ->
     scan_ds( Chars, [Char|Accum], Tokens );
 %%punctuation character closes the current token
 scan_ds( [P|Chars], Accum, Tokens )
   when ?isPunctuation(P) ->
-    Tokens1 = case Accum of 
+    Tokens1 = case Accum of
                   quote_end -> Tokens;
                   _ -> [Accum|Tokens]
               end,
@@ -368,11 +368,11 @@ scan_ds( [], Accum, Tokens ) ->
 
 %%quoted-string handling; Quote param ensures close matches open
 %%handle escapes within quotes -- only quote chars are escaped
-scan_ds_quoted( Quote, [Esc,Char|Chars], Accum, Tokens ) 
+scan_ds_quoted( Quote, [Esc,Char|Chars], Accum, Tokens )
   when ?isEscape(Esc) and (Char == Quote or ?isEscape(Char) ) ->
     scan_ds_quoted( Quote, Chars, [Char|Accum], Tokens );
 %%unescaped close-quote
-scan_ds_quoted( Quote, [Q|Chars], Accum, Tokens ) 
+scan_ds_quoted( Quote, [Q|Chars], Accum, Tokens )
   when Q == Quote ->
     %%let main scanner func know a quote has ended
     scan_ds( Chars, quote_end, [Accum|Tokens] );

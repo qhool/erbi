@@ -2,13 +2,13 @@
 %%% ex: set softtabstop=4 tabstop=4 shiftwidth=4 expandtab fileencoding=utf-8:
 %%
 %% Copyright 2013 Voalte Inc. <jburroughs@voalte.com>
-%% 
+%%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
 %% You may obtain a copy of the License at
 %%
 %%   http://www.apache.org/licenses/LICENSE-2.0
-%% 
+%%
 %% Unless required by applicable law or agreed to in writing, software
 %% distributed under the License is distributed on an "AS IS" BASIS,
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -26,12 +26,12 @@
 -type erbdrv_general_error() :: timeout | unauthorized | server_error | unmapped_error.
 
 -type erbdrv_connection_error() :: invalid_datasource |
-                                   unknown_host | 
+                                   unknown_host |
                                    connection_refused |
                                    communication_error |
                                    invalid_credentials |
                                    connection_lost.
-                                   
+
 -type erbdrv_statement_error() :: syntax_error |
                                   missing_parameter |
                                   unknown_object |
@@ -40,15 +40,15 @@
                                   unknown_column |
                                   unknown_object.
 
--type erbdrv_execution_error() :: transaction_error | 
+-type erbdrv_execution_error() :: transaction_error |
                                   insufficient_resources |
                                   statement_closed |
                                   connection_closed |
                                   no_more_rows.
 
--type erbdrv_error_code() :: erbdrv_general_error | erbdrv_connection_error() | 
+-type erbdrv_error_code() :: erbdrv_general_error | erbdrv_connection_error() |
                              erbdrv_statement_error() | erbdrv_execution_error().
-                                   
+
 -type erbdrv_error() :: { erbdrv_error_code(), any() }.
 
 -type erbdrv_rows() :: final | list(list(any())) | {final,list(list(any()))}.
@@ -64,7 +64,7 @@
 
 -type erbdrv_columns() :: list(erbdrv_field()).
 
--type erbdrv_row_col_data() :: erbdrv_columns() | erbdrv_rows() | 
+-type erbdrv_row_col_data() :: erbdrv_columns() | erbdrv_rows() |
                                { erbdrv_columns(), erbdrv_rows() }.
 
 -record(erbdrv,
@@ -86,4 +86,4 @@
 -type erbdrv_stmt_counters() :: #erbdrv_stmt_counters{}.
 
 -endif.
-          
+

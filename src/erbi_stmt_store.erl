@@ -2,13 +2,13 @@
 %%% ex: set softtabstop=4 tabstop=4 shiftwidth=4 expandtab fileencoding=utf-8:
 %%%
 %%% @copyright 2013 Voalte Inc. <jburroughs@voalte.com>
-%%% 
+%%%
 %%% Licensed under the Apache License, Version 2.0 (the "License");
 %%% you may not use this file except in compliance with the License.
 %%% You may obtain a copy of the License at
 %%%
 %%%   http://www.apache.org/licenses/LICENSE-2.0
-%%% 
+%%%
 %%% Unless required by applicable law or agreed to in writing, software
 %%% distributed under the License is distributed on an "AS IS" BASIS,
 %%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -31,7 +31,7 @@
 -module(erbi_stmt_store).
 -include("erbi_driver.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
-        
+
 -export([init_store/0,
          add_statement/2,
          reset_statement/2,
@@ -93,14 +93,14 @@ reset_all(Tbl) ->
     %delete rows and params
     ets:select_delete( Tbl, ets:fun2ms(fun({{_,X},_}) when is_integer(X); X =:= params -> true end) ),
     %% reset counts
-    lists:foreach( fun({ID,H}) -> 
+    lists:foreach( fun({ID,H}) ->
                            IsFinal = H =:= undefined,
                            ets:insert( Tbl, ?COUNTERS_INIT(ID,IsFinal) )
                    end, IDHandles ),
     IDHandles.
 
 
--define(KEY_TO_IDX(X),case X of 
+-define(KEY_TO_IDX(X),case X of
                           first -> {counters,2};
                           current -> {counters,3};
                           last -> {counters,4};
@@ -118,7 +118,7 @@ lookup( Tbl, StatementID, Key, Default ) ->
         [Item] ->
             element(I,Item);
         _ -> Default
-    end.    
+    end.
 
 all_handles( Tbl ) ->
     ets:select( Tbl, ets:fun2ms(fun({{ID,handle},H}) when is_integer(ID) -> H end) ).
@@ -136,7 +136,7 @@ set( Tbl, StatementID, Key, Val ) ->
 incr( Tbl, StatementID, Key, Incr ) ->
     {K,I} = ?KEY_TO_IDX(Key),
     ets:update_counter( Tbl, {StatementID,K}, {I,Incr} ).
-        
+
 counters( Tbl, StatementID ) ->
     [Counters] = ets:lookup( Tbl, {StatementID,counters} ),
     % turn it into a counters record
@@ -153,7 +153,7 @@ add_rows( Tbl, StmtID, Data ) ->
     Counters = counters( Tbl, StmtID ),
     add_rows(Tbl,StmtID,Data,Counters).
 
-add_rows( Tbl, StmtID, Rows, 
+add_rows( Tbl, StmtID, Rows,
           #erbdrv_stmt_counters{last=Last} = Counters ) ->
     NewLast = Last + length(Rows),
     RowRecs = lists:map( fun({Idx,Row}) ->

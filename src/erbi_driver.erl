@@ -2,13 +2,13 @@
 %%% ex: set softtabstop=4 tabstop=4 shiftwidth=4 expandtab fileencoding=utf-8:
 %%
 %% @copyright 2013 Voalte Inc. <jburroughs@voalte.com>
-%% 
+%%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
 %% You may obtain a copy of the License at
 %%
 %%   http://www.apache.org/licenses/LICENSE-2.0
-%% 
+%%
 %% Unless required by applicable law or agreed to in writing, software
 %% distributed under the License is distributed on an "AS IS" BASIS,
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,7 +18,7 @@
 %% @private
 %% @doc
 %% This module defines the erbi_driver behaviour, and provides
-%% a private interface for use by drivers. 
+%% a private interface for use by drivers.
 %% @end
 
 -module(erbi_driver).
@@ -56,7 +56,7 @@
 %% <dt>ok</dt>
 %%   <dd>property is valid</dd>
 %% <dt>{error,Reason}</dt>
-%%   <dd>property is not valid; Reason should indicate the problem. 
+%%   <dd>property is not valid; Reason should indicate the problem.
 %%       You do not need to check for unsupported properties here;
 %%       instead supply a complete list of supported properties from
 %%       {@link property_info/0}.
@@ -65,14 +65,14 @@
 %%   <dd>Use this to update property.  Original property will be replaced
 %%       with those in the list 'Properties'; [] will cause it to be deleted.
 %%   </dd>
-%% </dl> 
+%% </dl>
 -callback validate_property( atom(), any() ) ->
     ok | {ok,[property()]} | {error,any()}.
 
 %% @doc Return normalizations for the properties
 %%
 %% This function should return a set of normalizations for the connect
-%% properties.  These are the same as the operations supported by 
+%% properties.  These are the same as the operations supported by
 %% {@link proplists:normalize/2}, with the addition of: 'default',
 %% which should be a list of optional arguments, with default values;
 %% 'required', a list of arguments which must be present, and 'unique' which
@@ -95,10 +95,10 @@
 %%  <li>Negations are applied (see proplists:substitute_negations).</li>
 %%  <li>Expands are applied (see proplists:expand).</li>
 %%  <li>If any property in 'required' is not found in the resulting list, an
-%%      error is returned.  N.B: this happens before defaults are added -- 
+%%      error is returned.  N.B: this happens before defaults are added --
 %%      do not add properties to both required and defaults.</li>
 %%  <li>If the option 'unique' is present in property_info with a value of
-%%      'true', all but the first occurrence of each key is removed from 
+%%      'true', all but the first occurrence of each key is removed from
 %%      the property list</li>
 %%  <li>Every property in 'defaults' which is not present in the property list
 %%      is added with the default value</li>
@@ -120,12 +120,12 @@
 -callback property_info() -> [{atom(),any()}].
 
 %% @doc Parse free-form arguments
-%% 
+%%
 %% If the driver supports free-form arguments, this function
 %% should take those arguments, parse them, and return a
 %% normalized representation (such that effectively equivalent
 %% arguments will compare as equal when normalized).
-%% 
+%%
 %% If free-form arguments are not supported, return 'declined'.
 %% @end.
 -callback parse_args([any()]) ->
@@ -143,10 +143,10 @@
 
 %% @doc tear-down existing database connection.
 %%
-%% Regardless of the return, all existing handles 
+%% Regardless of the return, all existing handles
 %% associated with this connection are assuemed to be invalid after this call.
 %% @end
--callback disconnect( Connection :: erbdrv_connection() ) -> 
+-callback disconnect( Connection :: erbdrv_connection() ) ->
     ok | {error, erbdrv_error()}.
 
 %% @doc begin transaction or create savepoint
@@ -164,10 +164,10 @@
 %%
 %% Rollback to beginning of transaction, or to optional named savepoint.
 %% @end
--callback rollback( Connection :: erbdrv_connection() ) -> 
+-callback rollback( Connection :: erbdrv_connection() ) ->
     erbdrv_return().
  -callback rollback( Connection :: erbdrv_connection(),
-                    Savepoint :: atom | string() ) ->  
+                    Savepoint :: atom | string() ) ->
     erbdrv_return().
 
 %% @doc commit changes
@@ -189,7 +189,7 @@
 
 %% @doc parse query/statement
 %%
-%% Should parse the supplied query and return a handle to the pre-parsed form.  
+%% Should parse the supplied query and return a handle to the pre-parsed form.
 %% If the driver does not support pre-parsing, this function will not be called;
 %% instead, the statement string will be cached until {@link execute/3} is called.
 %%
@@ -213,15 +213,15 @@
 
 
 %% @doc execute statement
-%% 
+%%
 %% Begin execution of given statement handle, returned from {@link prepare/2}.
 %%
-%% Should return a statement handle, and may return column info and/or 
+%% Should return a statement handle, and may return column info and/or
 %% any rows which are ready immediately. If no rows are ready, that's fine --
 %% the intent is only to prevent the driver from needing to implement caching of complete rows.
 %%
 %% Should also populate 'rows' (affected) in returned record, if known.
-%% 
+%%
 %% If driver does not indicate support for pre-parsing, statement will
 %% be a string.  If driver doesn't support cursors, data will be assumed to contain all
 %% rows; Neither {@link fetch_rows/3} nor {@link finish/2} will be called.
@@ -232,7 +232,7 @@
 
 %% @doc retrieve rows from open cursor
 %%
-%% Amount indicates how many rows are desired; if it is 'one' driver should 
+%% Amount indicates how many rows are desired; if it is 'one' driver should
 %% request the minimal amount from the database, but the actual amount returned may
 %% be more than one; likewise, if it is 'all', request a maximal amount, but the driver is not
 %% assumed to have returned all rows.
@@ -303,11 +303,11 @@ call(Pid,Message,Handler) ->
 
 init({Module,Info,DataSource,Username,Password}) ->
     #erbdrv{status = Status} = Ret = Module:connect( DataSource, Username, Password ),
-    {State,_} = update_state( Ret, 
-                              #connect_state{ module = Module, info = Info }, 
+    {State,_} = update_state( Ret,
+                              #connect_state{ module = Module, info = Info },
                               undefined ),
     case Status of
-        ok -> 
+        ok ->
             Tbl = erbi_stmt_store:init_store(),
             State1 = State#connect_state{ statements = Tbl },
             {ok,State1};
@@ -326,7 +326,7 @@ init({Module,Info,DataSource,Username,Password}) ->
 terminate(_Reason,State) ->
     call_driver(State,disconnect).
 
-%% connection-level  
+%% connection-level
 handle_call(begin_work, _From, State) ->
     proc_return(call_driver(State,begin_work), State,undefined);
 handle_call({begin_work,Savepoint},_From, State) ->
@@ -399,11 +399,11 @@ handle_info(_,State) ->
 
 code_change(_OldVsn, _State, _Extra) ->
     {error, i_cant_do_that}.
-    
+
 %% row fetching
 %% if there are already rows in the buffer, just pass back the counters and the ets table
 %% if there are no cached rows, fetch from the driver
-do_fetch( #connect_state{statements=Tbl} = State,StatementID,Amount) -> 
+do_fetch( #connect_state{statements=Tbl} = State,StatementID,Amount) ->
     case erbi_stmt_store:counters( Tbl, StatementID ) of
         #erbdrv_stmt_counters{current=C,last=L,is_final=F} when ((not F) and (C > L)) ->
             Handle = get_stmt_handle(State,StatementID),
@@ -437,7 +437,7 @@ do_bind(#connect_state{statements=Tbl,info=Info}=State,StmtID,Params,StoreParams
                                             store_params ->
                                                 erbi_stmt_store:set(Tbl,StmtID1,params,Params),
                                                 {stored,State1,StmtID1};
-                                            _ -> 
+                                            _ ->
                                                 {ignored,State1,StmtID1}
                                         end
                                 end);
@@ -481,29 +481,29 @@ do_exec( #connect_state{ info = Info } = State, Query, Params ) ->
             do_exec(State,undefined,raw_query,Query,Params)
     end.
 do_exec( #connect_state{ info = Info } = State, StmtID, QHType, QueryOrHandle, Params ) ->
-    BindResult = 
+    BindResult =
         case {QHType,Info#erbi_driver_info.must_bind} of
             {handle,true} ->
                 case do_bind(State,StmtID,Params,do_not_store) of
                     {bound,State1,StmtID1} -> {State1,StmtID1,[]};
                     {ignored,State1,StmtID1} -> {State1,StmtID1,Params};
                     {reply,_,_}=X -> X
-                end;               
+                end;
             _ ->
                 {State,StmtID,Params}
         end,
     case BindResult of
         {reply,_,_}=Reply -> Reply;
         {State2,StmtID2,Params1} ->
-            #erbdrv{ rows = Rows } = 
+            #erbdrv{ rows = Rows } =
                 DriverReturn = call_driver( State2, execute, QueryOrHandle, Params1 ),
-            proc_return( DriverReturn, State2, StmtID2, 
+            proc_return( DriverReturn, State2, StmtID2,
                          fun(State3,StmtID3,Data) ->
                                  {reply,{ok,_Counters,_Tbl},State4} = add_rows(State3,StmtID3,Data),
                                  {reply,{ok,Rows},State4}
                          end )
     end.
-                                     
+
 opt_cols( State,StmtID,undefined ) ->
     {reply,{ok,StmtID},State};
 opt_cols( #connect_state{statements=Tbl}=State,StmtID,Cols ) ->
@@ -541,7 +541,7 @@ add_rows( #connect_state{statements=Tbl}=State,StmtID,{final,Rows} ) ->
 add_rows( #connect_state{statements=Tbl}=State,StmtID,Rows ) ->
     {ok,Counters,Tbl} = erbi_stmt_store:add_rows(Tbl,StmtID,Rows),
     {reply,{ok,Counters,Tbl},State}.
-        
+
 get_stmt_handle(#connect_state{statements=Tbl},StmtID) ->
     erbi_stmt_store:get(Tbl,StmtID,handle).
 
@@ -553,9 +553,9 @@ call_driver( #connect_state{ module = Module, connection = Conn }, Function, Arg
 call_driver( #connect_state{ module = Module, connection = Conn }, Function, Arg1, Arg2 ) ->
      Module:Function(Conn,Arg1,Arg2).
 
-%% Drivers are allowed to update connection & statement handles, so    
-%% the following functions first update those in the state, then call         
-%% the supplied continuation[s].            
+%% Drivers are allowed to update connection & statement handles, so
+%% the following functions first update those in the state, then call
+%% the supplied continuation[s].
 proc_return( DriverReturn, State, StmtID ) ->
     proc_return( DriverReturn, State, StmtID, fun standard_on_ok/3, fun standard_on_declined/3, fun standard_on_error/3 ).
 proc_return( DriverReturn, State, StmtID, OnOK ) ->
@@ -575,7 +575,7 @@ proc_return( #erbdrv{ status = Status, data = Data} = DriverReturn, State, StmtI
 %% takes an #erbdrv{} return record and updates the state information as needed
 update_state( #erbdrv{ conn = NewConn, stmt = Stmt, info = NewInfo },
               #connect_state{statements=Tbl}=State, StmtID ) ->
-    State0 = case NewConn of 
+    State0 = case NewConn of
                  same ->
                      State;
                  _ ->
@@ -586,13 +586,13 @@ update_state( #erbdrv{ conn = NewConn, stmt = Stmt, info = NewInfo },
                  _ ->
                      State0#connect_state{ info = NewInfo }
              end,
-    StmtID1 = 
+    StmtID1 =
         case {StmtID,Stmt} of
             {none,_} ->
                 undefined;
-            {undefined,undefined} -> 
+            {undefined,undefined} ->
                 StmtID;
-            {_,same} -> 
+            {_,same} ->
                 StmtID;
             {ID,Handle} when ID =:= new, Handle =/= undefined -> %new statement
                 erbi_stmt_store:add_statement( Tbl, Handle );
@@ -606,14 +606,14 @@ update_state( #erbdrv{ conn = NewConn, stmt = Stmt, info = NewInfo },
                 StmtID
         end,
     {State1,StmtID1}.
-  
 
-standard_on_ok( State2, _StmtID, nothing ) -> 
-    {reply,ok,State2}; 
-standard_on_ok( State2, _StmtID, Data1 ) -> 
+
+standard_on_ok( State2, _StmtID, nothing ) ->
+    {reply,ok,State2};
+standard_on_ok( State2, _StmtID, Data1 ) ->
     {reply,{ok,Data1},State2}.
-standard_on_declined( State2, _StmtID, _Data ) -> 
+standard_on_declined( State2, _StmtID, _Data ) ->
     {reply,{error,driver_declined},State2}.
-standard_on_error( State2, _StmtID, Reason ) -> 
+standard_on_error( State2, _StmtID, Reason ) ->
     {reply,{error,Reason},State2}.
-                    
+

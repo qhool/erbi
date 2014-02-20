@@ -6,24 +6,24 @@
 -include("erbi.hrl").
 
 prepare1_test() ->
-    { ok, Conn } = erbi:connect( { erbi, dummy, 
+    { ok, Conn } = erbi:connect( { erbi, dummy,
                                    [{connect,success},
                                     {prepare,failure}] }, undefined, undefined ),
     { error, _ } = erbi_connection:prepare( Conn, "anything" ).
 prepare2_test() ->
-    { ok, Conn } = erbi:connect( { erbi, dummy, 
+    { ok, Conn } = erbi:connect( { erbi, dummy,
                                    [{connect,success},
                                     {prepare,success}] }, undefined, undefined ),
     { ok, _ } = erbi_connection:prepare( Conn, "anything" ).
 
 do_test() ->
-    { ok, Conn } = erbi:connect( { erbi, dummy, 
+    { ok, Conn } = erbi:connect( { erbi, dummy,
                                    [{connect,success},
                                     {do,success}] }, undefined, undefined ),
     { ok, _ } = erbi_connection:do( Conn, "whatever", ["A","n"] ).
 
 selectall_test_() ->
-    PropVariants = 
+    PropVariants =
         lists:map(
           fun(N) ->
                   lists:flatten(
@@ -73,7 +73,7 @@ fetch_conn(Dataset) ->
 fetch_conn(Props,Dataset) ->
     {Cols,Rows} = erbi_test_util:dataset(Dataset),
     { ok, Conn } = erbi:connect( { erbi, dummy,
-                                   Props ++ 
+                                   Props ++
                                        [{connect,success},
                                         {prepare,success},
                                         {queries,

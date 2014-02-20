@@ -11,7 +11,7 @@
 %%-----------------------------------------------
 
 %% @doc Provision and start temp database (driver callback)
-%% 
+%%
 %% Responsible for provisioning and starting a temporary database.
 %% DataDir will already exist, and should be used to store any/all files required.
 %% @end
@@ -19,10 +19,10 @@
     ok.
 
 %% @doc Shutdown temp database (driver callback)
-%% 
+%%
 %% Should shut down the temporary database in DataDir.
-%% Do not delete files (other than pid/port/socket files); 
-%% this is performed by erbi_tmp_db (or not; cleanup can be 
+%% Do not delete files (other than pid/port/socket files);
+%% this is performed by erbi_tmp_db (or not; cleanup can be
 %% disabled using the auto_clean option).
 %% @end
 -callback stop_temp(DataSource::erbi_data_source(),DataDir::unicode:chardata())->
@@ -30,7 +30,7 @@
 
 %% @doc Get connection parameters for temp db
 %%
-%% Called to get modified connection parameters; arguments are the 'raw' connect parameters, 
+%% Called to get modified connection parameters; arguments are the 'raw' connect parameters,
 %% plus the data dir:
 %% <ul>
 %%   <li>DataSource: constructed from the erbi:temp datasource.</li>
@@ -94,7 +94,7 @@ data_dir(DS)->
 
 %----------------------------------------
 % Erbi temp internal functions
-%---------------------------------------- 
+%----------------------------------------
 parse_temp_ds(#erbi{properties=Props,args=Args}=DataSource)->
     BaseDriver=proplists:get_value(base_driver,Props),
     BaseModule=erbi:get_driver_module(BaseDriver),
@@ -103,7 +103,7 @@ parse_temp_ds(#erbi{properties=Props,args=Args}=DataSource)->
         undefined ->
             HashPrefix= hash_ds(DataSource,20),
             atom_to_list(BaseDriver)++"_"++HashPrefix;
-        DD -> 
+        DD ->
             DD
     end,
     BaseDS = DataSource#erbi{driver=BaseDriver,
@@ -118,7 +118,7 @@ parse_temp_ds(StringDS) ->
 hash_ds(#erbi{driver = DriverName, properties=PropList, args=Args},Length)->
     Str = io_lib:format("erbi:~p:~p:~p",[DriverName,PropList,Args]),
     % / and + aren't incredibly filename-friendly
-    Hash = 
+    Hash =
         lists:map( fun($/) -> $.;
                 ($+) -> $_;
                 (X) -> X
@@ -141,7 +141,7 @@ do_cleanup(#erbi{properties=Props},CleanupFun)->
         true ->
             CleanupFun(),
             ok;
-        _ -> 
+        _ ->
             ok
     end.
 

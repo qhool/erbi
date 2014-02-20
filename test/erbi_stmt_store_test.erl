@@ -24,7 +24,7 @@ basic_test_() ->
        fun(Store) ->
                [ ?_test( reset_all(Store) ) ]
        end
-                 
+
      ]
     }.
 
@@ -44,7 +44,7 @@ add_rows_and_reset(Store) ->
         ?debugVal(erbi_stmt_store:add_rows( Store, Stmt, [[0,0,0]] )),
     [0,0,0] = ?debugVal(erbi_stmt_store:get(Store,Stmt,0)),
     1 = Curr = ?debugVal(erbi_stmt_store:incr( Store, Stmt, current, 1 )),
-    {ok,#erbdrv_stmt_counters{last=3},Store} = 
+    {ok,#erbdrv_stmt_counters{last=3},Store} =
         ?debugVal(erbi_stmt_store:add_rows( Store, Stmt, [[1,2,3],[4,5,6],[7,8,9]] )),
     [1,2,3] = ?debugVal(erbi_stmt_store:get(Store,Stmt,Curr)),
     [4,5,6] = ?debugVal(erbi_stmt_store:get(Store,Stmt,Curr+1)),
@@ -67,15 +67,15 @@ reset_all(Store) ->
     Stmt1 = ?debugVal(erbi_stmt_store:add_statement(Store,fake_one)),
     Stmt2 = ?debugVal(erbi_stmt_store:add_statement(Store,fake_two)),
     ?assert( Stmt1 =/= Stmt2 ),
-    {ok,#erbdrv_stmt_counters{last=1},Store} = 
+    {ok,#erbdrv_stmt_counters{last=1},Store} =
         ?debugVal(erbi_stmt_store:add_rows( Store, Stmt1, [[1,2,3],[4,5,6]] )),
     {ok,#erbdrv_stmt_counters{last=0},Store} =
         ?debugVal(erbi_stmt_store:add_rows( Store, Stmt2, [[0,0]] )),
     ?debugVal(erbi_stmt_store:reset_all(Store)),
     fake_one = check_init_state(Store,Stmt1),
     fake_two = check_init_state(Store,Stmt2).
-    
-                 
+
+
 check_init_state(Store,Stmt) ->
     ?debugFmt("Checking initial state of statement ~p~n",[Stmt]),
     0 = First = ?debugVal(erbi_stmt_store:get( Store, Stmt, first )),

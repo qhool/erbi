@@ -1,13 +1,13 @@
 %%% -*- coding: utf-8; Mode: erlang; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*-
 %%% ex: set softtabstop=4 tabstop=4 shiftwidth=4 expandtab fileencoding=utf-8:
 %% @copyright 2013 Voalte Inc. <jburroughs@voalte.com>
-%% 
+%%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
 %% You may obtain a copy of the License at
 %%
 %%   http://www.apache.org/licenses/LICENSE-2.0
-%% 
+%%
 %% Unless required by applicable law or agreed to in writing, software
 %% distributed under the License is distributed on an "AS IS" BASIS,
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,7 +16,7 @@
 %%
 %% @doc
 %% Functions for manipulating erbi connection state, and db convenience functions.
-%% @end 
+%% @end
 -module(erbi_connection).
 
 -include("erbi_private.hrl").
@@ -47,7 +47,7 @@
 %% @end
 %% --------------------------------------
 -spec prepare( Connection :: erbi_connection(),
-               Query :: any() ) -> 
+               Query :: any() ) ->
                      { ok, erbi_statement() } | { error, any() }.
 prepare({erbi_connection,Conn}=Connection,Query) ->
     erbi_driver:call(Connection,{prepare,Query},
@@ -63,7 +63,7 @@ prepare({erbi_connection,Conn}=Connection,Query) ->
 %% @end
 %% --------------------------------------
 -spec prepare_cached( Connection :: erbi_connection(),
-                      Query :: any() ) -> 
+                      Query :: any() ) ->
                             { ok, erbi_statement() } | { error, any() }.
 prepare_cached(_Connection,_Query) ->
     {error,"not implemented"}.
@@ -92,8 +92,8 @@ do( Connection, Query ) ->
 
 %% --------------------------------------
 %% @doc Execute query with bind values and return all records as lists.
-%% 
-%% Results are returned as a list of lists.  Each list contains the values, 
+%%
+%% Results are returned as a list of lists.  Each list contains the values,
 %% in order for that row. This is a convenience method, equivalent to:
 %% <pre>
 %% Stmt = Connection:prepare( Query ),
@@ -159,7 +159,7 @@ selectall_dict( Connection, Query, BindValues ) ->
     prep_exec_and(fetchall_dict,Connection,Query,BindValues).
 
 %% --------------------------------------
-%% @doc Execute Query and return one record.  
+%% @doc Execute Query and return one record.
 %% Query is closed and remaining data discarded.
 %%   Connection
 %%   Query   - Query to execute
@@ -216,7 +216,7 @@ selectrow_dict( Connection, Query, BindValues  ) ->
 begin_work( Connection ) ->
     erbi_driver:call(Connection,begin_work).
 
--spec begin_work( Connection :: erbi_connection(), 
+-spec begin_work( Connection :: erbi_connection(),
                   SavePoint :: erbi_identifier() ) -> ok | { error, any() }.
 begin_work( Connection, SavePoint ) ->
     erbi_driver:call(Connection,{begin_work,SavePoint}).
@@ -234,7 +234,7 @@ commit( Connection ) ->
 %% @doc Undoes all changes made during the transaction.
 %% If savepoint is given, undoes changes after that savepoint.
 %%   Connection
-%%   SavePoint  - [optional] 
+%%   SavePoint  - [optional]
 %% @end
 %% --------------------------------------
 -spec rollback( Connection :: erbi_connection() ) -> ok | { error, any() }.
@@ -286,4 +286,4 @@ prep_exec_and(FuncName,Connection,Query,BindValues) ->
                     Ret
             end
     end.
-                                    
+

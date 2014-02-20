@@ -71,7 +71,7 @@ all_test_()->
                             create_table(Conn,DataConfig),
                             erbi_transaction(Conn,Config,DataConfig),
                             erbi_selectall(Conn,DataConfig),
-                            erbi_selectrow(Conn,DataConfig), 
+                            erbi_selectrow(Conn,DataConfig),
                             get_some_errors(Conn,Config,DataConfig),
                             null_value_test(Conn,DataConfig),
                             delete_table(Conn,DataConfig),
@@ -83,7 +83,7 @@ all_test_()->
 
 delete_table(Conn,DataConfig)->
     DeleteTable=proplists:get_value(delete_table,DataConfig),
-    ?_assertEqual({ok,unknown},?debugVal(erbi_connection:do(Conn,DeleteTable))).        
+    ?_assertEqual({ok,unknown},?debugVal(erbi_connection:do(Conn,DeleteTable))).
 create_table(Conn,DataConfig)->
     CreateTable=proplists:get_value(create_table,DataConfig),
     ?_assertEqual({ok,unknown},?debugVal(erbi_connection:do(Conn,CreateTable))).
@@ -96,7 +96,7 @@ erbi_transaction(Conn,Config,DataConfig)->
 
              [Data1,Data2]=generate_rows(2,proplists:get_value(data,DataConfig)),
              SelectAll=proplists:get_value(select_all,DataConfig),
-             Insert=proplists:get_value(insert,DataConfig),   
+             Insert=proplists:get_value(insert,DataConfig),
              DeleteAll=proplists:get_value(delete_all,DataConfig),
              {OutsideTransConnect,Data1,Data2,SelectAll,Insert,DeleteAll}
      end,
@@ -105,7 +105,7 @@ erbi_transaction(Conn,Config,DataConfig)->
      end,
      fun({OutsideTransConnect,Data1,Data2,SelectAll,Insert,_DeleteAll})->
              [
-              ?_assertEqual({ok,[]}, ?debugVal(erbi_connection:selectall_list(Conn,SelectAll))), 
+              ?_assertEqual({ok,[]}, ?debugVal(erbi_connection:selectall_list(Conn,SelectAll))),
               ?_assertEqual(ok , ?debugVal(erbi_connection:begin_work(Conn))),
               ?_assertEqual({ok,1},  ?debugVal(insert_data(Conn,Insert,Data1))),
               ?_assertEqual({ok,[Data1]}, ?debugVal(erbi_connection:selectall_list(Conn,SelectAll))),
@@ -121,7 +121,7 @@ erbi_transaction(Conn,Config,DataConfig)->
               ?_assertEqual({ok,1},  ?debugVal(insert_data(Conn,Insert,Data2))),
               ?_assertEqual({ok,[Data1,Data2]}, ?debugVal(erbi_connection:selectall_list(Conn,SelectAll))),
 
-              ?_assertEqual({ok,[]},?debugVal(erbi_connection:selectall_list(OutsideTransConnect,SelectAll))), 
+              ?_assertEqual({ok,[]},?debugVal(erbi_connection:selectall_list(OutsideTransConnect,SelectAll))),
 
               ?_assertEqual(ok , ?debugVal(erbi_connection:rollback(Conn,"savepoint"))),
               ?_assertEqual({ok,[Data1]}, ?debugVal(erbi_connection:selectall_list(Conn,SelectAll))),
@@ -141,7 +141,7 @@ erbi_transaction(Conn,Config,DataConfig)->
     }.
 
 insert_data(Conn,InsertQuery,Data)->
-    erbi_connection:do(Conn,InsertQuery,Data).              
+    erbi_connection:do(Conn,InsertQuery,Data).
 
 populate_db(Conn,InsertQuery,DataList)->
     lists:map(fun(Elem)->
@@ -174,10 +174,10 @@ erbi_selectall(Conn,DataConfig)->
              {ok,ResDict2}= ?debugVal(erbi_connection:selectall_dict(Conn,SelectMany,[SelectManyValue])),
 
 
-             [?_assert(equal_data_list(Data,ResList)), 
+             [?_assert(equal_data_list(Data,ResList)),
               ?_assert(equal_data_proplist(Data,ResProp,Fields)),
               ?_assert(equal_data_dict(Data,ResDict,Fields)),
-              ?_assert(equal_data_list(Data,ResList2)), 
+              ?_assert(equal_data_list(Data,ResList2)),
               ?_assert(equal_data_proplist(Data,ResProp2,Fields)),
               ?_assert(equal_data_dict(Data,ResDict2,Fields))
              ]
@@ -210,12 +210,12 @@ erbi_selectrow(Conn,DataConfig)->
 
 
              [
-              ?_assert(equal_data_list([lists:nth(BValue,Data)],[RowList])), 
+              ?_assert(equal_data_list([lists:nth(BValue,Data)],[RowList])),
               ?_assert(equal_data_proplist([lists:nth(BValue,Data)],[RowProp],Fields)),
               ?_assert(equal_data_dict([lists:nth(BValue,Data)],[RowDict],Fields)),
               ?_assertEqual(exhausted , ?debugVal(erbi_connection:selectrow_list(Conn,SelectBind,[BValue+3]))),
               ?_assertEqual(exhausted , ?debugVal(erbi_connection:selectrow_proplist(Conn,SelectBind,[BValue+3]))),
-              ?_assertEqual(exhausted , ?debugVal(erbi_connection:selectrow_dict(Conn,SelectBind,[BValue+3]))) 
+              ?_assertEqual(exhausted , ?debugVal(erbi_connection:selectrow_dict(Conn,SelectBind,[BValue+3])))
 
              ]
      end
@@ -235,7 +235,7 @@ get_some_errors(Conn,Config,DataConfig)->
              [?_test({error,{missing_parameter,_}}= ?debugVal(erbi_connection:selectrow_list(Conn,SelectBind,[]))),
               ?_test({error,{syntax_error,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values 1 ,2"))),
               ?_test({error,{unknown_table,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values (1 ,2)"))),
-              ?_assertException(exit,{noproc,_},?debugVal(erbi_connection:selectall_list(TmpConn,SelectMany))) %this should crash/return error              
+              ?_assertException(exit,{noproc,_},?debugVal(erbi_connection:selectall_list(TmpConn,SelectMany))) %this should crash/return error
 
              ]
      end
@@ -327,7 +327,7 @@ connect_temp_epgsql_test_()->
     {setup,
      fun()->
              Config=erbi_test_util:config(epgsql_temp),
-             Datasource1= "erbi:temp:base_driver=epgsql;" ++ 
+             Datasource1= "erbi:temp:base_driver=epgsql;" ++
                  ";init_files="++proplists:get_value(sql_init_files,Config,"") ++
                  ";data_dir="++proplists:get_value(data_dir,Config,""),
              Datasource2=Datasource1++"2",

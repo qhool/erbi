@@ -14,7 +14,7 @@ These functions are intended to be called in test setup/cleanup.
 
 The data source must have the format "erbi:temp:Parameters:Args", where the specific parameters
  for this driver are:
-- base_driver : Required parameter that must contain the name of the driver whose temporary 
+- base_driver : Required parameter that must contain the name of the driver whose temporary
 instance will be created.
 - data_dir : Base directory where the data of the temporary instance will be stored.
 If it is not supplied, default is code:get_path/0.
@@ -22,7 +22,7 @@ If it is not supplied, default is code:get_path/0.
 initialize the db (schema, data..). The current working directory will be used as base directory for the relative paths.
 For example, while executing common tests, base directory will be *APP_ROOT_DIR/test/logs/ct.TIMESTAMP/*, while with eunit
 the base dir will be *APP_ROOT_DIR/test/.eunit/*.
-- bin_dir : Directory where to find database binaries. If not provided the base driver 
+- bin_dir : Directory where to find database binaries. If not provided the base driver
 should try to find them automatically, searching searching in some known paths and in system "PATH".
 - Any other parameter needed by the base driver. However, depending on the base driver
  implementation, these parameters can be overwriten in the temp initialization.
@@ -36,9 +36,9 @@ No neo4j specific parameters are necessary. However, the endpoint parameter can 
 
 Wraping epgsql driver
 ---------------------
-Erbi epgsql driver has been adapted to be used in temporary mode. 
-The temporary epgsql driver initialization will start a separated instance of postgres, 
-that will be listening in a port chosen by the driver in the interval between 5433 and 5533. 
+Erbi epgsql driver has been adapted to be used in temporary mode.
+The temporary epgsql driver initialization will start a separated instance of postgres,
+that will be listening in a port chosen by the driver in the interval between 5433 and 5533.
 The data used by this postgres instance will be stored in a subdirectory of "data_dir" parameter.
 
 To use temp driver with epgsql, data source does not need any parameters but those specific to temp driver.
@@ -55,4 +55,4 @@ Example of temp data source that wraps epgsql driver:
 
 	"erbi:temp:base_driver=epgsql;data_dir=data_dir/;init_files=dbschema/schema.sql,dbschema/data.sql"
 	"erbi:temp:base_driver=epgsql;data_dir=data_dir/;init_files=dbschema/schema.sql,dbschema/ref-data.sql;bin_dir=/usr/local/postgres/bin"
-  
+

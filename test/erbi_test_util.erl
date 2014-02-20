@@ -17,7 +17,7 @@ start_db_test(DataSource)->
     erbi_temp_db:start(DS)
     end,
     apply_if_temp(DataSource,Fun).
-    
+
 stop_db_test(DataSource)->
     Fun=fun(DS)->
     erbi_temp_db:stop(DS)
@@ -31,7 +31,7 @@ apply_if_temp(DataSource,Fun)->
 	_->
 	    ok
     end.
-    
+
 config() ->
     ErbiDir = get_base_dir(),
     ConfigFile = filename:join(ErbiDir,"test.config"),
@@ -61,17 +61,17 @@ dataset(Name) ->
 equal_rows_list(Dataset,Results) ->
     ?debugFmt("list dataset: ~n~p~n",[Results]),
     equal_rows_list(Dataset,Results,0).
-equal_rows_list(Dataset,Results,Limit) -> 
+equal_rows_list(Dataset,Results,Limit) ->
     rows_equal_by(Dataset,Results,Limit,fun(_,Rows) -> Rows end,fun(A,B) -> A =:= B end).
 
 equal_rows_proplist(Dataset,Results)  ->
     equal_rows_proplist(Dataset,Results,0).
-equal_rows_proplist(Dataset,Results,Limit) -> 
+equal_rows_proplist(Dataset,Results,Limit) ->
     rows_equal_by(Dataset,Results,Limit,fun rows_to_proplists/2,fun proplists_equal/2).
 
 equal_rows_dict(Dataset,Results) ->
     equal_rows_dict(Dataset,Results,0).
-equal_rows_dict(Dataset,Results,Limit) -> 
+equal_rows_dict(Dataset,Results,Limit) ->
     rows_equal_by(Dataset,Results,Limit,fun rows_to_dicts/2,fun dicts_equal/2).
 
 
@@ -84,24 +84,24 @@ apply_lim(List,Lim) ->
 rows_equal_by(DatasetName,Results,Limit,DatasetToRows,RowComparator) when is_atom(DatasetName) ->
     {Cols,Rows} = dataset(DatasetName),
     rows_equal_by({Cols,Rows},Results,Limit,DatasetToRows,RowComparator);
-rows_equal_by({Cols,Rows},Results,Limit,DatasetToRows,RowComparator) -> 
+rows_equal_by({Cols,Rows},Results,Limit,DatasetToRows,RowComparator) ->
     Rows1 = apply_lim(Rows,Limit),
     Dataset = DatasetToRows(Cols,Rows1),
     rows_equal_by(Dataset,Results,Limit,DatasetToRows,RowComparator);
 rows_equal_by(Dataset,Results,Limit,_,RowComparator) when is_list(Dataset) ->
     rows_equal_by(Dataset,Results,Limit,RowComparator).
 
-rows_equal_by(Expected,Results,RowComparator) ->    
+rows_equal_by(Expected,Results,RowComparator) ->
     rows_equal_by(Expected,Results,0,RowComparator).
 rows_equal_by(Expected,Results,Limit,RowComparator) ->
     Expected1 = apply_lim(Expected,Limit),
     Results1 = apply_lim(Results,Limit),
     lists:all( fun(I) ->
-                       RowComparator( ?debugVal(lists:nth(I,Expected1)), 
+                       RowComparator( ?debugVal(lists:nth(I,Expected1)),
                                       ?debugVal(lists:nth(I,Results1)) )
                end,
                lists:seq(1,length(Results1)) ).
-                                        
+
 rows_to_dicts(Cols,Rows) ->
     lists:map( fun(Row) ->
                        dict:from_list(lists:zip(Cols,Row))
@@ -109,8 +109,8 @@ rows_to_dicts(Cols,Rows) ->
 
 rows_to_proplists(Cols,Rows) ->
     lists:map( fun(Row) -> lists:zip(Cols,Row) end, Rows ).
-                 
-       
+
+
 gen_d_eq(Dict) ->
     fun({K,V}) ->
             case dict:find(K,Dict) of

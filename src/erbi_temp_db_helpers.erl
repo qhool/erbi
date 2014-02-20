@@ -17,7 +17,7 @@
          getenv/2,
          exec_cmd/2, exec_cmd/3, exec_cmd/4
 	]).
- 
+
 
 % Helper functions for drivers implementing
 % erbi_temp_db behaviour
@@ -31,7 +31,7 @@ del_dir(Dir) ->
                          io:format(standard_error,"del_dir ~p~n",[D]),
                          ok = file:del_dir(D)
                  end, del_all_files([Dir], [])).
- 
+
 del_all_files([], EmptyDirs) ->
     EmptyDirs;
 del_all_files([Dir | T], EmptyDirs) ->
@@ -57,20 +57,20 @@ del_all_files([Dir | T], EmptyDirs) ->
     del_all_files(T ++ Dirs, [Dir | EmptyDirs]).
 
 kill_db_pid(Dir,PidFile)->
-    case read_integer(Dir,PidFile) of 
+    case read_integer(Dir,PidFile) of
         {error,_} = Error ->
-            Error; 
+            Error;
          Pid ->
-            os:cmd("kill -9 "++integer_to_list(Pid)),        
+            os:cmd("kill -9 "++integer_to_list(Pid)),
             ok
         end.
-    
+
 
 get_free_db_port(MinPort,MaxPort)->
     StartingPort=trunc(random:uniform()*(MaxPort-MinPort))+MinPort,
     get_free_db_port(StartingPort+1,StartingPort,MinPort,MaxPort).
 
-get_free_db_port(Port,StartingPort,MinPort,MaxPort) when Port > MaxPort-> 
+get_free_db_port(Port,StartingPort,MinPort,MaxPort) when Port > MaxPort->
     get_free_db_port(MinPort,StartingPort,MinPort,MaxPort);
 get_free_db_port(Port,StartingPort,_MinPort,_MaxPort) when Port == StartingPort ->
     {error,no_free_port};
@@ -86,9 +86,9 @@ get_free_db_port(Port,StartingPort,MinPort,MaxPort) ->
 save_in_db_data_file(Term,Path,File)->
                                                 %file:write_file(Path++"/"++File,term_to_binary(Term)).
     ok = file:write_file(Path++"/"++File,io_lib:fwrite("~p\n",[Term])).
-                 
+
 read_integer(Path,File)->
-    case file:read_file(Path++"/"++File) of 
+    case file:read_file(Path++"/"++File) of
         {ok, Binary} ->
             to_integer(Binary);
         Any ->
@@ -97,7 +97,7 @@ read_integer(Path,File)->
 
 to_integer(Binary)->
     [Value] = string:tokens(binary_to_list(Binary), "\n" ),
-    list_to_integer(Value). 
+    list_to_integer(Value).
 
 find_bin_dir(#erbi{properties=Props}=DataSource,Candidates,File) ->
     case getenv(DataSource,bin) of
@@ -114,7 +114,7 @@ search_dirs(PossiblePaths,Filename)->
                       end,SearchPath) of
         []->
             {error,{not_found,Filename,{search_path,SearchPath}}};
-        [H|_]->         
+        [H|_]->
             {ok,H}
     end.
 
@@ -142,16 +142,16 @@ getenv(#erbi{driver=Driver},Key) ->
 %%@doc execute command, returning OS PID
 %%
 %% Arguments:
-%% 
+%%
 %%@end
--type exec_cmd_return() :: {ok,{os_pid,integer()},any()} | 
+-type exec_cmd_return() :: {ok,{os_pid,integer()},any()} |
                            {ok,{exit_status,integer()},any()} |
                            {error,any()}.
 -type exec_cmd_scanfn() :: fun( (string(),any()) -> any() ).
 
 -spec exec_cmd( Command :: unicode:chardata(),
                 Args :: [unicode:chardata()] ) -> exec_cmd_return().
-                                              
+
 exec_cmd( Command, Args ) ->
     exec_cmd(Command,Args,wait).
 
@@ -180,7 +180,7 @@ exec_cmd( Command, Args, {Scanner,Acc} ) ->
 %%@doc execute command, with processing of output
 %%
 %% Allows a command to be executed, while capturing the OS pid or exit status, and the output.
-%% Output can be printed or logged, and can also be scanned or collected.  
+%% Output can be printed or logged, and can also be scanned or collected.
 %% Arguments:
 %% <ul>
 %%   <li>Command: absolute path to executable</li>
@@ -205,7 +205,7 @@ exec_cmd( Command, Args, {Scanner,Acc} ) ->
 %%
 %% The scanner argument is a pair of {Scanner,InitAcc}.  Scanner takes two arguments:
 %% <ul>
-%%   <li>Data: string() -- a chunk of output from the command.</li> 
+%%   <li>Data: string() -- a chunk of output from the command.</li>
 %%   <li>Acc: any() -- accumulator; starts with InitAcc</li>
 %% </ul>
 %% Scanner returns one of:
@@ -214,7 +214,7 @@ exec_cmd( Command, Args, {Scanner,Acc} ) ->
 %%   <li>{error,Reason} -- exec_cmd returns immediately with this value</li>
 %%   <li>{acc,Acc} -- continue processing output, with new accumulator value</li>
 %% </ul>
-%% Scanner can also accept 'wait' and 'nowait' which make the function wait (or not) for 
+%% Scanner can also accept 'wait' and 'nowait' which make the function wait (or not) for
 %% Command to finish; output Acc will be 'undefined'.ls
 %%@end
 
@@ -226,27 +226,27 @@ exec_cmd( Command, Args, {Scanner,Acc} ) ->
 
 
 exec_cmd( Command, Args, {Scanner,Acc}, Output ) ->
-    StrCmd = string:join( lists:map( fun unicode:characters_to_list/1, 
+    StrCmd = string:join( lists:map( fun unicode:characters_to_list/1,
                                      [Command|Args] ), " " ),
     OutFun =
         case Output of
-            none -> 
+            none ->
                 fun(_) ->
                         ok
-                end;          
+                end;
             H when is_atom(H) ->
                 fun(Fmt,Dat) ->
                         io:format(Output,Fmt,Dat)
                 end
         end,
     TopPid = self(),
-    {SpawnPid,_Mon} = 
+    {SpawnPid,_Mon} =
         spawn_monitor(
           fun() ->
                   OutFun("Executing ~s: ",[StrCmd]),
-                  Port = 
+                  Port =
                       open_port
-                        ( {spawn_executable, 
+                        ( {spawn_executable,
                            unicode:characters_to_list(Command)},
                         %{spawn,StrCmd},
                           [{args,lists:map
@@ -264,7 +264,7 @@ output_loop( SpawnPid, Scanner, Acc ) ->
     output_loop( SpawnPid, undefined, Scanner, Acc ).
 
 output_loop(SpawnPid,OSPid,Scanner,Acc) ->
-    receive 
+    receive
         {{SpawnPid,OSPid},{os_pid,OSPid1}} ->
             output_loop(SpawnPid,OSPid1,Scanner,Acc,{data,""});
         {{SpawnPid,OSPid},Msg} ->
@@ -331,4 +331,4 @@ port_loop(Port,Parent,Ident,Logger) ->
                     port_loop(Port,Parent,Ident,Logger)
             end
     end.
-    
+

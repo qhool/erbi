@@ -2,13 +2,13 @@
 %%% ex: set softtabstop=4 tabstop=4 shiftwidth=4 expandtab fileencoding=utf-8:
 %%
 %% @copyright 2013 Voalte Inc. <ccorral@voalte.com>
-%% 
+%%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
 %% You may obtain a copy of the License at
 %%
 %%   http://www.apache.org/licenses/LICENSE-2.0
-%% 
+%%
 %% Unless required by applicable law or agreed to in writing, software
 %% distributed under the License is distributed on an "AS IS" BASIS,
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -97,7 +97,7 @@ parse_args(_)->
                    Password :: string() ) -> erbdrv_return().
 connect(#erbi{driver = temp}=DataSource, Username0, Password0)->
     {BaseDriver,BaseDS0,DataDir} = erbi_temp_db:parse_temp_ds(DataSource),
-    {BaseDS1,Username,Password} = 
+    {BaseDS1,Username,Password} =
         case BaseDriver:get_temp_connect_data(BaseDS0,DataDir,Username0,Password0) of
             declined -> {BaseDS0,Username0,Password0};
             Any -> Any
@@ -112,7 +112,7 @@ connect(#erbi{driver = temp}=DataSource, Username0, Password0)->
          conn = TempConnection
         }.
 
--spec disconnect( Connection :: erbdrv_connection() ) -> 
+-spec disconnect( Connection :: erbdrv_connection() ) ->
     ok | {error, erbdrv_error()}.
 disconnect(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection})->
@@ -132,26 +132,26 @@ begin_work(#temp_connection{base_driver=BaseDriver,
 	   Savepoint)->
     wrap_ret(C,BaseDriver:begin_work(BaseConnection,Savepoint)).
 
--spec rollback( Connection :: erbdrv_connection() ) -> 
+-spec rollback( Connection :: erbdrv_connection() ) ->
     erbdrv_return().
 rollback(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection}=C)->
     wrap_ret(C,BaseDriver:rollback(BaseConnection)).
 
 -spec rollback( Connection :: erbdrv_connection(),
-                    Savepoint :: atom | string() ) ->  
+                    Savepoint :: atom | string() ) ->
     erbdrv_return().
 rollback(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection}=C,
 	 Savepoint) ->
     wrap_ret(C,BaseDriver:rollback(BaseConnection,Savepoint)).
-  
+
 -spec commit( Connection :: erbdrv_connection() ) ->
     erbdrv_return().
 commit(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection}=C)->
     wrap_ret(C,BaseDriver:commit(BaseConnection)).
-    
+
 -spec do( Connection :: erbdrv_connection(),
               Query :: string(),
               Params ::  erbi_bind_values() ) ->
@@ -161,7 +161,7 @@ do(#temp_connection{base_driver=BaseDriver,
    Query,
    Params)->
     wrap_ret(C,BaseDriver:do(BaseConnection,Query,Params)).
-    
+
 -spec prepare( Connection :: erbdrv_connection(),
 	       Query :: string() ) ->
 		     erbdrv_return().
@@ -186,7 +186,7 @@ bind_params(#temp_connection{base_driver=BaseDriver,
 execute(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection}=C,Statement,Params)->
     wrap_ret(C,BaseDriver:execute(BaseConnection,Statement,Params)).
-    
+
 -spec fetch_rows( Connection :: erbdrv_connection(),
                       Statement :: erbdrv_statement(),
                       Amount :: one | all ) ->
@@ -214,4 +214,4 @@ wrap_ret(_TempConn,Ret) ->
 
 
 
-            
+

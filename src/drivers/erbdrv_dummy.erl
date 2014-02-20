@@ -1,13 +1,13 @@
 %%% -*- coding: utf-8; Mode: erlang; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*-
 %%% ex: set softtabstop=4 tabstop=4 shiftwidth=4 expandtab fileencoding=utf-8:
 %% @copyright 2013 Voalte Inc. <jburroughs@voalte.com>
-%% 
+%%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
 %% You may obtain a copy of the License at
 %%
 %%   http://www.apache.org/licenses/LICENSE-2.0
-%% 
+%%
 %% Unless required by applicable law or agreed to in writing, software
 %% distributed under the License is distributed on an "AS IS" BASIS,
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,7 +16,7 @@
 %%
 %% @doc
 %% erbi dummy driver
-%% @end 
+%% @end
 -module(erbdrv_dummy).
 -behaviour(erbi_driver).
 -behaviour(erbi_temp_db).
@@ -58,7 +58,7 @@ validate_property(queries,Queries) ->
                                     {ok,Pattern} = re:compile(Re),
                                     {Pattern,Cols,Rows}
                             end, Queries )
-        }]};    
+        }]};
 validate_property(Prop,Val) when is_list(Val) ->
     {ok,[{Prop,list_to_atom(Val)}]};
 validate_property(_,_) ->
@@ -141,7 +141,7 @@ commit( Props ) ->
     on_success( Props, [commit,transaction], #erbdrv{status=ok} ).
 
 do( Props, Q, Params ) ->
-    on_success( Props, do, 
+    on_success( Props, do,
                 fun() ->
                         %hand off to execute, overriding some behavior
                         execute( [{execute,success},
@@ -150,9 +150,9 @@ do( Props, Q, Params ) ->
                 end ).
 
 prepare( Props, Q ) ->
-    on_success( Props, prepare, 
+    on_success( Props, prepare,
                 fun() ->
-                        Data = 
+                        Data =
                             case proplists:get_value(cols_on_prepare,Props) of
                                 true ->
                                     {Cols,_} = match_query(Props,Q),
@@ -166,9 +166,9 @@ bind_params( Props, {Q,OldParams,R}, Params ) ->
     on_success( Props, bind, #erbdrv{status=ok,stmt={Q,OldParams++Params,R}} ).
 
 execute( Props, Q, Params ) ->
-    on_success( Props, execute, 
+    on_success( Props, execute,
                 fun() ->
-                        {Query,StParams,_} = 
+                        {Query,StParams,_} =
                             case Q of
                                 {_,_,_} -> Q;
                                 _ -> {Q,[],undefined}
@@ -181,7 +181,7 @@ execute( Props, Q, Params ) ->
                                 true -> {[],{final,Rows}};
                                 false -> {Rows,[]}
                             end,
-                        Data = 
+                        Data =
                             case proplists:get_value(cols_on_prepare,Props) of
                                 true -> DataRows;
                                 false -> {Cols,DataRows}
@@ -194,11 +194,11 @@ fetch_rows( Props, {Query,Params,Rows}, Amount ) ->
     on_success( Props, fetch,
                 fun() ->
                         SimFetch = proplists:get_value(simulate_fetch,Props),
-                        {RetRows,StmtRows} = 
+                        {RetRows,StmtRows} =
                             case Rows of
                                 [] -> {final,[]};
                                 _ ->
-                                    {Ret,Rmdr} = 
+                                    {Ret,Rmdr} =
                                         if (SimFetch and (Amount =:= one)) ->
                                                 [Row|Rows1] = Rows,
                                                 {[Row],Rows1};
@@ -212,16 +212,16 @@ fetch_rows( Props, {Query,Params,Rows}, Amount ) ->
                                            true ->
                                                 {Rows,[]}
                                         end,
-                                    case Rmdr of 
+                                    case Rmdr of
                                         [] ->
                                             {{final,Ret},[]};
                                         _ ->
                                             {Ret,Rmdr}
-                                    end     
+                                    end
                             end,
                         #erbdrv{status=ok,stmt={Query,Params,StmtRows},data=RetRows}
                 end ).
-                      
+
 finish( Props, {Query,_,_} ) ->
     on_success( Props, finish, #erbdrv{status=ok,stmt={Query,[],undefined}} ).
 
@@ -283,7 +283,7 @@ on_success( SuccessVal, OnSuccess ) ->
 
 match_query(Props,QStr) ->
     QueryList = proplists:get_value(queries,Props),
-    Found = 
+    Found =
         lists:foldl( fun({Rgx,C,R},none) ->
                              case re:run(QStr,Rgx) of
                                  {match,_} -> {C,R};
@@ -297,4 +297,4 @@ match_query(Props,QStr) ->
                 _ -> Found
             end,
     {C,R}.
-    
+

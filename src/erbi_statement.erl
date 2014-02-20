@@ -1,13 +1,13 @@
 %%% -*- coding: utf-8; Mode: erlang; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*-
 %%% ex: set softtabstop=4 tabstop=4 shiftwidth=4 expandtab fileencoding=utf-8:
 %% @copyright 2013 Voalte Inc. <jburroughs@voalte.com>
-%% 
+%%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
 %% You may obtain a copy of the License at
 %%
 %%   http://www.apache.org/licenses/LICENSE-2.0
-%% 
+%%
 %% Unless required by applicable law or agreed to in writing, software
 %% distributed under the License is distributed on an "AS IS" BASIS,
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,8 +15,8 @@
 %% limitations under the License.
 %%
 %% @doc
-%% Erbi statement handle functions: perform queries, fetch rows, etc. 
-%% @end 
+%% Erbi statement handle functions: perform queries, fetch rows, etc.
+%% @end
 -module(erbi_statement).
 
 -export([bind_params/2,
@@ -41,7 +41,7 @@
 %% @doc Bind given parameters to this statement.
 %% May be supplied as a positional list, or by name (contingent on driver support).
 %% - Statement  - erbi statement handle
-%% - BindValues - List of parameter values 
+%% - BindValues - List of parameter values
 %% @end
 %% --------------------------------------
 -spec bind_params( Statement :: erbi_statement(),
@@ -72,7 +72,7 @@ execute( ?STMT(StmtID)=Statement, Params ) ->
                            { ok, [any()] } | exhausted | { error, any() }.
 fetchrow_list(Statement) ->
     get_row_as(list,Statement).
-             
+
 -spec fetchrow_proplist( Statement :: erbi_statement() ) ->
                            { ok, [property()] } | exhausted | { error, any() }.
 fetchrow_proplist(Statement) ->
@@ -95,7 +95,7 @@ finish(?STMT(StmtID) = Statement) ->
 
 
 %% --------------------------------------
-%% @doc 
+%% @doc
 %% Fetch all remaining records and return a list.
 %% @end
 %% --------------------------------------
@@ -108,7 +108,7 @@ fetchall_list(Statement) ->
                            { ok, [[property()]] } | { error, any() }.
 fetchall_proplist(Statement) ->
     get_rows_as(proplist,Statement,all).
-           
+
 -spec fetchall_dict( Statement :: erbi_statement() ) ->
                            { ok, [dict()] } | { error, any() }.
 fetchall_dict(Statement) ->
@@ -141,7 +141,7 @@ get_row_as(Type,Statement) ->
         {ok,[]} -> exhausted;
         {ok,[Row]} -> {ok,Row}
     end.
-            
+
 get_rows_as(Type,?STMT(StmtID)=Statement,Amount) ->
     case get_rows(Statement,Amount,[],
                   erbi_driver:call(Statement,{start_fetch,StmtID,Amount})) of
@@ -171,7 +171,7 @@ get_rows_as(Type,?STMT(StmtID)=Statement,Amount) ->
 
 get_rows(_,_,_,{error,Reason}) ->
     {error,Reason};
-get_rows(?STMT(StmtID)=Statement,_,Acc,{ok,#erbdrv_stmt_counters{current=C,last=L},Store}) 
+get_rows(?STMT(StmtID)=Statement,_,Acc,{ok,#erbdrv_stmt_counters{current=C,last=L},Store})
   when C > L ->
     erbi_driver:call(Statement,{end_fetch,StmtID,0},{Store,Acc});
 get_rows(?STMT(StmtID)=Statement,one,Acc,{ok,#erbdrv_stmt_counters{current=Current},Store}) ->
@@ -191,4 +191,4 @@ get_rows(?STMT(StmtID)=Statement,all,Acc,
     end.
 
 
-                               
+

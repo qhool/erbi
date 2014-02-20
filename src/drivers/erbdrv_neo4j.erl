@@ -1,13 +1,13 @@
 %%% -*- coding: utf-8; Mode: erlang; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*-
 %%% ex: set softtabstop=4 tabstop=4 shiftwidth=4 expandtab fileencoding=utf-8:
 %% @copyright 2013 Voalte Inc. <jburroughs@voalte.com>
-%% 
+%%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
 %% You may obtain a copy of the License at
 %%
 %%   http://www.apache.org/licenses/LICENSE-2.0
-%% 
+%%
 %% Unless required by applicable law or agreed to in writing, software
 %% distributed under the License is distributed on an "AS IS" BASIS,
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,8 +17,8 @@
 %% @doc
 %% erbi neo4j driver, using the neo4j REST interface.
 %%
-%% 
-%% @end 
+%%
+%% @end
 -module(erbdrv_neo4j).
 -behaviour(erbi_driver).
 -behaviour(erbi_temp_db).
@@ -58,7 +58,7 @@
 driver_info() ->
     #erbi_driver_info{ driver = neo4j,
                        preparse_support = false,
-                       cursor_support = false, 
+                       cursor_support = false,
                        transaction_support = true }.
 
 validate_property(Prop,Val) when is_list(Val) and ((Prop =:= scheme) or (Prop =:= endpoint)) ->
@@ -85,7 +85,7 @@ validate_property(endpoint,E) ->
     end;
 validate_property(_,_) ->
     ok.
-             
+
 property_info() ->
     [{defaults,[{scheme,http},
                 {host,"localhost"},
@@ -181,7 +181,7 @@ execute( #neocon{type=cypher, url=Url}=C, Query, Params ) ->
                    #erbdrv{status=ok,rows=RowCount,data={Cols,Rows}}
            end);
 execute( #neocon{trans = Trans, url=Url}=C, Query, Params ) ->
-    ToUrl = 
+    ToUrl =
         case Trans of
             undefined ->
                 Url ++ "/commit"; % if there is no open transaction, do a one-shot
@@ -191,7 +191,7 @@ execute( #neocon{trans = Trans, url=Url}=C, Query, Params ) ->
     Q = format_query({statement,Query},{parameters,Params}),
     do_req(post,C,ToUrl,[200],[{statements,[Q]}],
            fun(_S,_H,Body) ->
-                   % Results = 
+                   % Results =
                    [Result|_] = proplists:get_value(<<"results">>,Body),
                    Cols = proplists:get_value(<<"columns">>,Result,[]),
                    %handle different output formats
@@ -233,9 +233,9 @@ start_temp(#erbi{properties=PropList}=DataSource,DataDir)->
     ok.
 
 stop_temp(#erbi{},DataDir)->
-    case erbi_temp_db_helpers:read_integer(DataDir,?PORT_FILE) of 
+    case erbi_temp_db_helpers:read_integer(DataDir,?PORT_FILE) of
         {error,_} = Error ->
-          Error; 
+          Error;
         Port ->
           ok = stop_db_instance(DataDir),
           ok = wait_for_db_stopped(Port),
@@ -260,7 +260,7 @@ format_query({QAtom,Query},{PAtom,Params}) ->
     QParams = case Params of
                   [] -> [];
                   _ ->
-                      BinParams = 
+                      BinParams =
                           lists:map( fun ({P,V}) when is_list(V) ->
                                              {P,list_to_binary(V)};
                                          (X) -> X
@@ -276,7 +276,7 @@ extract_rows(Result) ->
                   (Row) -> Row
                end,
                RawRows ).
-                       
+
 do_req(Method,#neocon{trans=undefined,url=Url}=Conn,Statuses,Body,Func) ->
     do_req(Method,Conn,Url,Statuses,Body,Func);
 do_req(Method,#neocon{trans=Trans}=Conn,Statuses,Body,Func) ->
@@ -285,7 +285,7 @@ do_req(Method,#neocon{trans=Trans}=Conn,Statuses,Body,Func) ->
 do_req(Method,Conn,Url,Statuses,ReqBody,Func) ->
     %io:format(user,"~n~n~n~n------~nURL: ~p~n------~nreqbody: ~p~n",[Url,ReqBody]),
     rest_response(Conn,Func,restc:request(Method,json,Url,Statuses,[],ReqBody)).
-         
+
 rest_response(#neocon{type=Type},Func,RestStat) ->
     rest_response(Type,Func,RestStat);
 rest_response(_,Func,{_,Stat,Headers,Body}) when (Stat >= 200) and (Stat < 300) ->
@@ -296,7 +296,7 @@ rest_response(_,Func,{_,Stat,Headers,Body}) when (Stat >= 200) and (Stat < 300) 
             Code = proplists:get_value(<<"code">>,Error),
             Status = proplists:get_value(<<"status">>,Error),
             Message = proplists:get_value(<<"message">>,Error),
-            ErbiError = 
+            ErbiError =
                 case Code of
                     42000 -> execution_error;
                     42001 -> syntax_error;
@@ -313,7 +313,7 @@ rest_response(_,Func,{_,Stat,Headers,Body}) when (Stat >= 200) and (Stat < 300) 
                     #erbdrv{status=error,data={ErbiError,{Code,Status,Message}}}
             end
     end;
-rest_response(_,_Func,{_, 400, _H, Body}) ->  
+rest_response(_,_Func,{_, 400, _H, Body}) ->
     ExcpName = proplists:get_value(<<"exception">>,Body),
     FullName = proplists:get_value(<<"fullname">>,Body,ExcpName),
     Message = proplists:get_value(<<"message">>,Body),
@@ -328,7 +328,7 @@ rest_response(_,_Func,{_, 400, _H, Body}) ->
             _ -> unmapped_error
         end,
     #erbdrv{ status = error, data = {ErbiError, {FullName,Message}} };
-rest_response(_,_,{_, 401, H,_}) -> 
+rest_response(_,_,{_, 401, H,_}) ->
     header_error(unauthorized,<<"www-authenticate">>,H);
 rest_response(_,_,{_, 407, H,_}) ->
     header_error(unauthorized,<<"proxy-authenticate">>,H);
@@ -442,12 +442,12 @@ start_db_instance(DataDir)->
     ok.
 
 stop_db_instance(DataDir)->
-    case exec_neo4j_server_cmd(DataDir,"stop") of 
+    case exec_neo4j_server_cmd(DataDir,"stop") of
       {ok,_,_} ->
         ok;
       {error,_} ->
         erbi_temp_db_helpers:kill_db_pid(DataDir, ?PID_FILE)
-    end. 
+    end.
 
 exec_neo4j_server_cmd(DataDir,NeoCmd) ->
     erbi_temp_db_helpers:exec_cmd(DataDir++"/bin/neo4j",[NeoCmd]).
