@@ -19,7 +19,9 @@
 -define(ERBI_PRIVATE_HRL,true).
 
 -record(conn,
-        { pid :: pid() }).
+        { pid :: pid(),
+          pooled=false :: boolean(),
+          pool_name :: atom() }).
 -record(stmt,
         { id :: pos_integer() }).
 

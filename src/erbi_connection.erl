@@ -251,7 +251,9 @@ rollback( Connection, SavePoint ) ->
 %% @end
 %% --------------------------------------
 -spec disconnect( Connection :: erbi_connection() ) -> ok | { error, any() }.
-disconnect( {erbi_connection,#conn{pid=Pid}} ) ->
+disconnect( {erbi_connection,#conn{ pooled = true }} = Conn ) ->
+    erbi_pools:checkin(Conn);
+disconnect( {erbi_connection,#conn{pid=Pid, pooled = false}} ) ->
     gen_server:cast(Pid,disconnect).
 
 %% --------------------------------------
@@ -280,7 +282,7 @@ prep_exec_and(FuncName,Connection,Query,BindValues) ->
         {ok,Statement} ->
             case erbi_statement:execute(Statement,BindValues) of
                 {error,_}=E -> E;
-                {ok,Rows} ->
+                {ok,_Rows} ->
                     Ret = erbi_statement:FuncName(Statement),
                     erbi_statement:finish(Statement),
                     Ret
