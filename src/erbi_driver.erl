@@ -28,7 +28,9 @@
          handle_call/3,
          handle_cast/2,
          handle_info/2,
-         code_change/3
+         code_change/3,
+         start_link/1,
+         reset/1
         ]).
 
 -include("erbi.hrl").
@@ -36,6 +38,7 @@
 -include("erbi_driver.hrl").
 
 -behaviour(gen_server).
+-behaviour(poolboy_worker).
 
 %%-----------------------------------------------
 %% TOP LEVEL DRIVER CALLS
@@ -254,6 +257,10 @@
 %% ERBI-Internal convenience functions %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+-spec reset(Pid :: pid()) -> ok.
+reset(Pid) ->
+    gen_server:call(Pid, reset).
+
 %% convenience wrapper for gen_server
 -spec call( ConnOrStmt :: erbi_connection() | erbi_statement(),
             Message :: any() ) ->
@@ -297,6 +304,10 @@ call(Pid,Message,Handler) ->
           statements :: ets:tid(),
           info :: erbi_driver_info()
         }).
+
+
+start_link({_Module,_Info,_DataSource,_Username,_Password} = Args) ->
+    gen_server:start_link(?MODULE,Args,[]).
 
 -spec init( {atom(),undefined|erbi_driver_info(),any(),any(),any()} ) ->
                   { stop, any() } | { ok, #connect_state{} }.
@@ -399,6 +410,9 @@ handle_info(_,State) ->
 
 code_change(_OldVsn, _State, _Extra) ->
     {error, i_cant_do_that}.
+
+
+
 
 %% row fetching
 %% if there are already rows in the buffer, just pass back the counters and the ets table
