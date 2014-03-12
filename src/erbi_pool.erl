@@ -20,7 +20,7 @@
 %% Wrap around module to hide away all details of poolboy interaction and
 %% supervision that erbi provides for the pools.
 %% @end
--module(erbi_pools).
+-module(erbi_pool).
 
 -include("erbi.hrl").
 -include("erbi_private.hrl").
@@ -92,7 +92,7 @@ scrape_pool_properties(#erbi{ properties = Props } = DataSource) ->
     {L0, Props1} = proplists:split(Props, ?POOL_PROPS),
     L1 = lists:flatten(L0),
     L = case L1 =/= [] of
-            true  -> erbi:normalize_properties(erbi_pools, L1);
+            true  -> erbi:normalize_properties(erbi_pool, L1);
             false -> []
         end,
     {L, DataSource#erbi{properties=Props1}};
