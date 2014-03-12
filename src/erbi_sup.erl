@@ -77,7 +77,7 @@ init(Pools) ->
 pool_child_spec({DataSource, Username, Password}) when is_list(DataSource) ->
     DataSource1 = erbi:parse_data_source(DataSource),
     Module = erbi:get_driver_module(DataSource1),
-    {PoolProps, DataSource2} = erbi_pools:scrape_pool_properties(DataSource1),
+    {PoolProps, DataSource2} = erbi_pool:scrape_pool_properties(DataSource1),
     case PoolProps =:= [] of
         true -> {error, no_pool_paramerts};
         false ->

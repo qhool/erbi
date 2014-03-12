@@ -60,7 +60,7 @@ connect( {erbi,Driver}, Username, Password ) ->
 connect( {erbi,Driver,Props}, Username, Password ) ->
     connect( #erbi{ driver = Driver, properties = Props }, Username, Password );
 connect( #erbi{} = DataSource, Username, Password ) ->
-    connect( erbi_pools:scrape_pool_properties(DataSource), Username, Password );
+    connect( erbi_pool:scrape_pool_properties(DataSource), Username, Password );
 connect( {[], DataSource}, Username, Password ) -> % requesting non-pooled connection
     Module = get_driver_module(DataSource),
     case normalize_data_source(Module,DataSource) of
@@ -87,13 +87,13 @@ connect( {PoolProps, DataSource}, Username, Password ) when is_list(PoolProps) -
                 % this to account for fetching connection by the code that assumes
                 % pools are pre-created. So a call like this erbi:connect("erbi:epgsql:pool_name=test")
                 % should not fail unless we have no pool.
-                PoolName -> erbi_pools:checkout(PoolName)
+                PoolName -> erbi_pool:checkout(PoolName)
             end;
         DataSource1 ->
             ConnectReq = {Module,Module:driver_info(),DataSource1,Username,Password},
             PoolName = proplists:get_value(name, PoolProps),
-            {ok, _Pool} = erbi_pools:start_pool(PoolName, PoolProps, ConnectReq),
-            erbi_pools:checkout(PoolName)
+            {ok, _Pool} = erbi_pool:start_pool(PoolName, PoolProps, ConnectReq),
+            erbi_pool:checkout(PoolName)
     end.
 
 
