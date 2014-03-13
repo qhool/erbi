@@ -37,19 +37,19 @@ check_pools_operations(_SPid) ->
     ].
 
 check_initialized_names() ->
-    [?_assert(true =:= lists:all(fun (test0) -> true;
-                                    (test1) -> true;
+    [?_assert(true =:= lists:all(fun (erbi_pool_test0) -> true;
+                                    (erbi_pool_test1) -> true;
                                     (_) -> false end, erbi_pool:list_pool_names()))].
 
 check_no_overflow_pool_state() ->
-    S0 = erbi_pool:status(test0),
-    {ok, C0} = erbi_pool:checkout(test0),
-    {ok,  C1} = erbi_pool:checkout(test0),
-    S1 = erbi_pool:status(test0),
-    E = erbi_pool:checkout(test0),
+    S0 = erbi_pool:status(erbi_pool_test0),
+    {ok, C0} = erbi_pool:checkout(erbi_pool_test0),
+    {ok,  C1} = erbi_pool:checkout(erbi_pool_test0),
+    S1 = erbi_pool:status(erbi_pool_test0),
+    E = erbi_pool:checkout(erbi_pool_test0),
     erbi_pool:checkin(C0),
     erbi_pool:checkin(C1),
-    S2 = erbi_pool:status(test0),
+    S2 = erbi_pool:status(erbi_pool_test0),
     [
      ?_assertMatch({error, no_available_connections}, E),
      ?_assertMatch({ready,2,0,0},S0),
@@ -58,14 +58,14 @@ check_no_overflow_pool_state() ->
     ].
 
 check_overflow_pool_state() ->
-    S0 = erbi_pool:status(test1),
-    {ok, C0} = erbi_pool:checkout(test1),
-    {ok, C1} = erbi_pool:checkout(test1),
-    S1 = erbi_pool:status(test1),
-    E = erbi_pool:checkout(test1),
+    S0 = erbi_pool:status(erbi_pool_test1),
+    {ok, C0} = erbi_pool:checkout(erbi_pool_test1),
+    {ok, C1} = erbi_pool:checkout(erbi_pool_test1),
+    S1 = erbi_pool:status(erbi_pool_test1),
+    E = erbi_pool:checkout(erbi_pool_test1),
     erbi_pool:checkin(C0),
     erbi_pool:checkin(C1),
-    S2 = erbi_pool:status(test1),
+    S2 = erbi_pool:status(erbi_pool_test1),
     [
      ?_assertMatch({ready,1,0,0},S0),
      ?_assertMatch({full,0,1,2},S1),
