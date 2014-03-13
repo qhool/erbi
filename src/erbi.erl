@@ -221,13 +221,11 @@ stop(_State) ->
 
 get_driver_module( #erbi{driver=DriverAtom} ) ->
     get_driver_module(DriverAtom);
+get_driver_module( DriverAtom ) when is_atom(DriverAtom) ->
+    get_driver_module(atom_to_list(DriverAtom));
 get_driver_module( DriverList ) when is_list(DriverList) ->
     Module = list_to_atom("erbdrv_" ++ DriverList),
     io:format("module: ~p", [Module]),
-    {module,Module} = code:ensure_loaded(Module),
-    Module;
-get_driver_module( DriverAtom ) when is_atom(DriverAtom) ->
-    Module = list_to_atom("erbdrv_" ++ atom_to_list(DriverAtom)),
     {module,Module} = code:ensure_loaded(Module),
     Module.
 
