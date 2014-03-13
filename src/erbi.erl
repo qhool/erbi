@@ -190,7 +190,10 @@ driver_call( DSOrAtom,Func,Args ) ->
     {ok, pid(), State :: term()} |
     {error, Reason :: term()}).
 start(_StartType, _StartArgs) ->
-    ErbiPools = application:get_env(erbi, pools, []),
+    ErbiPools = case application:get_env(erbi, pools) of
+                    undefined -> [];
+                    {ok, Value} -> Value
+                end,
     case erbi_sup:start_link(ErbiPools) of
         {ok, Pid} -> {ok, Pid};
         Error -> Error
