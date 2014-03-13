@@ -5,50 +5,50 @@
 -include("erbi.hrl").
 
 
-connection_properties_test_()->
-
-    [?_assertEqual( #erbi{driver=epgsql,
-                          properties=[{database,"test_db"},
-                                      {host,"localhost"},
-                                      {port,5432}
-                                     ],
-                          args=undefined},
-                    ?debugVal(erbi:normalize_data_source( "erbi:epgsql:hostaddr=localhost;db=test_db" )) ),
-     ?_assertEqual( #erbi{driver=epgsql,
-                          properties=[{database,"test_db"},
-                                      {host,"ahost"},
-                                      {port,4444}
-                                     ],
-                          args=undefined},
-                    ?debugVal(erbi:normalize_data_source( "erbi:epgsql:hostname=ahost;dbname=test_db;port=4444" )) )].
-
-
-connect_epgsql_test_()->
-    {setup,
-     fun()->
-             Config =?debugVal(erbi_test_util:config(epgsql)),
-             Datasource=proplists:get_value(datasource,Config),
-             User= proplists:get_value(user,Config),
-             Pwd= proplists:get_value(password,Config),
-             erbi_test_util:start_db_test(Datasource),
-             {Datasource,User,Pwd}
-     end,
-     fun({Datasource,User,Pwd})->
-             erbi_test_util:stop_db_test(Datasource)
-     end,
-     fun({Datasource,User,Pwd})->
-             [ ?_test( { ok, _ } = ?debugVal(erbi:connect( Datasource, User, Pwd )) ),
-               ?_test( { error, _ } = ?debugVal(erbi:connect( "erbi:epgsql:database=mydatabase", "", "" )) ),
-               % epgsql driver does not require database name -- why add this restriction?
-               %?_assertEqual( { error,
-               %                 {invalid_datasource,
-               %                  {missing_properties,[database]}} } ,
-               %               ?debugVal(erbi:connect( "erbi:epgsql:", "postgres", "pass" )) ),
-
-               ?_test({error,{unknown_host,_}}= ?debugVal(erbi:connect( "erbi:epgsql:database=mydatabase;host=myhost", "postgres", "pass" )) )
-             ]
-     end
-    }.
+%% connection_properties_test_()->
+%%
+%%     [?_assertEqual( #erbi{driver=epgsql,
+%%                           properties=[{database,"test_db"},
+%%                                       {host,"localhost"},
+%%                                       {port,5432}
+%%                                      ],
+%%                           args=undefined},
+%%                     ?debugVal(erbi:normalize_data_source( "erbi:epgsql:hostaddr=localhost;db=test_db" )) ),
+%%      ?_assertEqual( #erbi{driver=epgsql,
+%%                           properties=[{database,"test_db"},
+%%                                       {host,"ahost"},
+%%                                       {port,4444}
+%%                                      ],
+%%                           args=undefined},
+%%                     ?debugVal(erbi:normalize_data_source( "erbi:epgsql:hostname=ahost;dbname=test_db;port=4444" )) )].
+%%
+%%
+%% connect_epgsql_test_()->
+%%     {setup,
+%%      fun()->
+%%              Config =?debugVal(erbi_test_util:config(epgsql)),
+%%              Datasource=proplists:get_value(datasource,Config),
+%%              User= proplists:get_value(user,Config),
+%%              Pwd= proplists:get_value(password,Config),
+%%              erbi_test_util:start_db_test(Datasource),
+%%              {Datasource,User,Pwd}
+%%      end,
+%%      fun({Datasource,User,Pwd})->
+%%              erbi_test_util:stop_db_test(Datasource)
+%%      end,
+%%      fun({Datasource,User,Pwd})->
+%%              [ ?_test( { ok, _ } = ?debugVal(erbi:connect( Datasource, User, Pwd )) ),
+%%                ?_test( { error, _ } = ?debugVal(erbi:connect( "erbi:epgsql:database=mydatabase", "", "" )) ),
+%%                % epgsql driver does not require database name -- why add this restriction?
+%%                %?_assertEqual( { error,
+%%                %                 {invalid_datasource,
+%%                %                  {missing_properties,[database]}} } ,
+%%                %               ?debugVal(erbi:connect( "erbi:epgsql:", "postgres", "pass" )) ),
+%%
+%%                ?_test({error,{unknown_host,_}}= ?debugVal(erbi:connect( "erbi:epgsql:database=mydatabase;host=myhost", "postgres", "pass" )) )
+%%              ]
+%%      end
+%%     }.
 
 
 all_test_()->
@@ -72,7 +72,7 @@ all_test_()->
                             erbi_transaction(Conn,Config,DataConfig),
                             erbi_selectall(Conn,DataConfig),
                             erbi_selectrow(Conn,DataConfig),
-                            get_some_errors(Conn,Config,DataConfig),
+                            get_some_errors(Conn,Config,DataConfig, not_pooled),
                             null_value_test(Conn,DataConfig),
                             delete_table(Conn,DataConfig),
                             timestamp_test(Conn),
@@ -104,7 +104,7 @@ all_with_pools_test_()->
                             erbi_transaction(Conn,Config,DataConfig),
                             erbi_selectall(Conn,DataConfig),
                             erbi_selectrow(Conn,DataConfig),
-                            get_some_errors(Conn,Config,DataConfig),
+                            get_some_errors(Conn,Config,DataConfig, pooled),
                             null_value_test(Conn,DataConfig),
                             delete_table(Conn,DataConfig),
                             timestamp_test(Conn),
@@ -253,7 +253,7 @@ erbi_selectrow(Conn,DataConfig)->
      end
     }.
 
-get_some_errors(Conn,Config,DataConfig)->
+get_some_errors(Conn,Config,DataConfig,Pooled)->
     {setup,
      fun()->
              SelectBind=proplists:get_value(select_one_bind,DataConfig),
@@ -266,13 +266,17 @@ get_some_errors(Conn,Config,DataConfig)->
      fun({SelectBind,SelectMany,TmpConn})->
              [?_test({error,{missing_parameter,_}}= ?debugVal(erbi_connection:selectrow_list(Conn,SelectBind,[]))),
               ?_test({error,{syntax_error,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values 1 ,2"))),
-              ?_test({error,{unknown_table,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values (1 ,2)"))),
-              ?_assertException(exit,{noproc,_},?debugVal(erbi_connection:selectall_list(TmpConn,SelectMany))) %this should crash/return error
-
+              ?_test({error,{unknown_table,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values (1 ,2)"))) |
+              if_not_pooled(Pooled, ?_assertException(exit,{noproc,_},?debugVal(erbi_connection:selectall_list(TmpConn,SelectMany))))
              ]
      end
     }.
 
+
+if_not_pooled(not_pooled, Item) ->
+    [Item];
+if_not_pooled(pooled, _Item) ->
+    [].
 
 disconnect_epgsql(Conn)->
     ?_assertEqual(ok, ?debugVal(erbi_connection:disconnect(Conn))).
