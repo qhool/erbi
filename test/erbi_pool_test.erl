@@ -22,9 +22,8 @@ start() ->
 %%     dbg:tracer(),
 %%     dbg:p(all, c),
 %%     dbg:tpl(erbi_sup, x),
-    {ok, SPid} = erbi_sup:start_link([
-        {"erbi:dummy:pool_name=test0;pool_size=2;pool_max_overflow=0"},
-        {"erbi:dummy:pool_name=test1;pool_size=1;pool_max_overflow=1"}]),
+    {ok, SPid} = erbi_sup:start_link([{"erbi:dummy:pool_name=erbi_pool_test0;pool_size=2;pool_max_overflow=0"},
+                                      {"erbi:dummy:pool_name=erbi_pool_test1;pool_size=1;pool_max_overflow=1"}]),
     SPid.
 
 stop(_SPid) ->

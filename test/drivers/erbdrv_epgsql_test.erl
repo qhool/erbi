@@ -92,6 +92,7 @@ all_with_pools_test_()->
              {Conn,Config,DataConfig}
      end,
      fun({_Conn,Config,_DataConfig})->
+             application:stop(erbi),
              Datasource=proplists:get_value(datasource,Config),
              erbi_test_util:stop_db_test(Datasource)
      end,
