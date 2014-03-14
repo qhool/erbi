@@ -72,7 +72,39 @@ all_test_()->
                             erbi_transaction(Conn,Config,DataConfig),
                             erbi_selectall(Conn,DataConfig),
                             erbi_selectrow(Conn,DataConfig),
-                            get_some_errors(Conn,Config,DataConfig),
+                            get_some_errors(Conn,Config,DataConfig, not_pooled),
+                            null_value_test(Conn,DataConfig),
+                            delete_table(Conn,DataConfig),
+                            timestamp_test(Conn),
+                            disconnect_epgsql(Conn)
+                           ])
+     end
+    }.
+
+all_with_pools_test_()->
+    {setup,
+     fun()->
+             erbi:start(),
+             Config =erbi_test_util:config(epgsql_pooled),
+             start_db(Config),
+             Conn= connect(Config),
+             {_,DataConfig}=erbi_test_util:dataset(erbdrv_epgsql),
+             {Conn,Config,DataConfig}
+     end,
+     fun({_Conn,Config,_DataConfig})->
+             application:stop(erbi),
+             Datasource=proplists:get_value(datasource,Config),
+             erbi_test_util:stop_db_test(Datasource)
+     end,
+
+     fun({Conn,Config,DataConfig}) ->
+
+             lists:flatten([
+                            create_table(Conn,DataConfig),
+                            erbi_transaction(Conn,Config,DataConfig),
+                            erbi_selectall(Conn,DataConfig),
+                            erbi_selectrow(Conn,DataConfig),
+                            get_some_errors(Conn,Config,DataConfig, pooled),
                             null_value_test(Conn,DataConfig),
                             delete_table(Conn,DataConfig),
                             timestamp_test(Conn),
@@ -221,7 +253,7 @@ erbi_selectrow(Conn,DataConfig)->
      end
     }.
 
-get_some_errors(Conn,Config,DataConfig)->
+get_some_errors(Conn,Config,DataConfig,Pooled)->
     {setup,
      fun()->
              SelectBind=proplists:get_value(select_one_bind,DataConfig),
@@ -234,13 +266,17 @@ get_some_errors(Conn,Config,DataConfig)->
      fun({SelectBind,SelectMany,TmpConn})->
              [?_test({error,{missing_parameter,_}}= ?debugVal(erbi_connection:selectrow_list(Conn,SelectBind,[]))),
               ?_test({error,{syntax_error,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values 1 ,2"))),
-              ?_test({error,{unknown_table,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values (1 ,2)"))),
-              ?_assertException(exit,{noproc,_},?debugVal(erbi_connection:selectall_list(TmpConn,SelectMany))) %this should crash/return error
-
+              ?_test({error,{unknown_table,_}}=?debugVal(erbi_connection:do(Conn,"Insert into unknowntable (Id,val) values (1 ,2)"))) |
+              if_not_pooled(Pooled, ?_assertException(exit,{noproc,_},?debugVal(erbi_connection:selectall_list(TmpConn,SelectMany))))
              ]
      end
     }.
 
+
+if_not_pooled(not_pooled, Item) ->
+    [Item];
+if_not_pooled(pooled, _Item) ->
+    [].
 
 disconnect_epgsql(Conn)->
     ?_assertEqual(ok, ?debugVal(erbi_connection:disconnect(Conn))).

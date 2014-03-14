@@ -6,6 +6,9 @@
     stop/1,
     parse_temp_ds/1,
     data_dir/1]).
+
+-define(POOL_PROPS,[pool_name,pool_size,pool_max_overflow]).
+
 %%-----------------------------------------------
 %% TEMP DB DRIVER CALLS
 %%-----------------------------------------------
@@ -116,7 +119,12 @@ parse_temp_ds(StringDS) ->
 %hash_ds(DS) ->
 %    hash_ds(DS,all).
 hash_ds(#erbi{driver = DriverName, properties=PropList, args=Args},Length)->
-    Str = io_lib:format("erbi:~p:~p:~p",[DriverName,PropList,Args]),
+    PropList1 = lists:filter(fun
+                    ({Prop, _}) -> (not lists:member(Prop, ?POOL_PROPS));
+                    (_) -> true
+                 end, PropList),
+    %%io:format(user, "Props1: ~p~n", [PropList1]),
+    Str = io_lib:format("erbi:~p:~p:~p",[DriverName,PropList1,Args]),
     % / and + aren't incredibly filename-friendly
     Hash =
         lists:map( fun($/) -> $.;
