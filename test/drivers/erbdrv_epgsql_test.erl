@@ -5,50 +5,50 @@
 -include("erbi.hrl").
 
 
-%% connection_properties_test_()->
-%%
-%%     [?_assertEqual( #erbi{driver=epgsql,
-%%                           properties=[{database,"test_db"},
-%%                                       {host,"localhost"},
-%%                                       {port,5432}
-%%                                      ],
-%%                           args=undefined},
-%%                     ?debugVal(erbi:normalize_data_source( "erbi:epgsql:hostaddr=localhost;db=test_db" )) ),
-%%      ?_assertEqual( #erbi{driver=epgsql,
-%%                           properties=[{database,"test_db"},
-%%                                       {host,"ahost"},
-%%                                       {port,4444}
-%%                                      ],
-%%                           args=undefined},
-%%                     ?debugVal(erbi:normalize_data_source( "erbi:epgsql:hostname=ahost;dbname=test_db;port=4444" )) )].
-%%
-%%
-%% connect_epgsql_test_()->
-%%     {setup,
-%%      fun()->
-%%              Config =?debugVal(erbi_test_util:config(epgsql)),
-%%              Datasource=proplists:get_value(datasource,Config),
-%%              User= proplists:get_value(user,Config),
-%%              Pwd= proplists:get_value(password,Config),
-%%              erbi_test_util:start_db_test(Datasource),
-%%              {Datasource,User,Pwd}
-%%      end,
-%%      fun({Datasource,User,Pwd})->
-%%              erbi_test_util:stop_db_test(Datasource)
-%%      end,
-%%      fun({Datasource,User,Pwd})->
-%%              [ ?_test( { ok, _ } = ?debugVal(erbi:connect( Datasource, User, Pwd )) ),
-%%                ?_test( { error, _ } = ?debugVal(erbi:connect( "erbi:epgsql:database=mydatabase", "", "" )) ),
-%%                % epgsql driver does not require database name -- why add this restriction?
-%%                %?_assertEqual( { error,
-%%                %                 {invalid_datasource,
-%%                %                  {missing_properties,[database]}} } ,
-%%                %               ?debugVal(erbi:connect( "erbi:epgsql:", "postgres", "pass" )) ),
-%%
-%%                ?_test({error,{unknown_host,_}}= ?debugVal(erbi:connect( "erbi:epgsql:database=mydatabase;host=myhost", "postgres", "pass" )) )
-%%              ]
-%%      end
-%%     }.
+connection_properties_test_()->
+
+    [?_assertEqual( #erbi{driver=epgsql,
+                          properties=[{database,"test_db"},
+                                      {host,"localhost"},
+                                      {port,5432}
+                                     ],
+                          args=undefined},
+                    ?debugVal(erbi:normalize_data_source( "erbi:epgsql:hostaddr=localhost;db=test_db" )) ),
+     ?_assertEqual( #erbi{driver=epgsql,
+                          properties=[{database,"test_db"},
+                                      {host,"ahost"},
+                                      {port,4444}
+                                     ],
+                          args=undefined},
+                    ?debugVal(erbi:normalize_data_source( "erbi:epgsql:hostname=ahost;dbname=test_db;port=4444" )) )].
+
+
+connect_epgsql_test_()->
+    {setup,
+     fun()->
+             Config =?debugVal(erbi_test_util:config(epgsql)),
+             Datasource=proplists:get_value(datasource,Config),
+             User= proplists:get_value(user,Config),
+             Pwd= proplists:get_value(password,Config),
+             erbi_test_util:start_db_test(Datasource),
+             {Datasource,User,Pwd}
+     end,
+     fun({Datasource,User,Pwd})->
+             erbi_test_util:stop_db_test(Datasource)
+     end,
+     fun({Datasource,User,Pwd})->
+             [ ?_test( { ok, _ } = ?debugVal(erbi:connect( Datasource, User, Pwd )) ),
+               ?_test( { error, _ } = ?debugVal(erbi:connect( "erbi:epgsql:database=mydatabase", "", "" )) ),
+               % epgsql driver does not require database name -- why add this restriction?
+               %?_assertEqual( { error,
+               %                 {invalid_datasource,
+               %                  {missing_properties,[database]}} } ,
+               %               ?debugVal(erbi:connect( "erbi:epgsql:", "postgres", "pass" )) ),
+
+               ?_test({error,{unknown_host,_}}= ?debugVal(erbi:connect( "erbi:epgsql:database=mydatabase;host=myhost", "postgres", "pass" )) )
+             ]
+     end
+    }.
 
 
 all_test_()->

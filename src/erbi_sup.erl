@@ -17,9 +17,11 @@
 %%
 %% @private
 %% @doc
-%% Creates top level supervisor for erbi pools. If pools are used in your application
-%% you will have to fit this supervisor into the supervision tree of the host application.
-%% Supervisor will be locally registered, so
+%% Creates top level supervisor for erbi pools. If pools are used in your
+%% application you will have to fit this supervisor into the supervision
+%% tree of the host application. Supervisor will be locally registered.
+%% Supervisor's spec is {one_for_one, 10, 10}. Each child is a worker pool
+%% managed by poolboy.
 %% @end
 
 -module(erbi_sup).
