@@ -48,7 +48,7 @@ del_all_files([Dir | T], EmptyDirs) ->
                                 end, {[],[]}, FilesInDir),
     case search_dirs([],"sh") of
         {ok,Path} ->
-            exec_cmd(Path++"/sh",["-c","rm " ++ Dir ++ "/* " ++ Dir ++ "/.*"]);
+            exec_cmd(Path++"/sh",["-c","rm " ++ Dir ++ "/* " ++ Dir ++ "/.*" ++ " 2> /dev/null"]);
         _ ->
             lists:foreach(fun(F) ->
                                   ok = file:delete(F)

@@ -434,15 +434,38 @@ configure_datadir(PathBin,PathData)->
     ok.
 
 start_db_instance(PathBin,PathData,Port)->
-    io:format(user,"Starting temp postgres from ~p on port ~p~n",[PathData,Port]),
-    Postgres = PathBin++"/postgres",
-    Args = [ "-p", integer_to_list(Port),
-             "-c", "unix_socket_directory="++PathData,
-             "-D", PathData
+    Postgres = filename:join([PathBin, "postgres"]),
+    VArgs = [ "--version"
            ],
-    {ok,{os_pid,Pid},_} = erbi_temp_db_helpers:exec_cmd(Postgres,Args,nowait),
+    GetVersionFun =
+        fun(Output,Res) ->
+            case re:run(Output,"[0-9]+") of
+            {match,[{Start,Len}|_]} ->
+                Res++lists:sublist(Output,Start+1,length(Output)-Start-1);
+            _ ->
+                Res
+            end
+    end,
+    {ok,{exit_status,0},Version} = erbi_temp_db_helpers:exec_cmd(Postgres,VArgs,{GetVersionFun,""}, standard_io),
+    io:format(user,"Starting temp postgres from ~p on port ~p version ~p~n",[PathData,Port,Version]),
+    SArgs = build_start_db_args(Version, 
+                                [{port, integer_to_list(Port)}, 
+                                 {unix_socket_directory, PathData},
+                                 {path_data, PathData}]),
+    {ok,{os_pid,Pid},_} = erbi_temp_db_helpers:exec_cmd(Postgres,SArgs,nowait),
     ok=wait_for_db_started(PathBin,Port),
     Pid.
+
+build_start_db_args("9.3.3", PList) ->
+    [ "-p", proplists:get_value(port, PList),
+      "-c", "unix_socket_directories="++proplists:get_value(unix_socket_directory, PList),
+      "-D", proplists:get_value(path_data, PList)
+    ];
+build_start_db_args(_Version, PList) ->
+    [ "-p", proplists:get_value(port, PList),
+      "-c", "unix_socket_directory="++proplists:get_value(unix_socket_directory, PList),
+      "-D", proplists:get_value(path_data, PList)
+    ].
 
 initialize_db(PropList,PathBin,Port)->
     InitFiles= proplists:get_value(init_files,PropList,[]),
