@@ -490,6 +490,8 @@ get_free_db_port()->
 
 translate_error(invalid_password=Error) ->
     {invalid_credentials,Error};
+translate_error(invalid_authorization_specification=Error)->
+    {Error,   invalid_credentials};
 translate_error({{badmatch,{error,econnrefused}},_}=Error) ->
     {connection_refused,Error};
 translate_error({{badmatch,{error,nxdomain}},_}=Error) ->

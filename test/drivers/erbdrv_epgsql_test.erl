@@ -441,11 +441,13 @@ temp_epgsql_autoclean_on_start_test_()->
              Datasource = "erbi:temp:base_driver=epgsql;auto_clean=false;
                 data_dir="++
                  proplists:get_value(data_dir,Config,""),
-              erbi_temp_db:start(Datasource),
+             os:cmd("rm -rf "++erbi_temp_db:data_dir(Datasource)),
+             erbi_temp_db:start(Datasource),
              Datasource
      end,
      fun(Datasource)->
-        erbi_temp_db:stop(Datasource)
+        erbi_temp_db:stop(Datasource),
+        os:cmd("rm -rf "++erbi_temp_db:data_dir(Datasource))
     end,
      fun(Datasource)->
              [?_assertException(error,{badmatch,{ok,{exit_status,1},undefined}}, erbi_temp_db:start(Datasource)), % Cleans previous instance and starts another
