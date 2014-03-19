@@ -45,7 +45,7 @@ connect_epgsql_test_()->
                %                  {missing_properties,[database]}} } ,
                %               ?debugVal(erbi:connect( "erbi:epgsql:", "postgres", "pass" )) ),
 
-               ?_test({error,{unknown_host,_}}= ?debugVal(erbi:connect( "erbi:epgsql:database=mydatabase;host=myhost", "postgres", "pass" )) )
+               {timeout, 500,?_test({error,{unknown_host,_}}= ?debugVal(erbi:connect( "erbi:epgsql:database=mydatabase;host=myhost", "postgres", "pass" )) )}
              ]
      end
     }.
