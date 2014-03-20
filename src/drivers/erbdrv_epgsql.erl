@@ -200,12 +200,15 @@ finish(Connection,_) ->
 -define(PORT_FILE,"tmp_db.port").
 -define(POSSIBLE_BIN_DIRS,["/usr/bin/pgsql/bin/",
                           "/usr/sbin/pgsql/bin/",
+                          "/usr/lib/postgresql/9.3/bin/",
                           "/usr/lib/postgresql/9.2/bin/",
                           "/usr/lib/postgresql/9.1/bin/",
                           "/usr/local/pgsql/bin/",
                           "/usr/local/bin/pgsql/bin/",
+                          "/usr/pgsql-9.3/bin",
                           "/usr/pgsql-9.2/bin",
                           "/usr/pgsql-9.1/bin",
+                          "/Library/PostgreSQL/9.3/bin/",
                           "/Library/PostgreSQL/9.2/bin/",
                           "/Library/PostgreSQL/9.1/bin/"
                           ]).
@@ -435,14 +438,40 @@ configure_datadir(PathBin,PathData)->
 
 start_db_instance(PathBin,PathData,Port)->
     io:format(user,"Starting temp postgres from ~p on port ~p~n",[PathData,Port]),
-    Postgres = PathBin++"/postgres",
-    Args = [ "-p", integer_to_list(Port),
-             "-c", "unix_socket_directory="++PathData,
-             "-D", PathData
-           ],
+    Postgres = filename:join([PathBin, "postgres"]),
+    Ver = get_postgress_version(Postgres),
+    io:format(user,"Detected postgres version: ~p~n", [Ver]),
+    Args = db_instance_args(Ver,PathData,Port),
     {ok,{os_pid,Pid},_} = erbi_temp_db_helpers:exec_cmd(Postgres,Args,nowait),
     ok=wait_for_db_started(PathBin,Port),
     Pid.
+
+to_int(Value) ->
+    try list_to_integer(Value)
+    catch error:badarg -> undefined
+    end.
+
+get_postgress_version(Postgres) ->
+    ParseFun = fun(Output,_Res) ->
+        RegEx = "^postgres[^0-9]*\([0-9]+\)\.\([0-9]+\)\.?\([0-9]*\)[ \n\r]*$",
+        case re:run(Output,RegEx,[{capture,all,list}]) of
+            {match,[_,H,M,L]} -> {to_int(H),to_int(M),to_int(L)};
+            _ -> undefined
+        end
+    end,
+    Args = ["--version"],
+    {ok,{exit_status,0},Ver} =
+        erbi_temp_db_helpers:exec_cmd(Postgres,Args,{ParseFun,""},standard_io),
+    Ver.
+
+db_instance_args(Ver, Path, Port) when Ver =/= undefined, Ver >= {9, 3, 0} ->
+   ["-p", integer_to_list(Port),
+     "-c", "unix_socket_directories="++Path,
+     "-D", Path];
+db_instance_args(_Ver, Path, Port) ->
+   ["-p", integer_to_list(Port),
+     "-c", "unix_socket_directory="++Path,
+     "-D", Path].
 
 initialize_db(PropList,PathBin,Port)->
     InitFiles= proplists:get_value(init_files,PropList,[]),
