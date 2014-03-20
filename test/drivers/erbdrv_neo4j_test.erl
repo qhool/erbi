@@ -196,7 +196,7 @@ basic_crud(Type,{_Config,Conn,TestKey}) ->
       },
       { "check node" ++ TypeStr,
         ?_assertEqual
-           ( {ok,[{<<"n.erbi_test">>,list_to_binary(TestKey)},{<<"n.val">>,7}]},
+           ( {ok,[{<<"n.erbi_test">>,TestKey},{<<"n.val">>,7}]},
              ?debugVal( erbi_connection:selectrow_proplist
                           (Conn,"start n=node(*) where n.erbi_test = {key} and n.val = {val} return n.erbi_test, n.val",
                            [{key,TestKey},{val,7}]) ) )
@@ -248,11 +248,13 @@ basic_crud(Type,{_Config,Conn,TestKey}) ->
 
 gen_test_key() ->
     random:seed(now()),
-    string:join(
-      lists:map(
-        fun erlang:integer_to_list/1,
+    iolist_to_binary(
+      string:join(
         lists:map(
-          fun random:uniform/1, lists:duplicate(5,1000))),".").
+          fun erlang:integer_to_list/1,
+          lists:map(
+            fun random:uniform/1, lists:duplicate(5,1000))),".")
+     ).
 
 connect_temp_neo4j_test_()->
     {setup,
