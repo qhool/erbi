@@ -254,18 +254,13 @@ get_temp_connect_data(ErbiDataSource,DataDir,UserName,Password)->
 format_query({QAtom,Query},{PAtom,Params}) ->
     Query1 = case Query of
                  X when is_binary(X) -> X;
-                 _ -> list_to_binary(Query)
+                 _ -> iolist_to_binary(Query)
              end,
     Q = [{QAtom,Query1}],
     QParams = case Params of
                   [] -> [];
                   _ ->
-                      BinParams =
-                          lists:map( fun ({P,V}) when is_list(V) ->
-                                             {P,list_to_binary(V)};
-                                         (X) -> X
-                                     end, Params ),
-                      [{PAtom,BinParams}]
+                      [{PAtom,Params}]
               end,
     %% neo4j cares about the order
     Q++QParams.
