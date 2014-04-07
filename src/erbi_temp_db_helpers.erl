@@ -28,14 +28,14 @@ create_dir(Dir)->
 
 del_dir(Dir) ->
    lists:foreach(fun(D) ->
-                         io:format(standard_error,"del_dir ~p~n",[D]),
+                         %io:format(standard_error,"del_dir ~p~n",[D]),
                          ok = file:del_dir(D)
                  end, del_all_files([Dir], [])).
 
 del_all_files([], EmptyDirs) ->
     EmptyDirs;
 del_all_files([Dir | T], EmptyDirs) ->
-    io:format(standard_error,"deleting files in ~p~n",[Dir]),
+    %io:format(standard_error,"deleting files in ~p~n",[Dir]),
     {ok, FilesInDir} = file:list_dir(Dir),
     {Files, Dirs} = lists:foldl(fun(F, {Fs, Ds}) ->
                                         Path = Dir ++ "/" ++ F,
@@ -48,7 +48,8 @@ del_all_files([Dir | T], EmptyDirs) ->
                                 end, {[],[]}, FilesInDir),
     case search_dirs([],"sh") of
         {ok,Path} ->
-            exec_cmd(Path++"/sh",["-c","rm " ++ Dir ++ "/* " ++ Dir ++ "/.*"]);
+            exec_cmd(Path++"/sh",["-c","rm -f " ++ Dir ++ "/* " ++ Dir ++ "/.*"], 
+                     filter_scanner(nomatch,["Is a directory"]),none);
         _ ->
             lists:foreach(fun(F) ->
                                   ok = file:delete(F)
@@ -138,6 +139,52 @@ wait_for(Fun,Error, Interval, Tries) ->
 getenv(#erbi{driver=Driver},Key) ->
     EnvName = "ERBI_TEMPDB_" ++ string:to_upper(atom_to_list(Key) ++ "_" ++ atom_to_list(Driver)),
     os:getenv(EnvName).
+
+%% @doc logger generator for exec_cmd
+%%
+%%
+%% @end
+
+filter_scanner(Mode,Pattern) ->
+    filter_scanner(Mode,Pattern,fun(Str) ->
+                                        io:format(standard_error,"~s",Str)
+                                end).
+
+filter_scanner(Mode,Patterns,OutFun) ->
+    CPatns = lists:map( fun({Patn,Opts}) ->
+                                {ok,C} = re:compile(Patn,Opts),
+                                C;
+                           (Patn) ->
+                                {ok,C} = re:compile(Patn),
+                                C
+                        end,Patterns ),
+    AnyAll = case Mode of
+                 match -> any;
+                 nomatch -> all
+             end,
+    {ok,LineRe} = re:compile("\n"),
+    F = fun(Data,Acc) ->
+                Acc0 = Acc++Data,
+                {Lines,Acc1} = pop(re:split(Acc0,LineRe)),
+                lists:foreach(fun(<<>>) ->
+                                      ok;
+                                 (Line) ->
+                                      case lists:AnyAll(fun(P) -> Mode =:= re:run(Line,P,[{capture,none}]) end,
+                                                        CPatns) of
+                                          true -> OutFun(binary_to_list(Line)++"\n");
+                                          _ -> ok
+                                      end
+                              end,Lines),
+                binary_to_list(Acc1)
+        end,
+    {F,""}.
+
+pop(T) ->
+    pop(T,[]).
+pop([Last],Front) ->
+    {lists:reverse(Front),Last};
+pop([A|As],Front) ->
+    pop(As,[A|Front]).
 
 %%@doc execute command, returning OS PID
 %%
@@ -231,7 +278,7 @@ exec_cmd( Command, Args, {Scanner,Acc}, Output ) ->
     OutFun =
         case Output of
             none ->
-                fun(_) ->
+                fun(_,_) ->
                         ok
                 end;
             H when is_atom(H) ->
@@ -302,7 +349,6 @@ output_loop(SpawnPid,OSPid,Scanner,Acc,Msg) ->
         Other ->
             Other
     end.
-
 
 port_loop(Port,Parent,Ident,Logger) ->
     receive
