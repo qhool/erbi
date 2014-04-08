@@ -316,8 +316,8 @@ exec_cmd( Command, Args, {Scanner,Acc}, Output ) ->
                         io:format(Output,Fmt,Dat)
                 end;
             F1 when is_function(F1,1) ->
-                fun(Fmt,Args) ->
-                        F1(io_lib:format(Fmt,Args))
+                fun(Fmt,Dat) ->
+                        F1(io_lib:format(Fmt,Dat))
                 end;
             F2 when is_function(F2,2) ->
                 F2
