@@ -15,6 +15,8 @@
          search_dirs/2,
          wait_for/4,
          getenv/2,
+         filter_scanner/2, filter_scanner/3,
+         filter_logger/2, filter_logger/3,
          exec_cmd/2, exec_cmd/3, exec_cmd/4
 	]).
 
@@ -145,12 +147,27 @@ getenv(#erbi{driver=Driver},Key) ->
 %%
 %% @end
 
-filter_scanner(Mode,Pattern) ->
-    filter_scanner(Mode,Pattern,fun(Str) ->
-                                        io:format(standard_error,"~s",Str)
+filter_scanner(Mode,Patterns) ->
+    filter_scanner(Mode,Patterns,fun(Str) ->
+                                        io:format(standard_error,"~s",[Str])
+                                end).
+filter_scanner(Mode,Patterns,OutFun) ->
+    {filter_scanfn(Mode,Patterns,OutFun),""}.
+
+filter_logger(Mode,Patterns) ->
+    filter_logger(Mode,Patterns,fun(Str) ->
+                                        io:format(standard_error,"~s",[Str])
                                 end).
 
-filter_scanner(Mode,Patterns,OutFun) ->
+filter_logger(Mode,Patterns,OutFun) ->
+    ScanFn = filter_scanfn(Mode,Patterns,OutFun),
+    fun("~s",[Line]) ->
+            ScanFn(Line,"");
+       (_,_) ->
+            ok
+    end.
+
+filter_scanfn(Mode,Patterns,OutFun) ->
     CPatns = lists:map( fun({Patn,Opts}) ->
                                 {ok,C} = re:compile(Patn,Opts),
                                 C;
@@ -163,21 +180,20 @@ filter_scanner(Mode,Patterns,OutFun) ->
                  nomatch -> all
              end,
     {ok,LineRe} = re:compile("\n"),
-    F = fun(Data,Acc) ->
-                Acc0 = Acc++Data,
-                {Lines,Acc1} = pop(re:split(Acc0,LineRe)),
-                lists:foreach(fun(<<>>) ->
-                                      ok;
-                                 (Line) ->
-                                      case lists:AnyAll(fun(P) -> Mode =:= re:run(Line,P,[{capture,none}]) end,
-                                                        CPatns) of
-                                          true -> OutFun(binary_to_list(Line)++"\n");
-                                          _ -> ok
-                                      end
-                              end,Lines),
-                binary_to_list(Acc1)
-        end,
-    {F,""}.
+    fun(Data,Acc) ->
+            Acc0 = Acc++Data,
+            {Lines,Acc1} = pop(re:split(Acc0,LineRe)),
+            lists:foreach(fun(<<>>) ->
+                                  ok;
+                             (Line) ->
+                                  case lists:AnyAll(fun(P) -> Mode =:= re:run(Line,P,[{capture,none}]) end,
+                                                    CPatns) of
+                                      true -> OutFun(binary_to_list(Line)++"\n");
+                                      _ -> ok
+                                  end
+                          end,Lines),
+            binary_to_list(Acc1)
+    end.
 
 pop(T) ->
     pop(T,[]).
@@ -202,27 +218,30 @@ pop([A|As],Front) ->
 exec_cmd( Command, Args ) ->
     exec_cmd(Command,Args,wait).
 
+
 -spec exec_cmd( Command :: unicode:chardata(),
                 Args :: [unicode:chardata()],
                 wait | nowait | {exec_cmd_scanfn(),any()}
               ) -> exec_cmd_return().
 
-
-exec_cmd( Command, Args, wait ) ->
-    WaitScanner =
-        fun(_Data,_Acc) ->
-                undefined %returning undefined means output processor goes until exit.
+exec_cmd( Command, Args, quiet ) ->
+    AccWait =
+        fun(Data,Acc) ->
+                Data++Acc
         end,
-    exec_cmd( Command, Args, {WaitScanner,undefined}, standard_error );
-exec_cmd( Command, Args, nowait ) ->
-    NoWaitScanner =
-        fun(_Data,_Acc) ->
-                {ok,undefined} % returning {ok,Acc} ends scanning phase
-        end,
-    exec_cmd( Command, Args, {NoWaitScanner,undefined}, standard_error );
-exec_cmd( Command, Args, {Scanner,Acc} ) ->
-    exec_cmd( Command, Args, {Scanner,Acc}, standard_error ).
-
+    StrCmd = string:join( lists:map( fun unicode:characters_to_list/1,
+                                     [Command|Args] ), " " ),
+    case exec_cmd(Command, Args, {AccWait,""}, none) of
+        {ok,{exit_status,0},_} = Ret -> Ret;
+        {ok,{exit_status,Status},Out} = Ret ->
+            io:format(standard_error,"Non-zero exit (~p) from ~p:~n~s",[Status,StrCmd,Out]),
+            Ret;
+        Other -> Other
+    end;
+exec_cmd( Command, Args, Logger ) when is_function(Logger) ->
+    exec_cmd( Command, Args, wait, Logger);
+exec_cmd( Command, Args, Scanner ) ->
+    exec_cmd( Command, Args, Scanner, standard_error ).
 
 %%@doc execute command, with processing of output
 %%
@@ -271,7 +290,18 @@ exec_cmd( Command, Args, {Scanner,Acc} ) ->
                 none | io:device()
               ) -> exec_cmd_return().
 
-
+exec_cmd( Command, Args, wait, Output ) ->
+    WaitScanner =
+        fun(_Data,_Acc) ->
+                undefined %returning undefined means output processor goes until exit.
+        end,
+    exec_cmd( Command, Args, {WaitScanner,""}, Output );
+exec_cmd( Command, Args, nowait, Output ) ->
+    NoWaitScanner =
+        fun(_Data,_Acc) ->
+                {ok,undefined} % returning {ok,Acc} ends scanning phase
+        end,
+    exec_cmd( Command, Args, {NoWaitScanner,undefined}, Output );
 exec_cmd( Command, Args, {Scanner,Acc}, Output ) ->
     StrCmd = string:join( lists:map( fun unicode:characters_to_list/1,
                                      [Command|Args] ), " " ),
@@ -284,7 +314,13 @@ exec_cmd( Command, Args, {Scanner,Acc}, Output ) ->
             H when is_atom(H) ->
                 fun(Fmt,Dat) ->
                         io:format(Output,Fmt,Dat)
-                end
+                end;
+            F1 when is_function(F1,1) ->
+                fun(Fmt,Args) ->
+                        F1(io_lib:format(Fmt,Args))
+                end;
+            F2 when is_function(F2,2) ->
+                F2
         end,
     TopPid = self(),
     {SpawnPid,_Mon} =

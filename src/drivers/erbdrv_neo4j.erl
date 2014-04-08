@@ -284,6 +284,7 @@ do_req(Method,Conn,Url,Statuses,ReqBody,Func) ->
 rest_response(#neocon{type=Type},Func,RestStat) ->
     rest_response(Type,Func,RestStat);
 rest_response(_,Func,{_,Stat,Headers,Body}) when (Stat >= 200) and (Stat < 300) ->
+    %io:format(user,"response ~p:~n~p",[Stat,Body]),
     case proplists:get_value(<<"errors">>,Body) of
         X when X =:= [] ; X =:= undefined ->
             Func(Stat,Headers,Body);
@@ -445,7 +446,7 @@ stop_db_instance(DataDir)->
     end.
 
 exec_neo4j_server_cmd(DataDir,NeoCmd) ->
-    erbi_temp_db_helpers:exec_cmd(DataDir++"/bin/neo4j",[NeoCmd]).
+    erbi_temp_db_helpers:exec_cmd(DataDir++"/bin/neo4j",[NeoCmd],quiet).
 
 wait_for_db_started(Port)->
     wait_for_db_state(Port,started,[200],{error,db_not_started}).
@@ -488,11 +489,11 @@ ensure_started(App) ->
 initialize_db(PropList,PathData)->
     InitFiles= proplists:get_value(init_files,PropList,[]),
     lists:map(fun(File)->
-                      Cmd = PathData++"/bin/neo4j-shell -path "++PathData++
-                          "/"++?DB_DATA_DIR++
-                          " -config "++PathData++"/conf/ -file "++File,
-                      io:format(user,"Executing ~s:~n",[Cmd]),
-                      io:format(user,"~s",[os:cmd(Cmd)])
+                      erbi_temp_db_helpers:exec_cmd(PathData++"/bin/neo4j-shell",
+                                                    [ "-path", PathData++"/"++?DB_DATA_DIR,
+                                                      " -config", PathData++"/conf/", "-file", File ],
+                                                    quiet
+                                                   )
               end,InitFiles),
     ok.
 

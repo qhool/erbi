@@ -393,12 +393,12 @@ handle_call({driver_call,StmtID,Func,Args},_From,#connect_state{ module = Module
     Handle = get_stmt_handle(State,StmtID),
     proc_return(apply(Module,Func,[Conn,Handle]++Args),State,StmtID);
 handle_call(reset,_From,#connect_state{statements=Tbl}=State) ->
-    IDHandles = erbi_stmt_store:reset_all(Tbl),
+    Handles = erbi_stmt_store:reset_all(Tbl),
     lists:foldl( fun(_,{stop,Reason}) ->
                          {stop,Reason}; %after one error, just shut the whole thing down
-                    ({ID,H},{reply,_,State1}) ->
-                         proc_return(call_driver(State1,finish,H),State1,ID)
-                 end, {reply,ok,State}, IDHandles ).
+                    (H,{reply,_,State1}) ->
+                         proc_return(call_driver(State1,finish,H),State1,none)
+                 end, {reply,ok,State}, Handles ).
 
 handle_cast(disconnect,State) ->
     {stop,normal,State};

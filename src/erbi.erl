@@ -194,10 +194,7 @@ start(_StartType, _StartArgs) ->
                     undefined -> [];
                     {ok, Value} -> Value
                 end,
-    case erbi_sup:start_link(ErbiPools) of
-        {ok, Pid} -> {ok, Pid};
-        Error -> Error
-    end.
+    erbi_sup:start_link(ErbiPools).
 
 %%--------------------------------------------------------------------
 %% @private

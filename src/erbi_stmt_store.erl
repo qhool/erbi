@@ -67,7 +67,7 @@
           raw_query                     :: binary() | string(),
           bound     = false             :: boolean(),
           columns                       :: list(),
-          params                        :: list()
+          params    = []                :: list()
          }).
 
 
@@ -126,7 +126,7 @@ reset_statement(Tbl,Statement) ->
                                                {#stmt.last, ?INIT_LAST},
                                                {#stmt.is_final, Handle =:= undefined},
                                                {#stmt.bound, false},
-                                               {#stmt.params, undefined}]),
+                                               {#stmt.params, []}]),
             Handle;
         _ ->
             undefined
@@ -134,18 +134,17 @@ reset_statement(Tbl,Statement) ->
 
 reset_all(Tbl) ->
     Res = ets:select( Tbl, ets:fun2ms(fun(#stmt{tid=ST,handle=H}) -> {ST,H} end), ?STMT_BATCH_SIZE),
-    ets:delete_all_objects(Tbl),
-    ets:insert(Tbl,{next_id,next_id,0}),
-    reset_all(Res,[]).
-reset_all({[{StmtTbl,Handle}|Rest],Continue},Handles) ->
-    ets:delete(StmtTbl),
+    reset_all(Tbl,Res,[]).
+reset_all(Tbl,{[{StmtTbl,Handle}|Rest],Continue},Handles) ->
+    catch(ets:delete(StmtTbl)),
     case Handle of
-        undefined -> reset_all({Rest,Continue},Handles);
-        _ -> reset_all({Rest,Continue},[Handle|Handles])
+        undefined -> reset_all(Tbl,{Rest,Continue},Handles);
+        _ -> reset_all(Tbl,{Rest,Continue},[Handle|Handles])
     end;
-reset_all({[],Continue},Handles) ->
-    reset_all(ets:select(Continue),Handles);
-reset_all('$end_of_table',Handles) ->
+reset_all(Tbl,{[],Continue},Handles) ->
+    reset_all(Tbl,ets:select(Continue),Handles);
+reset_all(Tbl,'$end_of_table',Handles) ->
+    ets:delete_all_objects(Tbl),
     Handles.
 
 
