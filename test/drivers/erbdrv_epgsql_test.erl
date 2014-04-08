@@ -84,7 +84,7 @@ all_test_()->
 all_with_pools_test_()->
     {setup,
      fun()->
-             ok = erbi:start(),
+             erbi:start(),
              Config =erbi_test_util:config(epgsql_pooled),
              start_db(Config),
              Conn= connect(Config),

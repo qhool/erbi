@@ -38,7 +38,12 @@
 %% @end
 %% --------------------------------------
 -spec start() -> 'ok' | {'error', _Reason}.
-start() -> application:start(erbi).
+start() ->
+    case application:start(erbi) of
+        {error,{{already_started,_},_}} ->
+            ok;
+        R -> R
+    end.
 
 %% --------------------------------------
 %% @doc Connect to a database.
