@@ -133,20 +133,17 @@ reset_statement(Tbl,Statement) ->
     end.
 
 reset_all(Tbl) ->
-    Res = ets:select( Tbl, ets:fun2ms(fun(#stmt{tid=ST,handle=H}) -> {ST,H} end), ?STMT_BATCH_SIZE),
-    reset_all(Tbl,Res,[]).
-reset_all(Tbl,{[{StmtTbl,Handle}|Rest],Continue},Handles) ->
+    Stmts = ets:tab2list(Tbl),
+    reset_all(Tbl,Stmts,[]).
+reset_all(Tbl,[#stmt{tid=StmtTbl,handle=Handle}|Rest],Handles) ->
     catch(ets:delete(StmtTbl)),
     case Handle of
-        undefined -> reset_all(Tbl,{Rest,Continue},Handles);
-        _ -> reset_all(Tbl,{Rest,Continue},[Handle|Handles])
+        undefined -> reset_all(Tbl,Rest,Handles);
+        _ -> reset_all(Tbl,Rest,[Handle|Handles])
     end;
-reset_all(Tbl,{[],Continue},Handles) ->
-    reset_all(Tbl,ets:select(Continue),Handles);
-reset_all(Tbl,'$end_of_table',Handles) ->
+reset_all(Tbl,[],Handles) ->
     ets:delete_all_objects(Tbl),
     Handles.
-
 
 get( _Tbl, Statement, Row ) when is_integer(Row) ->
     ets:lookup_element( Statement, Row, 2 );
