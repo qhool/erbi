@@ -608,7 +608,8 @@ update_state( #erbdrv{ conn = NewConn, stmt = Stmt, info = NewInfo },
                 StmtID;
             {_,same} ->
                 StmtID;
-            {ID,Handle} when ID =:= new, Handle =/= undefined -> %new statement
+            {ID,Handle} when ID =:= new orelse ID =:= undefined,
+                             Handle =/= undefined -> %new statement
                 erbi_stmt_store:add_statement( Tbl, Handle );
             {ID,NewHandle} when ID =/= new, ID =/= undefined ->
                 ok = erbi_stmt_store:set( Tbl, ID, handle, NewHandle ),

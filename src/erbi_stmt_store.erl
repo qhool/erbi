@@ -105,7 +105,7 @@ init_unprotected() ->
 
 add_statement(Tbl,Handle) ->
     % if there's no handle, statement is final by default
-    IsFinal = Handle =:= undefined,
+    IsFinal = Handle =:= final orelse Handle =:= undefined,
     Statement = ets:new(rows,?STMT_TBL_OPTS(Tbl)),
     true = ets:insert( Tbl, [#stmt{ tid = Statement,
                                     handle = Handle,

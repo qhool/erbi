@@ -178,7 +178,7 @@ execute( #neocon{type=cypher, url=Url}=C, Query, Params ) ->
                                                      (_,Sum) -> Sum
                                                   end,0,Stats)
                               end,
-                   #erbdrv{status=ok,rows=RowCount,data={Cols,Rows}}
+                   #erbdrv{status=ok,rows=RowCount,stmt=final,data={Cols,Rows}}
            end);
 execute( #neocon{trans = Trans, url=Url}=C, Query, Params ) ->
     ToUrl =
@@ -196,7 +196,7 @@ execute( #neocon{trans = Trans, url=Url}=C, Query, Params ) ->
                    Cols = proplists:get_value(<<"columns">>,Result,[]),
                    %handle different output formats
                    Rows = extract_rows(Result),
-                   #erbdrv{status=ok,rows=length(Rows),data={Cols,Rows}}
+                   #erbdrv{status=ok,rows=length(Rows),stmt=final,data={Cols,Rows}}
            end).
 
 fetch_rows(_,_,_) ->
