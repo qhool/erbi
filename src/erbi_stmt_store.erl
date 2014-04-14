@@ -52,114 +52,146 @@
 -export([init_unprotected/0]).
 -endif.
 
--define(COUNTERS_INIT(ID,FIN),  {{ID,counters},0, 0, -1, FIN} ).
+-define(INIT_FIRST,0).
+-define(INIT_CURRENT,0).
+-define(INIT_LAST,-1).
+-define(STMT_BATCH_SIZE,20).
 
+-record(stmt,{
+          tid                           :: ets:tid(),
+          first     = ?INIT_FIRST       :: integer(),  %% <-+-counters
+          current   = ?INIT_CURRENT     :: integer(),  %% <-|
+          last      = ?INIT_LAST        :: integer(),  %% <-|
+          is_final                      :: boolean(),  %% <-+
+          handle                        :: any(),
+          raw_query                     :: binary() | string(),
+          bound     = false             :: boolean(),
+          columns                       :: list(),
+          params    = []                :: list()
+         }).
+
+
+-define(KEY_TO_IDX(X),case X of
+                          tid ->        #stmt.tid;
+                          first ->      #stmt.first;
+                          current ->    #stmt.current;
+                          last ->       #stmt.last;
+                          is_final ->   #stmt.is_final;
+                          handle ->     #stmt.handle;
+                          raw_query ->  #stmt.raw_query;
+                          bound ->      #stmt.bound;
+                          columns ->    #stmt.columns;
+                          params ->     #stmt.params
+                      end).
+
+
+%-define(COUNTERS_INIT(ID,FIN),  {{ID,counters},0, 0, -1, FIN} ).
 init_store() ->
     init_store([protected]).
 init_store(Opts) ->
-    Tbl = ets:new(statements,[set]++Opts),
-    true = ets:insert( Tbl, {next_id,0} ),
-    Tbl.
+    ets:new(statements,[set,{keypos,2}]++Opts).
 -ifdef(TEST).
 init_unprotected() ->
     init_store([public]).
 -endif.
 
+-ifdef(TEST).
+-define(STMT_TBL_OPTS(Tbl),[proplists:get_value(protection,ets:info(Tbl)),set]).
+-else.
+-define(STMT_TBL_OPTS(_),[protected,set]).
+-endif.
+
+
+
 add_statement(Tbl,Handle) ->
-    NextID = ets:update_counter(Tbl, next_id, {2,1}),
     % if there's no handle, statement is final by default
-    IsFinal = Handle =:= undefined,
-    true = ets:insert( Tbl, [{{NextID,handle},Handle},
-                             ?COUNTERS_INIT(NextID,IsFinal)] ),
-    NextID.
+    IsFinal = Handle =:= final orelse Handle =:= undefined,
+    Statement = ets:new(rows,?STMT_TBL_OPTS(Tbl)),
+    true = ets:insert( Tbl, [#stmt{ tid = Statement,
+                                    handle = Handle,
+                                    is_final = IsFinal }] ),
+    Statement.
 
 -spec reset_statement( Tbl :: ets:tid(),
-                       StmtID :: pos_integer() ) ->
+                       Statement :: ets:tid() ) ->
                              erbdrv_statement() | undefined.
 
-reset_statement(Tbl,StmtID) ->
-    Handle = get(Tbl,StmtID,handle),
-    IsFinal = Handle =:= undefined,
-    % really an update
-    ets:insert( Tbl, ?COUNTERS_INIT(StmtID,IsFinal) ),
-    %delete cached rows
-    ets:select_delete( Tbl, ets:fun2ms(fun({{ID,N},_}) when ID == StmtID, is_integer(N) -> true end) ),
-    %delete cached params
-    ets:delete( Tbl, [{StmtID,params}] ),
-    Handle.
+reset_statement(Tbl,Statement) ->
+    case ets:lookup(Tbl,Statement) of
+        [#stmt{ tid = Statement,
+                handle = Handle }] ->
+            ets:delete(Statement),
+            ets:update_element(Tbl,Statement, [{#stmt.first, ?INIT_FIRST},
+                                               {#stmt.current, ?INIT_CURRENT},
+                                               {#stmt.last, ?INIT_LAST},
+                                               {#stmt.is_final, Handle =:= undefined},
+                                               {#stmt.bound, false},
+                                               {#stmt.params, []}]),
+            Handle;
+        _ ->
+            undefined
+    end.
 
 reset_all(Tbl) ->
-    IDHandles = ets:select( Tbl, ets:fun2ms(fun({{ID,handle},H}) -> {ID,H} end) ),
-    %delete rows and params
-    ets:select_delete( Tbl, ets:fun2ms(fun({{_,X},_}) when is_integer(X); X =:= params -> true end) ),
-    %% reset counts
-    lists:foreach( fun({ID,H}) ->
-                           IsFinal = H =:= undefined,
-                           ets:insert( Tbl, ?COUNTERS_INIT(ID,IsFinal) )
-                   end, IDHandles ),
-    IDHandles.
+    Stmts = ets:tab2list(Tbl),
+    reset_all(Tbl,Stmts,[]).
+reset_all(Tbl,[#stmt{tid=StmtTbl,handle=Handle}|Rest],Handles) ->
+    catch(ets:delete(StmtTbl)),
+    case Handle of
+        undefined -> reset_all(Tbl,Rest,Handles);
+        _ -> reset_all(Tbl,Rest,[Handle|Handles])
+    end;
+reset_all(Tbl,[],Handles) ->
+    ets:delete_all_objects(Tbl),
+    Handles.
 
-
--define(KEY_TO_IDX(X),case X of
-                          first -> {counters,2};
-                          current -> {counters,3};
-                          last -> {counters,4};
-                          is_final -> {counters,5};
-                          X -> {X,2}
-                       end).
-
-get( Tbl, StatementID, Key ) ->
-    {K,I} = ?KEY_TO_IDX(Key),
-    ets:lookup_element( Tbl, {StatementID,K}, I ).
-
-lookup( Tbl, StatementID, Key, Default ) ->
-    {K,I} = ?KEY_TO_IDX(Key),
-    case ets:lookup( Tbl, {StatementID,K} ) of
-        [Item] ->
-            element(I,Item);
-        _ -> Default
+get( _Tbl, Statement, Row ) when is_integer(Row) ->
+    ets:lookup_element( Statement, Row, 2 );
+get( Tbl, Statement, Key ) ->
+    ets:lookup_element( Tbl, Statement, ?KEY_TO_IDX(Key) ).
+lookup( Tbl, Statement, Key, Default ) ->
+    case catch(get(Tbl,Statement,Key)) of
+        {'EXIT',{badarg,_}} ->
+            Default;
+        Item -> Item
     end.
 
 all_handles( Tbl ) ->
-    ets:select( Tbl, ets:fun2ms(fun({{ID,handle},H}) when is_integer(ID) -> H end) ).
+    ets:select( Tbl, ets:fun2ms(fun(#stmt{handle=H}) -> H end) ).
 
+set( Tbl, Statement, Key, Val ) ->
+    true = ets:update_element( Tbl, Statement, {?KEY_TO_IDX(Key),Val} ),
+    ok.
 
-set( Tbl, StatementID, Key, Val ) ->
-    {K,I} = ?KEY_TO_IDX(Key),
-    case ets:update_element( Tbl, {StatementID,K}, {I,Val} ) of
-        false ->
-            I = 2, %should always be 2 except for counters
-            ets:insert( Tbl, {{StatementID,K},Val} );
-        _ -> ok
-    end.
+incr( Tbl, Statement, Key, Incr ) ->
+    ets:update_counter( Tbl, Statement, {?KEY_TO_IDX(Key),Incr} ).
 
-incr( Tbl, StatementID, Key, Incr ) ->
-    {K,I} = ?KEY_TO_IDX(Key),
-    ets:update_counter( Tbl, {StatementID,K}, {I,Incr} ).
-
-counters( Tbl, StatementID ) ->
-    [Counters] = ets:lookup( Tbl, {StatementID,counters} ),
+counters( Tbl, Statement ) ->
+    [#stmt{ first = First,
+            current = Current,
+            last = Last,
+            is_final = IsFinal }] = ets:lookup( Tbl, Statement ),
     % turn it into a counters record
-    #erbdrv_stmt_counters{} = setelement(1,Counters,erbdrv_stmt_counters).
+    #erbdrv_stmt_counters{ first = First, current = Current, last = Last, is_final = IsFinal }.
 
-set_cols( Tbl, StmtID, Cols ) ->
-    set( Tbl, StmtID, metadata, Cols ).
-get_cols( Tbl, StmtID ) ->
-    lookup( Tbl, StmtID, metadata, undefined ).
+set_cols( Tbl, Statement, Cols ) ->
+    set( Tbl, Statement, columns, Cols ).
+get_cols( Tbl, Statement ) ->
+    lookup( Tbl, Statement, columns, undefined ).
 
 
 %TODO: remove old rows
-add_rows( Tbl, StmtID, Data ) ->
-    Counters = counters( Tbl, StmtID ),
-    add_rows(Tbl,StmtID,Data,Counters).
+add_rows( Tbl, Statement, Data ) ->
+    Counters = counters( Tbl, Statement ),
+    add_rows(Tbl,Statement,Data,Counters).
 
-add_rows( Tbl, StmtID, Rows,
+add_rows( Tbl, Statement, Rows,
           #erbdrv_stmt_counters{last=Last} = Counters ) ->
     NewLast = Last + length(Rows),
     RowRecs = lists:map( fun({Idx,Row}) ->
-                                 {{StmtID,Idx},Row}
+                                 {Idx,Row}
                          end, lists:zip( lists:seq(Last+1,NewLast), Rows ) ),
-    ets:insert( Tbl, RowRecs ),
-    set( Tbl, StmtID, last, NewLast ),
+    ets:insert( Statement, RowRecs ),
+    set( Tbl, Statement, last, NewLast ),
     Counters1 = Counters#erbdrv_stmt_counters{last=NewLast},
     {ok,Counters1,Tbl}.

@@ -450,6 +450,6 @@ temp_epgsql_autoclean_on_start_test_()->
         os:cmd("rm -rf "++erbi_temp_db:data_dir(Datasource))
     end,
      fun(Datasource)->
-             [?_assertException(error,{badmatch,{ok,{exit_status,1},undefined}}, erbi_temp_db:start(Datasource)), % Cleans previous instance and starts another
+             [?_assertException(error,{badmatch,{ok,{exit_status,1},_}}, erbi_temp_db:start(Datasource)), % Cleans previous instance and starts another
               ?_assertEqual(true, filelib:is_dir(erbi_temp_db:data_dir(Datasource)))]
      end}].

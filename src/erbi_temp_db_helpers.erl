@@ -15,6 +15,8 @@
          search_dirs/2,
          wait_for/4,
          getenv/2,
+         filter_scanner/2, filter_scanner/3,
+         filter_logger/2, filter_logger/3,
          exec_cmd/2, exec_cmd/3, exec_cmd/4
 	]).
 
@@ -28,14 +30,14 @@ create_dir(Dir)->
 
 del_dir(Dir) ->
    lists:foreach(fun(D) ->
-                         io:format(standard_error,"del_dir ~p~n",[D]),
+                         %io:format(standard_error,"del_dir ~p~n",[D]),
                          ok = file:del_dir(D)
                  end, del_all_files([Dir], [])).
 
 del_all_files([], EmptyDirs) ->
     EmptyDirs;
 del_all_files([Dir | T], EmptyDirs) ->
-    io:format(standard_error,"deleting files in ~p~n",[Dir]),
+    %io:format(standard_error,"deleting files in ~p~n",[Dir]),
     {ok, FilesInDir} = file:list_dir(Dir),
     {Files, Dirs} = lists:foldl(fun(F, {Fs, Ds}) ->
                                         Path = Dir ++ "/" ++ F,
@@ -48,7 +50,8 @@ del_all_files([Dir | T], EmptyDirs) ->
                                 end, {[],[]}, FilesInDir),
     case search_dirs([],"sh") of
         {ok,Path} ->
-            exec_cmd(Path++"/sh",["-c","rm " ++ Dir ++ "/* " ++ Dir ++ "/.*"]);
+            exec_cmd(Path++"/sh",["-c","rm -f " ++ Dir ++ "/* " ++ Dir ++ "/.*"], 
+                     filter_scanner(nomatch,["Is a directory"]),none);
         _ ->
             lists:foreach(fun(F) ->
                                   ok = file:delete(F)
@@ -139,6 +142,66 @@ getenv(#erbi{driver=Driver},Key) ->
     EnvName = "ERBI_TEMPDB_" ++ string:to_upper(atom_to_list(Key) ++ "_" ++ atom_to_list(Driver)),
     os:getenv(EnvName).
 
+%% @doc logger generator for exec_cmd
+%%
+%%
+%% @end
+
+filter_scanner(Mode,Patterns) ->
+    filter_scanner(Mode,Patterns,fun(Str) ->
+                                        io:format(standard_error,"~s",[Str])
+                                end).
+filter_scanner(Mode,Patterns,OutFun) ->
+    {filter_scanfn(Mode,Patterns,OutFun),""}.
+
+filter_logger(Mode,Patterns) ->
+    filter_logger(Mode,Patterns,fun(Str) ->
+                                        io:format(standard_error,"~s",[Str])
+                                end).
+
+filter_logger(Mode,Patterns,OutFun) ->
+    ScanFn = filter_scanfn(Mode,Patterns,OutFun),
+    fun("~s",[Line]) ->
+            ScanFn(Line,"");
+       (_,_) ->
+            ok
+    end.
+
+filter_scanfn(Mode,Patterns,OutFun) ->
+    CPatns = lists:map( fun({Patn,Opts}) ->
+                                {ok,C} = re:compile(Patn,Opts),
+                                C;
+                           (Patn) ->
+                                {ok,C} = re:compile(Patn),
+                                C
+                        end,Patterns ),
+    AnyAll = case Mode of
+                 match -> any;
+                 nomatch -> all
+             end,
+    {ok,LineRe} = re:compile("\n"),
+    fun(Data,Acc) ->
+            Acc0 = Acc++Data,
+            {Lines,Acc1} = pop(re:split(Acc0,LineRe)),
+            lists:foreach(fun(<<>>) ->
+                                  ok;
+                             (Line) ->
+                                  case lists:AnyAll(fun(P) -> Mode =:= re:run(Line,P,[{capture,none}]) end,
+                                                    CPatns) of
+                                      true -> OutFun(binary_to_list(Line)++"\n");
+                                      _ -> ok
+                                  end
+                          end,Lines),
+            binary_to_list(Acc1)
+    end.
+
+pop(T) ->
+    pop(T,[]).
+pop([Last],Front) ->
+    {lists:reverse(Front),Last};
+pop([A|As],Front) ->
+    pop(As,[A|Front]).
+
 %%@doc execute command, returning OS PID
 %%
 %% Arguments:
@@ -155,27 +218,30 @@ getenv(#erbi{driver=Driver},Key) ->
 exec_cmd( Command, Args ) ->
     exec_cmd(Command,Args,wait).
 
+
 -spec exec_cmd( Command :: unicode:chardata(),
                 Args :: [unicode:chardata()],
                 wait | nowait | {exec_cmd_scanfn(),any()}
               ) -> exec_cmd_return().
 
-
-exec_cmd( Command, Args, wait ) ->
-    WaitScanner =
-        fun(_Data,_Acc) ->
-                undefined %returning undefined means output processor goes until exit.
+exec_cmd( Command, Args, quiet ) ->
+    AccWait =
+        fun(Data,Acc) ->
+                Data++Acc
         end,
-    exec_cmd( Command, Args, {WaitScanner,undefined}, standard_error );
-exec_cmd( Command, Args, nowait ) ->
-    NoWaitScanner =
-        fun(_Data,_Acc) ->
-                {ok,undefined} % returning {ok,Acc} ends scanning phase
-        end,
-    exec_cmd( Command, Args, {NoWaitScanner,undefined}, standard_error );
-exec_cmd( Command, Args, {Scanner,Acc} ) ->
-    exec_cmd( Command, Args, {Scanner,Acc}, standard_error ).
-
+    StrCmd = string:join( lists:map( fun unicode:characters_to_list/1,
+                                     [Command|Args] ), " " ),
+    case exec_cmd(Command, Args, {AccWait,""}, none) of
+        {ok,{exit_status,0},_} = Ret -> Ret;
+        {ok,{exit_status,Status},Out} = Ret ->
+            io:format(standard_error,"Non-zero exit (~p) from ~p:~n~s",[Status,StrCmd,Out]),
+            Ret;
+        Other -> Other
+    end;
+exec_cmd( Command, Args, Logger ) when is_function(Logger) ->
+    exec_cmd( Command, Args, wait, Logger);
+exec_cmd( Command, Args, Scanner ) ->
+    exec_cmd( Command, Args, Scanner, standard_error ).
 
 %%@doc execute command, with processing of output
 %%
@@ -224,20 +290,37 @@ exec_cmd( Command, Args, {Scanner,Acc} ) ->
                 none | io:device()
               ) -> exec_cmd_return().
 
-
+exec_cmd( Command, Args, wait, Output ) ->
+    WaitScanner =
+        fun(_Data,_Acc) ->
+                undefined %returning undefined means output processor goes until exit.
+        end,
+    exec_cmd( Command, Args, {WaitScanner,""}, Output );
+exec_cmd( Command, Args, nowait, Output ) ->
+    NoWaitScanner =
+        fun(_Data,_Acc) ->
+                {ok,undefined} % returning {ok,Acc} ends scanning phase
+        end,
+    exec_cmd( Command, Args, {NoWaitScanner,undefined}, Output );
 exec_cmd( Command, Args, {Scanner,Acc}, Output ) ->
     StrCmd = string:join( lists:map( fun unicode:characters_to_list/1,
                                      [Command|Args] ), " " ),
     OutFun =
         case Output of
             none ->
-                fun(_) ->
+                fun(_,_) ->
                         ok
                 end;
             H when is_atom(H) ->
                 fun(Fmt,Dat) ->
                         io:format(Output,Fmt,Dat)
-                end
+                end;
+            F1 when is_function(F1,1) ->
+                fun(Fmt,Dat) ->
+                        F1(io_lib:format(Fmt,Dat))
+                end;
+            F2 when is_function(F2,2) ->
+                F2
         end,
     TopPid = self(),
     {SpawnPid,_Mon} =
@@ -302,7 +385,6 @@ output_loop(SpawnPid,OSPid,Scanner,Acc,Msg) ->
         Other ->
             Other
     end.
-
 
 port_loop(Port,Parent,Ident,Logger) ->
     receive

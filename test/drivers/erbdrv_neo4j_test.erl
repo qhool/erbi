@@ -283,7 +283,7 @@ driver_calls_temp_neo4j_test_()->
         {setup,
      fun()->
              Config=erbi_test_util:config(neo4j_temp),
-             Datasource= "erbi:temp:base_driver=neo4j;bin_dir=/opt/neo4j/bin/;data_dir="++
+             Datasource= "erbi:temp:base_driver=neo4j;data_dir="++
                  proplists:get_value(data_dir,Config,"")++
                  "3;init_files="++proplists:get_value(neo4j_init_files,Config,"")++
                  ";endpoint=cypher",

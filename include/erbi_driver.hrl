@@ -71,7 +71,7 @@
 -record(erbdrv,
         { status = error    :: erbdrv_call_status(),
           conn = same       :: erbdrv_connection() | undefined | same,
-          stmt = same       :: erbdrv_statement() | undefined | same,
+          stmt = same       :: erbdrv_statement() | undefined | final | same,
           info = same       :: erbi_driver_info() | same,
           rows = unknown    :: erbi_row_count(),
           data = nothing    :: nothing | erbdrv_error() | erbdrv_row_col_data()

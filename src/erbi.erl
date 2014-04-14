@@ -38,7 +38,12 @@
 %% @end
 %% --------------------------------------
 -spec start() -> 'ok' | {'error', _Reason}.
-start() -> application:start(erbi).
+start() ->
+    case application:start(erbi) of
+        {error,{{already_started,_},_}} ->
+            ok;
+        R -> R
+    end.
 
 %% --------------------------------------
 %% @doc Connect to a database.
@@ -194,10 +199,7 @@ start(_StartType, _StartArgs) ->
                     undefined -> [];
                     {ok, Value} -> Value
                 end,
-    case erbi_sup:start_link(ErbiPools) of
-        {ok, Pid} -> {ok, Pid};
-        Error -> Error
-    end.
+    erbi_sup:start_link(ErbiPools).
 
 %%--------------------------------------------------------------------
 %% @private

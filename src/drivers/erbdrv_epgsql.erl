@@ -433,16 +433,21 @@ get_temp_password(Passwd) ->
 
 % Creates datadir defaults->user=$USER;authmode=trust;db=postgres
 configure_datadir(PathBin,PathData)->
-    {ok,{exit_status,0},_} = erbi_temp_db_helpers:exec_cmd(PathBin++"/initdb",["-D",PathData]),
+    {ok,{exit_status,0},_} = erbi_temp_db_helpers:exec_cmd(PathBin++"/initdb",["-D",PathData],quiet),
     ok.
 
 start_db_instance(PathBin,PathData,Port)->
-    io:format(user,"Starting temp postgres from ~p on port ~p~n",[PathData,Port]),
+    
     Postgres = filename:join([PathBin, "postgres"]),
     Ver = get_postgress_version(Postgres),
-    io:format(user,"Detected postgres version: ~p~n", [Ver]),
+    io:format(user,"Starting temp postgres ~p from ~p on port ~p~n",[Ver,PathData,Port]),
+    %io:format(user,"Detected postgres version: ~p~n", [Ver]),
     Args = db_instance_args(Ver,PathData,Port),
-    {ok,{os_pid,Pid},_} = erbi_temp_db_helpers:exec_cmd(Postgres,Args,nowait),
+    {ok,{os_pid,Pid},_} = 
+        erbi_temp_db_helpers:exec_cmd
+          (Postgres,Args,nowait,
+           erbi_temp_db_helpers:filter_logger(nomatch,["^LOG:"])
+          ),
     ok=wait_for_db_started(PathBin,Port),
     Pid.
 
@@ -461,7 +466,7 @@ get_postgress_version(Postgres) ->
     end,
     Args = ["--version"],
     {ok,{exit_status,0},Ver} =
-        erbi_temp_db_helpers:exec_cmd(Postgres,Args,{ParseFun,""},standard_io),
+        erbi_temp_db_helpers:exec_cmd(Postgres,Args,{ParseFun,""},none),
     Ver.
 
 db_instance_args(Ver, Path, Port) when Ver =/= undefined, Ver >= {9, 3, 0} ->
@@ -482,8 +487,8 @@ initialize_db(PropList,PathBin,Port)->
                               "-U", get_db_user(),
                               "-d", get_db_name(),
                               "-f", File],
-                      io:format(user,"Running pg init file: ~p~n~p:~n",[File,Cmd]),
-                      {ok,{exit_status,0},_} = erbi_temp_db_helpers:exec_cmd(Cmd,Args)
+                      %io:format(user,"Running pg init file: ~p~n~p:~n",[File,Cmd]),
+                      {ok,{exit_status,0},_} = erbi_temp_db_helpers:exec_cmd(Cmd,Args,quiet)
               end,InitFiles),
     ok.
 
@@ -494,7 +499,7 @@ wait_for_db_started(PathBin,Port)->
             "-f","/dev/null",
             "-p",integer_to_list(Port)],
     Fun = fun() ->
-                 case erbi_temp_db_helpers:exec_cmd(Cmd,Args) of
+                 case erbi_temp_db_helpers:exec_cmd(Cmd,Args,wait,none) of
                      {ok,{exit_status,0},_}->
                          ok;
                      _ ->
