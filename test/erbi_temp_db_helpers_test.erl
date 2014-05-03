@@ -63,8 +63,65 @@ wait_for_test_()->
      ?_assertEqual(no_wait,erbi_temp_db_helpers:wait_for(FunWaitN,Error,Interval,WaitCount+1)),
      ?_assertEqual(WaitCount,erase(wait_count)),
      ?_assertEqual(Error,erbi_temp_db_helpers:wait_for(FunWaitN,Error,Interval,WaitCount-1)),
-      ?_assertEqual(WaitCount-1,erase(wait_count))
+     ?_assertEqual(WaitCount-1,erase(wait_count))
     ].
+
+
+kill_pid_test_() ->
+    [{"Normal kill",fun() -> kill_pid(no_trap) end},
+     {"Stubborn kill",{timeout,30,fun() -> kill_pid(trap) end}}].
+
+kill_pid(Trap) ->
+    {ok, Dir} = erbi_temp_db_helpers:search_dirs([],"bash"),
+    ?debugVal(Me = self()),
+    SendMePid = fun(Pid) ->
+                        Me ! {os_pid,Pid}
+                end,
+    SleepLoop = "for ((n=0; $n < 150; n=$n+1)); do sleep 0.1; done",
+    {SleepScript,ExpectSignal} =
+        case Trap of
+            no_trap -> {"echo $$; "++SleepLoop,15};
+            trap -> {"echo $$; trap '' SIGTERM SIGINT; "++SleepLoop,9}
+        end,
+    SleepWithPid =
+        fun() ->
+                Result = erbi_temp_db_helpers:exec_cmd(Dir++"/bash",["-c",SleepScript],
+                                                       {fun scan_for_pid/2,SendMePid},standard_error),
+                Me ! {return,?debugVal(Result)}
+        end,
+    ?assert(is_pid(?debugVal(spawn(SleepWithPid)))),
+    KillSeq = [{wait,60},{term,4},{kill,2}],
+    receive
+        {os_pid,Pid} ->
+            ?debugVal(Pid),
+            alive = ?debugVal(erbi_temp_db_helpers:check_pid(Pid)),
+            ok = ?debugVal(erbi_temp_db_helpers:kill_pid(Pid,KillSeq)),
+            dead = ?debugVal(erbi_temp_db_helpers:check_pid(Pid))
+    after 1000 ->
+            throw(expecting_pid)
+    end,
+    receive
+        {return,{ok,{exit_status,Status},_}} ->
+            ?assertEqual(128+ExpectSignal,Status);
+        {return,Err} ->
+            ?debugVal({return,Err}),
+            throw(Err)
+    after 15000 ->
+            throw(no_exit_from_exec_cmd)
+    end.
+
+scan_for_pid(_,undefined) ->
+    undefined;
+scan_for_pid(Output,OnPid) ->
+    ?debugVal(Output),
+    case re:run(Output,"[0-9]+") of
+        {match,[{Start,Len}|_]} ->
+            OSPid = list_to_integer(lists:sublist(Output,Start+1,Len)),
+            OnPid(OSPid),
+            undefined;
+        _ ->
+            OnPid
+    end.
 
 exec_test_() ->
     CMDs =

@@ -7,7 +7,7 @@
 % erbi_temp_db behaviour
 -export([create_dir/1,
          del_dir/1,
-         kill_db_pid/2,
+         kill_db_pid/2,kill_db_pid/3,kill_pid/1,kill_pid/2,check_pid/1,
          get_free_db_port/2,
          save_in_db_data_file/3,
          read_integer/2,
@@ -30,14 +30,12 @@ create_dir(Dir)->
 
 del_dir(Dir) ->
    lists:foreach(fun(D) ->
-                         %io:format(standard_error,"del_dir ~p~n",[D]),
                          ok = file:del_dir(D)
                  end, del_all_files([Dir], [])).
 
 del_all_files([], EmptyDirs) ->
     EmptyDirs;
 del_all_files([Dir | T], EmptyDirs) ->
-    %io:format(standard_error,"deleting files in ~p~n",[Dir]),
     {ok, FilesInDir} = file:list_dir(Dir),
     {Files, Dirs} = lists:foldl(fun(F, {Fs, Ds}) ->
                                         Path = Dir ++ "/" ++ F,
@@ -58,16 +56,83 @@ del_all_files([Dir | T], EmptyDirs) ->
                           end, Files)
     end,
     del_all_files(T ++ Dirs, [Dir | EmptyDirs]).
+%%@doc lookup pid from pidfile, and kill
+%%
+%% kill_db_pid(Dir,PidFile,[KillSequence])
+%% see kill_pid for format of KillSequence
+%%@end
+kill_db_pid(Dir,PidFile) ->
+    kill_db_pid(Dir,PidFile,default).
 
-kill_db_pid(Dir,PidFile)->
+kill_db_pid(Dir,PidFile,Sequence) ->
     case read_integer(Dir,PidFile) of
         {error,_} = Error ->
             Error;
-         Pid ->
-            os:cmd("kill -9 "++integer_to_list(Pid)),
-            ok
-        end.
+        Pid ->
+            kill_pid(Pid,Sequence)
+    end.
 
+%%@doc kill os pid
+%%
+%% kill_pid(Pid,[KillSequence])
+%%
+%% Killsequence controls how many attempts and what signals to use.
+%% It consists of a list of terms:
+%% <ul>
+%%   <li>{Signal,NumberOfAttempts}
+%%     <ul>Signal: standard signal name, as atom (term,kill,int,quit...)</ul>
+%%     <ul>NumberOfAttempts: attempts before moving to the next element</ul>
+%%   </li>
+%%   <li>{wait,Miliseconds} Set/reset time to wait between attempts.</li>
+%% </ul>
+%% After each unsucessful attempt to kill the process, the wait time is increased by
+%% a factor of 1.5.  Wait time is reset when switching to a new signal.
+%%
+%% KillSequence defaults to [{wait,600},{term,9},{kill,3}].
+%%
+%%@end
+kill_pid(Pid) ->
+    kill_pid(Pid,default).
+
+kill_pid(Pid,default) ->
+    kill_pid(Pid,[{term,9},{kill,3}]);
+kill_pid(Pid,Sequence) ->
+    kill_pid(integer_to_list(Pid),Sequence,600,1.0,check).
+
+kill_pid(Pid,[{wait,W}|Ks],_,_F,State) ->
+    kill_pid(Pid,Ks,W,1.0,State);
+kill_pid(Pid,[{Sig,N}|Ks],W,F,State) when is_atom(Sig) ->
+    kill_pid(Pid,[{string:to_upper(atom_to_list(Sig)),N}|Ks],W,F,State);
+kill_pid(Pid,Ks,W,F,check) ->
+    kill_pid(Pid,Ks,W,F,check_pid(Pid));
+kill_pid(_,[],_,_,alive) ->
+    {error,it_will_not_die};
+kill_pid(Pid,_,_,_,dead) ->
+    io:format(standard_error,"~s killed.~n",[Pid]),
+    ok;
+kill_pid(Pid,[{Sig,N}|Kills],W,F,alive) ->
+    io:format(standard_error,"Killing ~s with SIG~s~n",[Pid,Sig]),
+    exec_cmd("/bin/kill",["-s",Sig,Pid],quiet),
+    kill_pid(Pid,[{Sig,N-1}|Kills],W,F,wait);
+kill_pid(Pid,[{_,0}|Ks],W,_F,wait) ->
+    kill_pid(Pid,Ks,W,1.0,wait);
+kill_pid(Pid,Ks,W,F,wait) ->
+    receive after round(W*F) -> kill_pid(Pid,Ks,W,F*1.5,check) end.
+
+check_pid(Pid) when is_integer(Pid) ->
+    check_pid(integer_to_list(Pid));
+check_pid(Pid) ->
+    {ok,PidPat} = re:compile("^\s*"++Pid,[multiline]),
+    Scan = fun(_,{alive,_}) -> {acc,{alive,""}};
+              ("",{dead,_}) -> {acc,{dead,""}};
+              (Chunk,{dead,LastChunk}) ->
+                   case re:run(LastChunk++Chunk,PidPat,[{capture,none}]) of
+                       match -> {acc,{alive,""}};
+                       _ -> {acc,{dead,Chunk}}
+                   end
+           end,
+    {ok,{exit_status,0},{Found,_}} = exec_cmd("/bin/ps",["ax"],{Scan,{dead,""}},none),
+    Found.
 
 get_free_db_port(MinPort,MaxPort)->
     StartingPort=trunc(random:uniform()*(MaxPort-MinPort))+MinPort,
@@ -377,6 +442,8 @@ output_loop(SpawnPid,OSPid,Scanner,Acc,Msg) ->
                     {ok,{os_pid,OSPid},Acc1};
                 {error,Reason} ->
                     {error,Reason};
+                {acc,Acc2} ->
+                    output_loop(SpawnPid,OSPid,Scanner,Acc2);
                 Acc2 ->
                     output_loop(SpawnPid,OSPid,Scanner,Acc2)
             end;
@@ -409,7 +476,7 @@ port_loop(Port,Parent,Ident,Logger) ->
                 undefined ->
                     Parent ! {Ident,{error,port_gone}},
                     {error,port_gone};
-                _ ->
+                _Info ->
                     port_loop(Port,Parent,Ident,Logger)
             end
     end.
