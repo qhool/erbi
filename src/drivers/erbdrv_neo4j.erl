@@ -25,6 +25,7 @@
 
 -include("erbi.hrl").
 -include("erbi_driver.hrl").
+-include_lib("hackney_lib/include/hackney_lib.hrl").
 
 -export([driver_info/0,
          validate_property/2,
@@ -53,7 +54,9 @@
 -record(neocon, % ;-)
         { type = transaction :: atom(),
           trans = undefined :: undefined | string(),
-          url :: string()
+          rcon = undefined :: term(),
+          headers :: [{binary(),binary()}],
+          endpoint :: string()
         }).
 
 driver_info() ->
@@ -103,31 +106,43 @@ connect( #erbi{ properties = Props }, _Username, _Password ) ->
     Host = proplists:get_value(host, Props),
     Port = proplists:get_value(port, Props),
     Endpoint = proplists:get_value(endpoint, Props),
-    BaseUrl = atom_to_list(Scheme) ++ "://" ++ Host ++ ":" ++ integer_to_list(Port),
-    EndpointUrl = BaseUrl ++ "/db/data/" ++ atom_to_list(Endpoint),
+    EndpointPath = "/db/data/" ++ atom_to_list(Endpoint),
     Info = case Endpoint of
                transaction -> same;
                cypher ->
                    (driver_info())#erbi_driver_info{transaction_support=false}
            end,
-    case check_db_status(Scheme,Host,Port, [200]) of
-        {ok,_Status,_,_} ->
-            #erbdrv{ status = ok, info = Info, conn = #neocon{type=Endpoint,url=EndpointUrl} };
-        {error,Status,Headers,_} ->
-            #erbdrv{ status = error, data = {connection_refused,{Status,Headers}} }
+    Conn0 = #neocon{ type=Endpoint,
+                     endpoint=EndpointPath },
+    case rest_connect(Conn0,Scheme,Host,Port,EndpointPath) of
+        {ok,Conn} ->
+            case rest_check(Conn) of
+                {ok,200,_,_} -> #erbdrv{ status = ok, info = Info,
+                                         conn = Conn };
+                {ok,Status,Headers,_} ->
+                    disconnect(Conn),
+                    #erbdrv{ status = error, data = {connection_refused,{Status,Headers}} };
+                {error,Why} ->
+                    disconnect(Conn),
+                    #erbdrv{ status = error, data = {connection_refused,Why} }
+            end;
+        {error,Why} ->
+            #erbdrv{ status = error, data = {connection_refused,Why} }
     end.
 
 %% there was no real connection to start with
-disconnect( _ ) ->
+disconnect( #neocon{ rcon = RConn } ) ->
+    hackney:close(RConn),
     ok.
 
 begin_work( #neocon{type=cypher} ) ->
     declined;
 begin_work( C ) ->
-    do_req(post,C,[201],[{statements,[]}],
-           fun(_S,Headers,_B) ->
-                   Trans = proplists:get_value("location",Headers),
-                   #erbdrv{ status = ok, conn = C#neocon{trans=Trans} }
+    do_req(post,C,[{statements,[]}],
+           fun(C1,_S,Headers,_B) ->
+                   TransUrl = proplists:get_value(<<"Location">>,Headers),
+                   #hackney_url{ path = Trans } = hackney_url:parse_url(TransUrl),
+                   #erbdrv{ status = ok, conn = C1#neocon{trans=Trans} }
            end).
 begin_work( _C, _ ) ->
     declined.
@@ -137,9 +152,9 @@ rollback( #neocon{type=cypher} ) ->
 rollback( #neocon{trans=undefined} ) ->
     #erbdrv{ status = error, data = {transaction_error,no_transaction} };
 rollback( C ) ->
-    do_req(delete,C,[200],[],
-           fun(_S,_H,_B) ->
-                   #erbdrv{ status = ok, conn = C#neocon{trans=undefined} }
+    do_req(delete,C,[],
+           fun(C1,_S,_H,_B) ->
+                   #erbdrv{ status = ok, conn = C1#neocon{trans=undefined} }
            end).
 rollback( _C, _ ) ->
     declined.
@@ -148,10 +163,10 @@ commit( #neocon{type=cypher} ) ->
     declined;
 commit( #neocon{trans=undefined} ) ->
     #erbdrv{ status = error, data = {transaction_error,no_transaction} };
-commit( #neocon{trans=Trans}=C ) ->
-    do_req(post,C,Trans ++ "/commit",[200],[{statements,[]}],
-           fun(_S,_H,_B) ->
-                   #erbdrv{ status = ok, conn = C#neocon{trans=undefined} }
+commit( #neocon{}=C ) ->
+    do_req(post,C,<<"/commit">>,[{statements,[]}],
+           fun(C1,_S,_H,_B) ->
+                   #erbdrv{ status = ok, conn = C1#neocon{trans=undefined} }
            end).
 
 %% no way to do this in neo4j Rest API
@@ -164,9 +179,9 @@ do( _C, _Q, _P ) ->
 bind_params( _C , _S, _P ) -> declined.
 
 %% since prepare isn't supported, we should always get the raw query and a list of params
-execute( #neocon{type=cypher, url=Url}=C, Query, Params ) ->
+execute( #neocon{type=cypher}=C, Query, Params ) ->
     Q = format_query({'query',Query},{params,Params}),
-    do_req(post,C,Url,[200],Q,
+    do_req(post,C,Q,
            fun(_S,_H,Body) ->
                    Cols = proplists:get_value(<<"columns">>,Body,[]),
                    Rows = extract_rows(Body),
@@ -181,16 +196,14 @@ execute( #neocon{type=cypher, url=Url}=C, Query, Params ) ->
                               end,
                    #erbdrv{status=ok,rows=RowCount,stmt=final,data={Cols,Rows}}
            end);
-execute( #neocon{trans = Trans, url=Url}=C, Query, Params ) ->
-    ToUrl =
+execute( #neocon{trans = Trans}=C, Query, Params ) ->
+    Path =
         case Trans of
-            undefined ->
-                Url ++ "/commit"; % if there is no open transaction, do a one-shot
-            _ ->
-                Trans
+            undefined -> <<"/commit">>; % if there is no open transaction, do a one-shot
+            _ -> <<>>
         end,
     Q = format_query({statement,Query},{parameters,Params}),
-    do_req(post,C,ToUrl,[200],[{statements,[Q]}],
+    do_req(post,C,Path,[{statements,[Q]}],
            fun(_S,_H,Body) ->
                    % Results =
                    [Result|_] = proplists:get_value(<<"results">>,Body),
@@ -284,22 +297,23 @@ extract_rows(Result) ->
                end,
                RawRows ).
 
-do_req(Method,#neocon{trans=undefined,url=Url}=Conn,Statuses,Body,Func) ->
-    do_req(Method,Conn,Url,Statuses,Body,Func);
-do_req(Method,#neocon{trans=Trans}=Conn,Statuses,Body,Func) ->
-    do_req(Method,Conn,Trans,Statuses,Body,Func).
+do_req(Method,Conn,Body,Func) ->
+    do_req(Method,Conn,<<>>,Body,Func).
 
-do_req(Method,Conn,Url,Statuses,ReqBody,Func) ->
+do_req(Method,Conn,Path,Body,Func) ->
     %io:format(user,"~n~n~n~n------~nURL: ~p~n------~nreqbody: ~p~n",[Url,ReqBody]),
-    rest_response(Conn,Func,restc:request(Method,json,Url,Statuses,[],ReqBody)).
+    rest_response(Conn,Func,rest_request(Conn,Method,Path,Body)).
 
-rest_response(#neocon{type=Type},Func,RestStat) ->
-    rest_response(Type,Func,RestStat);
-rest_response(_,Func,{_,Stat,Headers,Body}) when (Stat >= 200) and (Stat < 300) ->
+rest_response(C,Func,{_,Stat,Headers,Body}) when (Stat >= 200) and (Stat < 300) ->
     %io:format(user,"response ~p:~n~p",[Stat,Body]),
     case proplists:get_value(<<"errors">>,Body) of
         X when X =:= [] ; X =:= undefined ->
-            Func(Stat,Headers,Body);
+            case Func of
+                F3 when is_function(F3,3) ->
+                    Func(Stat,Headers,Body);
+                F4 when is_function(F4,4) ->
+                    Func(C,Stat,Headers,Body)
+            end;
         [Error|_] ->
             Code = proplists:get_value(<<"code">>,Error),
             Status = proplists:get_value(<<"status">>,Error),
@@ -365,6 +379,61 @@ header_error( Code, HeaderName, Headers, Default ) ->
                    {Code,Val}
            end,
     #erbdrv{ status = error, data = Data }.
+
+%-----------------------------------------------
+% REST functions
+%-----------------------------------------------
+rest_connect(#neocon{}=Conn,Scheme,Host,Port,Endpoint) ->
+    ensure_started(hackney),
+    Transport = case Scheme of
+                    http -> hackney_tcp_transport;
+                    https -> hackney_ssl_transport
+                end,
+    BinHost = iolist_to_binary(Host),
+    BinPort = iolist_to_binary(integer_to_list(Port)),
+    Headers =
+        [{<<"Content-Type">>, <<"application/json">>},
+         {<<"Accept">>, <<"application/json, */*;q=0.9">>},
+         {<<"Host">>,<<BinHost/binary,":",BinPort/binary>>}],
+    case hackney:connect(Transport,BinHost,Port,[]) of
+        {ok,RConn} ->
+            {ok,Conn#neocon{ rcon = RConn,
+                             headers = Headers,
+                             endpoint = iolist_to_binary(Endpoint)
+                           }};
+        E -> E
+    end.
+
+rest_request(#neocon{ trans = undefined,
+                      endpoint = EndPoint }=Conn, Method, Path, JsonBody) ->
+    rest_request(Conn,Method,EndPoint,Path,JsonBody);
+rest_request(#neocon{ trans = Trans }=Conn, Method, Path, JsonBody) ->
+    rest_request(Conn,Method,Trans,Path,JsonBody).
+rest_request(#neocon{ rcon = RConn, headers = ReqHeaders },Method,Base,Path,JsonBody) ->
+    BinBody = jsx:encode(JsonBody),
+    case hackney:send_request(RConn,{Method,<<Base/binary,Path/binary>>,ReqHeaders,BinBody}) of
+        {ok, Status, Headers, RConn} ->
+            JsonResp =
+                case hackney:body(RConn) of
+                    {ok,<<>>} -> [];
+                    {ok,BinResp} ->
+                        jsx:decode(BinResp)
+                end,
+            {ok, Status, Headers, JsonResp};
+        {error,_}=Err -> Err
+    end.
+
+rest_check(Scheme,Host,Port)->
+    case rest_connect(#neocon{},Scheme,Host,Port,"/db/data/") of
+        {ok,Conn} ->
+            Ret = rest_check(Conn),
+            disconnect(Conn),
+            Ret;
+        E -> E
+    end.
+
+rest_check(Conn) ->
+    rest_request(Conn,get,<<"/db/data/">>,<<>>,[]).
 
 %-----------------------------------------------
 % Erbi temp driver internal functions
@@ -465,40 +534,35 @@ exec_neo4j_server_cmd(DataDir,NeoCmd) ->
     erbi_temp_db_helpers:exec_cmd(DataDir++"/bin/neo4j",[NeoCmd],quiet).
 
 wait_for_db_started(Port)->
-    wait_for_db_state(Port,started,[200],{error,db_not_started}).
+    wait_for_db_state(Port,started,{error,db_not_started}).
 
 wait_for_db_stopped(Port)->
-    wait_for_db_state(Port,stopped,[],{error,db_not_stopped}).
+    wait_for_db_state(Port,stopped,{error,db_not_stopped}).
 
-wait_for_db_state(Port,ExpectedState,ExpectedHttpStatus,Error)->
+wait_for_db_state(Port,ExpectedState,Error)->
     Fun = fun() ->
-                  case {ExpectedState,check_db_status(http,"localhost",Port, ExpectedHttpStatus)} of
-                       {started,{ok,_,_,_}} ->
+                  case {ExpectedState,rest_check(http,"localhost",Port)} of
+                       {started,{ok,200,_,_}} ->
                           ok;
                        {stopped,{error,{failed_connect,_}}} ->
                           ok;
-                      _Any ->
+                       {stopped,{error,econnrefused}} ->
+                          ok;
+                       _Any ->
                           wait
                   end
           end,
    erbi_temp_db_helpers:wait_for(Fun,Error,500,50).
 
-check_db_status(Scheme,Host,Port, ExpectedHttpCode)->
-    BaseUrl = atom_to_list(Scheme) ++ "://" ++ Host ++ ":" ++ integer_to_list(Port),
-    CheckUrl = BaseUrl ++ "/db/data/",
-    ok = ensure_started(inets),
-    ok = case Scheme of
-             https ->
-                 ensure_started(restc);
-             _ ->
-                 ok
-         end,
-    restc:request( get, json, CheckUrl, ExpectedHttpCode ).
-
-ensure_started(App) ->
+ensure_started(App) when not is_list(App) ->
+    ensure_started([App]);
+ensure_started([]) ->
+    ok;
+ensure_started([App|Apps]) ->
     case application:start(App) of
-        ok -> ok;
-        {error,{already_started,App}} -> ok;
+        ok -> ensure_started(Apps);
+        {error,{already_started,App}} -> ensure_started(Apps);
+        {error,{not_started,Dep}} -> ensure_started([Dep,App|Apps]);
         Other -> Other
     end.
 
