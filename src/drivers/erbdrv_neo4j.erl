@@ -384,13 +384,13 @@ header_error( Code, HeaderName, Headers, Default ) ->
 % REST functions
 %-----------------------------------------------
 rest_connect(#neocon{}=Conn,Scheme,Host,Port,Endpoint) ->
-    application:ensure_all_started(hackney),
+    ensure_started(hackney),
     Transport = case Scheme of
                     http -> hackney_tcp_transport;
                     https -> hackney_ssl_transport
                 end,
     BinHost = iolist_to_binary(Host),
-    BinPort = integer_to_binary(Port),
+    BinPort = iolist_to_binary(integer_to_list(Port)),
     Headers =
         [{<<"Content-Type">>, <<"application/json">>},
          {<<"Accept">>, <<"application/json, */*;q=0.9">>},
@@ -554,12 +554,17 @@ wait_for_db_state(Port,ExpectedState,Error)->
           end,
    erbi_temp_db_helpers:wait_for(Fun,Error,500,50).
 
-%% ensure_started(App) ->
-%%     case application:start(App) of
-%%         ok -> ok;
-%%         {error,{already_started,App}} -> ok;
-%%         Other -> Other
-%%     end.
+ensure_started(App) when not is_list(App) ->
+    ensure_started([App]);
+ensure_started([]) ->
+    ok;
+ensure_started([App|Apps]) ->
+    case application:start(App) of
+        ok -> ensure_started(Apps);
+        {error,{already_started,App}} -> ensure_started(Apps);
+        {error,{not_started,Dep}} -> ensure_started([Dep,App|Apps]);
+        Other -> Other
+    end.
 
 initialize_db(PropList,PathData)->
     InitFiles= proplists:get_value(init_files,PropList,[]),
