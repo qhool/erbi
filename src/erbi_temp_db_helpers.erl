@@ -7,7 +7,7 @@
 % erbi_temp_db behaviour
 -export([create_dir/1,
          del_dir/1,
-         kill_db_pid/2,kill_db_pid/3,kill_pid/1,kill_pid/2,check_pid/1,
+         kill_db_pid/2,kill_db_pid/3,kill_os_pid/1,kill_os_pid/2,check_os_pid/1,
          get_free_db_port/2,
          save_in_db_data_file/3,
          read_integer/2,
@@ -59,7 +59,7 @@ del_all_files([Dir | T], EmptyDirs) ->
 %%@doc lookup pid from pidfile, and kill
 %%
 %% kill_db_pid(Dir,PidFile,[KillSequence])
-%% see kill_pid for format of KillSequence
+%% see kill_os_pid for format of KillSequence
 %%@end
 kill_db_pid(Dir,PidFile) ->
     kill_db_pid(Dir,PidFile,default).
@@ -69,12 +69,12 @@ kill_db_pid(Dir,PidFile,Sequence) ->
         {error,_} = Error ->
             Error;
         Pid ->
-            kill_pid(Pid,Sequence)
+            kill_os_pid(Pid,Sequence)
     end.
 
 %%@doc kill os pid
 %%
-%% kill_pid(Pid,[KillSequence])
+%% kill_os_pid(Pid,[KillSequence])
 %%
 %% Killsequence controls how many attempts and what signals to use.
 %% It consists of a list of terms:
@@ -91,37 +91,37 @@ kill_db_pid(Dir,PidFile,Sequence) ->
 %% KillSequence defaults to [{wait,600},{term,9},{kill,3}].
 %%
 %%@end
-kill_pid(Pid) ->
-    kill_pid(Pid,default).
+kill_os_pid(Pid) ->
+    kill_os_pid(Pid,default).
 
-kill_pid(Pid,default) ->
-    kill_pid(Pid,[{term,9},{kill,3}]);
-kill_pid(Pid,Sequence) ->
-    kill_pid(integer_to_list(Pid),Sequence,600,1.0,check).
+kill_os_pid(Pid,default) ->
+    kill_os_pid(Pid,[{term,9},{kill,3}]);
+kill_os_pid(Pid,Sequence) ->
+    kill_os_pid(integer_to_list(Pid),Sequence,600,1.0,check).
 
-kill_pid(Pid,[{wait,W}|Ks],_,_F,State) ->
-    kill_pid(Pid,Ks,W,1.0,State);
-kill_pid(Pid,[{Sig,N}|Ks],W,F,State) when is_atom(Sig) ->
-    kill_pid(Pid,[{string:to_upper(atom_to_list(Sig)),N}|Ks],W,F,State);
-kill_pid(Pid,Ks,W,F,check) ->
-    kill_pid(Pid,Ks,W,F,check_pid(Pid));
-kill_pid(_,[],_,_,alive) ->
+kill_os_pid(Pid,[{wait,W}|Ks],_,_F,State) ->
+    kill_os_pid(Pid,Ks,W,1.0,State);
+kill_os_pid(Pid,[{Sig,N}|Ks],W,F,State) when is_atom(Sig) ->
+    kill_os_pid(Pid,[{string:to_upper(atom_to_list(Sig)),N}|Ks],W,F,State);
+kill_os_pid(Pid,Ks,W,F,check) ->
+    kill_os_pid(Pid,Ks,W,F,check_os_pid(Pid));
+kill_os_pid(_,[],_,_,alive) ->
     {error,it_will_not_die};
-kill_pid(Pid,_,_,_,dead) ->
+kill_os_pid(Pid,_,_,_,dead) ->
     io:format(standard_error,"~s killed.~n",[Pid]),
     ok;
-kill_pid(Pid,[{Sig,N}|Kills],W,F,alive) ->
+kill_os_pid(Pid,[{Sig,N}|Kills],W,F,alive) ->
     io:format(standard_error,"Killing ~s with SIG~s~n",[Pid,Sig]),
     exec_cmd("/bin/kill",["-s",Sig,Pid],quiet),
-    kill_pid(Pid,[{Sig,N-1}|Kills],W,F,wait);
-kill_pid(Pid,[{_,0}|Ks],W,_F,wait) ->
-    kill_pid(Pid,Ks,W,1.0,wait);
-kill_pid(Pid,Ks,W,F,wait) ->
-    receive after round(W*F) -> kill_pid(Pid,Ks,W,F*1.5,check) end.
+    kill_os_pid(Pid,[{Sig,N-1}|Kills],W,F,wait);
+kill_os_pid(Pid,[{_,0}|Ks],W,_F,wait) ->
+    kill_os_pid(Pid,Ks,W,1.0,wait);
+kill_os_pid(Pid,Ks,W,F,wait) ->
+    receive after round(W*F) -> kill_os_pid(Pid,Ks,W,F*1.5,check) end.
 
-check_pid(Pid) when is_integer(Pid) ->
-    check_pid(integer_to_list(Pid));
-check_pid(Pid) ->
+check_os_pid(Pid) when is_integer(Pid) ->
+    check_os_pid(integer_to_list(Pid));
+check_os_pid(Pid) ->
     {ok,PidPat} = re:compile("^\s*"++Pid,[multiline]),
     Scan = fun(_,{alive,_}) -> {acc,{alive,""}};
               ("",{dead,_}) -> {acc,{dead,""}};

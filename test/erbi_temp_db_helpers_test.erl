@@ -67,11 +67,11 @@ wait_for_test_()->
     ].
 
 
-kill_pid_test_() ->
-    [{"Normal kill",fun() -> kill_pid(no_trap) end},
-     {"Stubborn kill",{timeout,30,fun() -> kill_pid(trap) end}}].
+kill_os_pid_test_() ->
+    [{"Normal kill",fun() -> kill_os_pid(no_trap) end},
+     {"Stubborn kill",{timeout,30,fun() -> kill_os_pid(trap) end}}].
 
-kill_pid(Trap) ->
+kill_os_pid(Trap) ->
     {ok, Dir} = erbi_temp_db_helpers:search_dirs([],"bash"),
     ?debugVal(Me = self()),
     SendMePid = fun(Pid) ->
@@ -94,9 +94,9 @@ kill_pid(Trap) ->
     receive
         {os_pid,Pid} ->
             ?debugVal(Pid),
-            alive = ?debugVal(erbi_temp_db_helpers:check_pid(Pid)),
-            ok = ?debugVal(erbi_temp_db_helpers:kill_pid(Pid,KillSeq)),
-            dead = ?debugVal(erbi_temp_db_helpers:check_pid(Pid))
+            alive = ?debugVal(erbi_temp_db_helpers:check_os_pid(Pid)),
+            ok = ?debugVal(erbi_temp_db_helpers:kill_os_pid(Pid,KillSeq)),
+            dead = ?debugVal(erbi_temp_db_helpers:check_os_pid(Pid))
     after 1000 ->
             throw(expecting_pid)
     end,
