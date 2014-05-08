@@ -100,13 +100,25 @@ start(DataSource)->
 -spec stop(Datasource::unicode:chardata() | erbi_data_source())->
     ok.
 stop(DataSource)->
+    % we need to trap exits so that when DB closes connection
+    % on its side and process on this side that is linked to
+    % the current process dies self() does not die with it.
+    process_flag(trap_exit, true),
     {BaseDriver,BaseDS,DataDir} = parse_temp_ds(DataSource),
     ok = BaseDriver:stop_temp(BaseDS,DataDir),
     CleanupFun  = fun() ->
             io:format(standard_error,"Cleaning ~p~n",[DataDir]),
             erbi_temp_db_helpers:del_dir(DataDir)
     end,
-    do_cleanup(BaseDS,CleanupFun).
+    do_cleanup(BaseDS,CleanupFun),
+    cleanup_exit_messages().
+
+cleanup_exit_messages() ->
+    receive 
+        {'EXIT', _Pid, _Reason} -> ok
+    after 0 ->
+            ok
+    end.
 
 data_dir(DS)->
     {_,_,DataDir} = parse_temp_ds(DS),
