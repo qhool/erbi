@@ -5,7 +5,8 @@
 -export([start/1,
     stop/1,
     parse_temp_ds/1,
-    data_dir/1]).
+    data_dir/1,
+    run_script/2]).
 
 -define(POOL_PROPS,[pool_name,pool_size,pool_max_overflow]).
 
@@ -53,6 +54,22 @@
         unicode:chardata() | undefined}
     | declined.
 
+%% @doc Run a script
+%%
+%% Called to run a script
+%% plus the data dir:
+%% <ul>
+%%   <li>DataSource: constructed from the erbi:temp datasource.</li>
+%%   <li>DataDir (as above)</li>
+%%   <li>FilePath</li>
+%% </ul>
+%% Returns exit code of the shell that was running the script.
+%% @end
+-callback temp_run_script(ErbiDataSource::erbi_data_source(),
+                          DataDir::unicode:chardata(),
+                          FilePath::unicode:chardata())->
+    erbi_temp_db_helpers:exec_cmd_return().
+
 %% @doc start temp db
 %%
 %% Given an erbi 'temp' datasource in string or parsed form, creates and starts
@@ -94,6 +111,16 @@ stop(DataSource)->
 data_dir(DS)->
     {_,_,DataDir} = parse_temp_ds(DS),
     DataDir.
+
+%% @doc run a script
+%% @end
+-spec run_script(Datasource::unicode:chardata() | erbi_data_source(),
+                 FilePath::unicode:chardata())->
+    erbi_temp_db_helpers:exec_cmd_return().
+
+run_script(DataSource,FilePath)->
+    {BaseDriver,BaseDS,DataDir} = parse_temp_ds(DataSource),
+    BaseDriver:temp_run_script(BaseDS,DataDir,FilePath).
 
 %----------------------------------------
 % Erbi temp internal functions

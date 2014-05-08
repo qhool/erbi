@@ -48,7 +48,8 @@
 % erbi_temp_db  API
 -export([start_temp/2,
          stop_temp/2,
-        get_temp_connect_data/4]).
+         get_temp_connect_data/4,
+         temp_run_script/3]).
 
 -define(MIN_PORT,5433).
 -define(MAX_PORT,5533).
@@ -243,6 +244,18 @@ get_temp_connect_data(ErbiDataSource,DataDir,UserName,Password)->
     {get_temp_proplist(ErbiDataSource,DataDir),
      get_temp_username(UserName),
      get_temp_password(Password)}.
+
+temp_run_script(#erbi{}=DataSource,DataDir,File)->
+    #erbi{properties=Props} = get_temp_proplist(DataSource,DataDir),
+    {ok,PathBin}= erbi_temp_db_helpers:find_bin_dir(DataSource,?POSSIBLE_BIN_DIRS,"postgres"),
+    Port = proplists:get_value(port, Props, 5434),
+    Cmd = PathBin++"/psql",
+    Args = ["-p", integer_to_list(Port),
+            "-h", "localhost",
+            "-U", get_db_user(),
+            "-d", get_db_name(),
+            "-f", File],
+    erbi_temp_db_helpers:exec_cmd(Cmd,Args,quiet).
 
 %%------------------------------------
 %% Create Responses Functions

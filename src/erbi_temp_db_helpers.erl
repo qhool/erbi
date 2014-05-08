@@ -11,6 +11,7 @@
          get_free_db_port/2,
          save_in_db_data_file/3,
          read_integer/2,
+         read_string/2,
          find_bin_dir/3,
          search_dirs/2,
          wait_for/4,
@@ -20,6 +21,7 @@
          exec_cmd/2, exec_cmd/3, exec_cmd/4
 	]).
 
+-export_type([exec_cmd_return/0]).
 
 % Helper functions for drivers implementing
 % erbi_temp_db behaviour
@@ -162,6 +164,15 @@ read_integer(Path,File)->
         Any ->
             Any
     end.
+
+read_string(Path,File)->
+    case file:read_file(Path++"/"++File) of
+        {ok, Binary} ->
+            binary_to_list(Binary);
+        Any ->
+            Any
+    end.
+
 
 to_integer(Binary)->
     [Value] = string:tokens(binary_to_list(Binary), "\n" ),

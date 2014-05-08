@@ -318,6 +318,30 @@ driver_calls_temp_neo4j_test_()->
               ]
      end}.
 
+temp_neo4j_run_script_test_()->
+    [{setup,
+     fun()->
+             Config = erbi_test_util:config(neo4j_temp),
+             Datasource = "erbi:temp:base_driver=neo4j;data_dir="++
+                 proplists:get_value(data_dir,Config,""),
+             erbi_temp_db:start(Datasource),
+             {ok,Connection}=?debugVal(erbi:connect(Datasource,undefined,undefined)),
+             {Datasource,Connection}
+     end,
+     fun({Datasource,_})->
+        erbi_temp_db:stop(Datasource)
+    end,
+     fun({Datasource,Conn})->
+            Config = erbi_test_util:config(neo4j_temp),
+            DataDir = proplists:get_value(data_dir,Config,""),
+            {ok, Cwd} = file:get_cwd(),
+            ScriptPath = filename:join([Cwd,DataDir,"script_test.cypher"]),
+            os:cmd("echo 'CREATE (p:Person { age: 23 });' > " ++ ScriptPath),
+            {ok, _Status, _Output} = erbi_temp_db:run_script(Datasource,ScriptPath),
+            [?_assertEqual({ok,[[23]]},
+                           ?debugVal(erbi_connection:selectall_list(Conn,"start p=node(*) return p.age")))]
+     end}].
+
 temp_neo4j_autoclean_on_start_test_()->
     [{setup,
      fun()->
@@ -350,6 +374,7 @@ temp_neo4j_autoclean_on_start_test_()->
              [{timeout, 500,?_assertException(error,{badmatch,{error,db_not_started}}, erbi_temp_db:start(Datasource))}, % Cleans previous instance and starts another
               ?_assertEqual(true, filelib:is_dir(erbi_temp_db:data_dir(Datasource)))]
      end}].
+
 
 temp_neo4j_kill_instance_test_()->
   {setup,
