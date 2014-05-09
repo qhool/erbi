@@ -5,7 +5,8 @@
 -export([start/1,
     stop/1,
     parse_temp_ds/1,
-    data_dir/1]).
+    data_dir/1,
+    run_script/2]).
 
 -define(POOL_PROPS,[pool_name,pool_size,pool_max_overflow]).
 
@@ -53,6 +54,22 @@
         unicode:chardata() | undefined}
     | declined.
 
+%% @doc Run a script
+%%
+%% Called to run a script
+%% plus the data dir:
+%% <ul>
+%%   <li>DataSource: constructed from the erbi:temp datasource.</li>
+%%   <li>DataDir (as above)</li>
+%%   <li>FilePath</li>
+%% </ul>
+%% Returns exit code of the shell that was running the script.
+%% @end
+-callback temp_run_script(ErbiDataSource::erbi_data_source(),
+                          DataDir::unicode:chardata(),
+                          FilePath::unicode:chardata())->
+    erbi_temp_db_helpers:exec_cmd_return().
+
 %% @doc start temp db
 %%
 %% Given an erbi 'temp' datasource in string or parsed form, creates and starts
@@ -83,17 +100,39 @@ start(DataSource)->
 -spec stop(Datasource::unicode:chardata() | erbi_data_source())->
     ok.
 stop(DataSource)->
+    % we need to trap exits so that when DB closes connection
+    % on its side and process on this side that is linked to
+    % the current process dies self() does not die with it.
+    process_flag(trap_exit, true),
     {BaseDriver,BaseDS,DataDir} = parse_temp_ds(DataSource),
     ok = BaseDriver:stop_temp(BaseDS,DataDir),
     CleanupFun  = fun() ->
             io:format(standard_error,"Cleaning ~p~n",[DataDir]),
             erbi_temp_db_helpers:del_dir(DataDir)
     end,
-    do_cleanup(BaseDS,CleanupFun).
+    do_cleanup(BaseDS,CleanupFun),
+    cleanup_exit_messages().
+
+cleanup_exit_messages() ->
+    receive 
+        {'EXIT', _Pid, _Reason} -> ok
+    after 0 ->
+            ok
+    end.
 
 data_dir(DS)->
     {_,_,DataDir} = parse_temp_ds(DS),
     DataDir.
+
+%% @doc run a script
+%% @end
+-spec run_script(Datasource::unicode:chardata() | erbi_data_source(),
+                 FilePath::unicode:chardata())->
+    erbi_temp_db_helpers:exec_cmd_return().
+
+run_script(DataSource,FilePath)->
+    {BaseDriver,BaseDS,DataDir} = parse_temp_ds(DataSource),
+    BaseDriver:temp_run_script(BaseDS,DataDir,FilePath).
 
 %----------------------------------------
 % Erbi temp internal functions

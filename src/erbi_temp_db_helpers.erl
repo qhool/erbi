@@ -20,6 +20,7 @@
          exec_cmd/2, exec_cmd/3, exec_cmd/4
 	]).
 
+-export_type([exec_cmd_return/0]).
 
 % Helper functions for drivers implementing
 % erbi_temp_db behaviour

@@ -47,7 +47,8 @@
 % erbi_temp_db  API
 -export([start_temp/2,
          stop_temp/2,
-         get_temp_connect_data/4]).
+         get_temp_connect_data/4,
+         temp_run_script/3]).
 
 -record(neocon, % ;-)
         { type = transaction :: atom(),
@@ -209,8 +210,11 @@ finish(_,_) ->
 %-----------------------------------------------------
 -define(PORT_FILE,"tmp_db.port").
 -define(PID_FILE,"/data/neo4j-service.pid").
+-define(SHELL_PORT_FILE,"tmp_shell.port").
 -define(MIN_PORT, 7475).
 -define(MAX_PORT, 8475).
+-define(MIN_SHELL_PORT, 8476).
+-define(MAX_SHELL_PORT, 9475).
 -define(POSSIBLE_BIN_DIRS,["/usr/share/neo4j/",
                           "/var/lib/neo4j/bin",
                           "/opt/neo4j/bin",
@@ -223,13 +227,15 @@ finish(_,_) ->
 start_temp(#erbi{properties=PropList}=DataSource,DataDir)->
     {ok,BinDir}= erbi_temp_db_helpers:find_bin_dir(DataSource,?POSSIBLE_BIN_DIRS,"neo4j"),
     {ok, Port}=erbi_temp_db_helpers:get_free_db_port(?MIN_PORT,?MAX_PORT),
+    {ok, ShellPort}=erbi_temp_db_helpers:get_free_db_port(?MIN_SHELL_PORT,?MAX_SHELL_PORT),
     io:format(user,"Creating temp Neo4j DB in ~p on port ~p~n",[DataDir,Port]),
     ok = copy_binaries(BinDir,DataDir),
-    ok = configure_db_instance(DataDir,Port),
+    ok = configure_db_instance(DataDir,Port,ShellPort),
     ok = initialize_db(PropList,DataDir), %starts a local neo4j-shell that populates data
     ok = start_db_instance(DataDir),
-    ok = wait_for_db_started(Port ),
+    ok = wait_for_db_started(Port),
     ok = erbi_temp_db_helpers:save_in_db_data_file(Port,DataDir,?PORT_FILE),
+    ok = erbi_temp_db_helpers:save_in_db_data_file(ShellPort,DataDir,?SHELL_PORT_FILE),
     ok.
 
 stop_temp(#erbi{},DataDir)->
@@ -247,7 +253,13 @@ get_temp_connect_data(ErbiDataSource,DataDir,UserName,Password)->
      get_temp_username(UserName),
      get_temp_password(Password)}.
 
-
+temp_run_script(#erbi{}=DataSource,DataDir,File)->
+    #erbi{properties=Props} = get_temp_proplist(DataSource,DataDir),
+    ShellPort = proplists:get_value(shell_port, Props, 1337),
+    erbi_temp_db_helpers:exec_cmd(DataDir++"/bin/neo4j-shell",
+                              [ "-port", integer_to_list(ShellPort),
+                                "-file", File ],
+                              quiet).
 
 %%-- Internals --%%
 
@@ -358,12 +370,16 @@ header_error( Code, HeaderName, Headers, Default ) ->
 % Erbi temp driver internal functions
 %-----------------------------------------------
 get_temp_proplist(#erbi{properties=PropList}=DS,DataDir)->
-    DS#erbi{properties = [get_temp_port_prop(DataDir)]++
-                         add_endpoint_if_needed(PropList)}.
+    DS#erbi{properties = [get_temp_port_prop(DataDir), 
+                          get_temp_shell_port_prop(DataDir)]++ add_endpoint_if_needed(PropList)}.
 
 get_temp_port_prop(DataDir)->
     Port=erbi_temp_db_helpers:read_integer(DataDir,?PORT_FILE),
     {port,Port}.
+
+get_temp_shell_port_prop(DataDir)->
+    Port=erbi_temp_db_helpers:read_integer(DataDir,?SHELL_PORT_FILE),
+    {shell_port,Port}.
 
 add_endpoint_if_needed(PropList)->
     case proplists:get_value(endpoint,PropList) of
@@ -391,12 +407,12 @@ copy_binaries(Source,Dest)->
     os:cmd("mkdir "++Dest++"/data"),
     ok.
 
-configure_db_instance(PathData,Port)->
-    substitute_properties_in_file(PathData,Port),
-    disable_remote_shell_cmd(PathData),
+configure_db_instance(PathData,Port,ShellPort)->
+    substitute_properties_in_file(PathData,Port,ShellPort),
+    enable_remote_shell_cmd(PathData,ShellPort),
     ok.
 
-substitute_properties_in_file(PathData,Port)->
+substitute_properties_in_file(PathData,Port,ShellPort)->
    lists:foreach(fun({Config,SubsCmd})->
               os:cmd("mv "++
                PathData++Config++" "++
@@ -408,7 +424,7 @@ substitute_properties_in_file(PathData,Port)->
        [{"/conf/neo4j-server.properties",
          get_substitute_server_config_cmd(Port)},
         {"/conf/neo4j.properties",
-         "s/enable_remote_shell=.*\$/enable_remote_shell=false/g"}]).
+         "s/enable_remote_shell=.*\$/enable_remote_shell=port" ++ integer_to_list(ShellPort) ++ "/g"} ]).
 
 -define(DB_DATA_DIR,"data/erbi_tmp.db").
 get_substitute_server_config_cmd(Port)->
@@ -429,8 +445,8 @@ esc_slashes([C|Str],Acc) ->
 esc_slashes([],Acc) ->
     lists:reverse(Acc).
 
-disable_remote_shell_cmd(PathData)->
-    os:cmd("echo 'enable_remote_shell=false' >> "++
+enable_remote_shell_cmd(PathData,ShellPort)->
+    os:cmd("echo 'enable_remote_shell=port=" ++ integer_to_list(ShellPort) ++ "' >> "++
                PathData++"/conf/neo4j.properties").
 
 start_db_instance(DataDir)->

@@ -419,6 +419,33 @@ driver_calls_temp_epgsql_test_()->
              ]
      end}.
 
+temp_epgsql_run_script_test_()->
+    [{setup,
+     fun()->
+             Config = erbi_test_util:config(epgsql_temp),
+             Datasource = "erbi:temp:base_driver=epgsql;auto_clean=false;
+                data_dir="++
+                 proplists:get_value(data_dir,Config,""),
+             os:cmd("rm -rf "++erbi_temp_db:data_dir(Datasource)),
+             erbi_temp_db:start(Datasource),
+             {ok,Connection}=?debugVal(erbi:connect(Datasource,undefined,undefined)),
+             {Datasource,Connection}
+     end,
+     fun({Datasource,_})->
+        catch( erbi_temp_db:stop(Datasource) ),
+        os:cmd("rm -rf "++erbi_temp_db:data_dir(Datasource)),
+        io:format(user, "~n~n*** on_tear_down post rm~n~n", [])
+     end,
+     fun({Datasource,Conn})->
+            Config = erbi_test_util:config(epgsql_temp),
+            DataDir = proplists:get_value(data_dir,Config,""),
+            {ok, Cwd} = file:get_cwd(),
+            ScriptPath = filename:join([Cwd,"script_test.sql"]),
+            os:cmd("echo 'CREATE TABLE person (age integer); INSERT INTO person VALUES (23);' > " ++ ScriptPath),
+            [ ?_assertMatch({ok, _Status, _Output}, erbi_temp_db:run_script(Datasource,ScriptPath)),
+              ?_assertEqual({ok,[[23]]}, ?debugVal(erbi_connection:selectall_list(Conn,"select age from person")))]
+     end}].
+
 temp_epgsql_autoclean_on_start_test_()->
     [{setup,
      fun()->
@@ -453,3 +480,5 @@ temp_epgsql_autoclean_on_start_test_()->
              [?_assertException(error,{badmatch,{ok,{exit_status,1},_}}, erbi_temp_db:start(Datasource)), % Cleans previous instance and starts another
               ?_assertEqual(true, filelib:is_dir(erbi_temp_db:data_dir(Datasource)))]
      end}].
+
+
