@@ -43,7 +43,8 @@
 % erbi_temp_db  API
 -export([start_temp/2,
          stop_temp/2,
-         get_temp_connect_data/4]).
+         get_temp_connect_data/4,
+         temp_run_script/3]).
 
 driver_info() ->
     #erbi_driver_info
@@ -241,6 +242,9 @@ stop_temp(#erbi{properties=Props},_DataDir)->
 
 get_temp_connect_data(#erbi{properties=Props}=DataSource,_DataDir,UserName,Password)->
     on_success( Props, [temp_conn,temp_db], {DataSource,UserName,Password} ).
+
+temp_run_script(_DataSource,_DataDir,_ScriptPath) ->
+    {error, "Temp driver does not run scripts."}.
 
 %% -----------------------------------
 %% @doc get bind parameters passed in
