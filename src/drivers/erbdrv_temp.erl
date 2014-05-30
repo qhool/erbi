@@ -28,6 +28,7 @@
          parse_args/1,
          connect/3,
          disconnect/1,
+         reset/1,
          begin_work/1,
          begin_work/2,
          rollback/1,
@@ -117,6 +118,10 @@ connect(#erbi{driver = temp}=DataSource, Username0, Password0)->
 disconnect(#temp_connection{base_driver=BaseDriver,
 		     base_connection=BaseConnection})->
     BaseDriver:disconnect(BaseConnection).
+
+reset(#temp_connection{base_driver=BaseDriver,
+		     base_connection=BaseConnection})->
+    BaseDriver:reset(BaseConnection).
 
 -spec begin_work( Connection :: erbdrv_connection() ) ->
     erbdrv_return().

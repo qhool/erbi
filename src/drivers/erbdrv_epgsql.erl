@@ -29,6 +29,7 @@
          parse_args/1,
          connect/3,
          disconnect/1,
+         reset/1,
          begin_work/1,
          begin_work/2,
          rollback/1,
@@ -101,6 +102,10 @@ disconnect(Connection) when is_pid(Connection)->
     pgsql:close(Connection);
 disconnect(_) ->
     {error,{erbdrv_general_error,invalid_argument}}.
+
+reset(Connection) ->
+    catch(pgsql:squery(Connection, "ROLLBACK")),
+    erbdrv_response(pgsql:sync(Connection)).
 
 -spec begin_work( Connection :: erbdrv_connection() ) ->
     erbdrv_return().

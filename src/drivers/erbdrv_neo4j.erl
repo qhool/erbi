@@ -33,6 +33,7 @@
          parse_args/1,
          connect/3,
          disconnect/1,
+         reset/1,
          begin_work/1, begin_work/2,
          rollback/1, rollback/2,
          commit/1,
@@ -134,6 +135,13 @@ connect( #erbi{ properties = Props }, _Username, _Password ) ->
 disconnect( #neocon{ rcon = RConn } ) ->
     hackney:close(RConn),
     ok.
+
+reset( #neocon{} = Conn) ->
+    case rollback(Conn) of
+        #erbdrv{ data = {transaction_error,no_transaction} } ->
+            #erbdrv{ status = ok };
+        Ret -> Ret
+    end.
 
 begin_work( #neocon{type=cypher} ) ->
     declined;

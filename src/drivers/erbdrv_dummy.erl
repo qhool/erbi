@@ -28,6 +28,7 @@
          parse_args/1,
          connect/3,
          disconnect/1,
+         reset/1,
          begin_work/1, begin_work/2,
          rollback/1, rollback/2,
          commit/1,
@@ -70,6 +71,7 @@ property_info() ->
     [{defaults, [%whether each operation should succeed
                  {connect,fallthrough},
                  {disconnect,fallthrough},
+                 {reset,fallthrough},
                  {do,declined},
                  {prepare,fallthrough},
                  {execute,fallthrough},
@@ -127,6 +129,9 @@ connect( #erbi{ properties = Props }, _Username, _Password ) ->
 
 disconnect( Props ) ->
     on_success( Props, disconnect, ok ).
+
+reset(Props) ->
+    on_success( Props, reset, #erbdrv{status=ok} ).
 
 begin_work( Props ) ->
     begin_work( Props, undefined ).

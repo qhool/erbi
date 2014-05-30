@@ -147,9 +147,17 @@
 %% @doc tear-down existing database connection.
 %%
 %% Regardless of the return, all existing handles
-%% associated with this connection are assuemed to be invalid after this call.
+%% associated with this connection are assumed to be invalid after this call.
 %% @end
 -callback disconnect( Connection :: erbdrv_connection() ) ->
+    ok | {error, erbdrv_error()}.
+
+%% @doc return connection to a 'clean' state.
+%%
+%% Called when a pooled connection is recycled, should return the connection
+%% to a state as close as possible to a new connection
+%%
+-callback reset( Connection :: erbdrv_connection() ) ->
     ok | {error, erbdrv_error()}.
 
 %% @doc begin transaction or create savepoint
@@ -394,11 +402,14 @@ handle_call({driver_call,StmtID,Func,Args},_From,#connect_state{ module = Module
     proc_return(apply(Module,Func,[Conn,Handle]++Args),State,StmtID);
 handle_call(reset,_From,#connect_state{statements=Tbl}=State) ->
     Handles = erbi_stmt_store:reset_all(Tbl),
-    lists:foldl( fun(_,{stop,Reason}) ->
-                         {stop,Reason}; %after one error, just shut the whole thing down
-                    (H,{reply,_,State1}) ->
-                         proc_return(call_driver(State1,finish,H),State1,none)
-                 end, {reply,ok,State}, Handles ).
+    case lists:foldl( fun(_,{stop,Reason}) ->
+                              {stop,Reason}; %after one error, just shut the whole thing down
+                         (H,{reply,_,State1}) ->
+                              proc_return(call_driver(State1,finish,H),State1,none)
+                      end, {reply,ok,State}, Handles ) of
+        {stop,_}=Stop -> Stop;
+        {reply,_,State2} -> proc_return(call_driver(State2,reset),State2,none)
+    end.
 
 handle_cast(disconnect,State) ->
     {stop,normal,State};
