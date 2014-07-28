@@ -310,7 +310,10 @@ call(Pid,Message,Handler) ->
         { module :: atom(),
           connection :: erbdrv_connection(),
           statements :: ets:tid(),
-          info :: erbi_driver_info()
+          info :: erbi_driver_info(),
+          datasource :: any(),
+          username :: any(),
+          password :: any()
         }).
 
 
@@ -321,22 +324,9 @@ start_link({_Module,_Info,_DataSource,_Username,_Password} = Args) ->
                   { stop, any() } | { ok, #connect_state{} }.
 
 init({Module,Info,DataSource,Username,Password}) ->
-    #erbdrv{status = Status} = Ret = Module:connect( DataSource, Username, Password ),
-    {State,_} = update_state( Ret,
-                              #connect_state{ module = Module, info = Info },
-                              undefined ),
-    case Status of
-        ok ->
-            Tbl = erbi_stmt_store:init_store(),
-            State1 = State#connect_state{ statements = Tbl },
-            {ok,State1};
-        declined ->
-            %% ????? should never happen
-            {stop,"Module declined connect"};
-        error ->
-            #erbdrv{data = Reason} = Ret,
-            {stop,Reason}
-    end.
+    State0 = #connect_state{ module = Module, info = Info,
+                             datasource = DataSource, username = Username, password = Password },
+    do_connect(State0).
 
 % disconnect from driver
 % statement cache should cleanup on its own when process terminates
@@ -345,6 +335,13 @@ init({Module,Info,DataSource,Username,Password}) ->
 terminate(_Reason,State) ->
     call_driver(State,disconnect).
 
+%% disconnected state
+handle_call(Call, From, #connect_state{ connection = undefined } = State) ->
+    case do_connect(State) of
+        {ok,State1} ->
+            handle_call(Call,From,State1);
+        Stop -> Stop
+    end;
 %% connection-level
 handle_call(begin_work, _From, State) ->
     proc_return(call_driver(State,begin_work), State,undefined);
@@ -400,6 +397,9 @@ handle_call({driver_call,Func,Args},_From,#connect_state{ module = Module, conne
 handle_call({driver_call,StmtID,Func,Args},_From,#connect_state{ module = Module, connection = Conn}=State) ->
     Handle = get_stmt_handle(State,StmtID),
     proc_return(apply(Module,Func,[Conn,Handle]++Args),State,StmtID);
+handle_call(reset, _From, #connect_state{ connection = undefined, statements=Tbl } = State) ->
+    erbi_stmt_store:reset_all(Tbl),
+    {reply,ok,State};
 handle_call(reset,_From,#connect_state{statements=Tbl}=State) ->
     Handles = erbi_stmt_store:reset_all(Tbl),
     case lists:foldl( fun(_,{stop,Reason}) ->
@@ -422,8 +422,27 @@ handle_info(_,State) ->
 code_change(_OldVsn, _State, _Extra) ->
     {error, i_cant_do_that}.
 
-
-
+do_connect(#connect_state{ module = Module, datasource = DataSource,
+                           username = Username, password = Password,
+                           statements = Tbl0 } = State0 ) ->
+    #erbdrv{status = Status} = Ret = Module:connect( DataSource, Username, Password ),
+    {State,_} = update_state( Ret, State0, undefined ),
+    case Status of
+        ok ->
+            case Tbl0 of
+                undefined ->
+                    Tbl = erbi_stmt_store:init_store(),
+                    {ok,State#connect_state{ statements = Tbl }};
+                _ ->
+                    {ok,State}
+            end;
+        declined ->
+            %% ????? should never happen
+            {stop,"Module declined connect"};
+        error ->
+            #erbdrv{data = Reason} = Ret,
+            {stop,Reason}
+    end.
 
 %% row fetching
 %% if there are already rows in the buffer, just pass back the counters and the ets table
