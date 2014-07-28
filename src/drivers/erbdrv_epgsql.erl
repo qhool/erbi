@@ -534,6 +534,8 @@ get_db_name()->
 %% -----------------------------------------------
 %% Keep this code at the end.
 
+translate_error(timeout) ->
+    {connection_lost,timeout};
 translate_error(invalid_password=Error) ->
     {invalid_credentials,Error};
 translate_error(invalid_authorization_specification=Error)->
