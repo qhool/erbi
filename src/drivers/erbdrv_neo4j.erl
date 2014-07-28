@@ -25,7 +25,7 @@
 
 -include("erbi.hrl").
 -include("erbi_driver.hrl").
--include_lib("hackney_lib/include/hackney_lib.hrl").
+-include_lib("hackney/include/hackney_lib.hrl").
 
 -export([driver_info/0,
          validate_property/2,
