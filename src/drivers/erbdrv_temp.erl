@@ -120,8 +120,8 @@ disconnect(#temp_connection{base_driver=BaseDriver,
     BaseDriver:disconnect(BaseConnection).
 
 reset(#temp_connection{base_driver=BaseDriver,
-		     base_connection=BaseConnection})->
-    BaseDriver:reset(BaseConnection).
+		     base_connection=BaseConnection}=C)->
+    wrap_ret(C,BaseDriver:reset(BaseConnection)).
 
 -spec begin_work( Connection :: erbdrv_connection() ) ->
     erbdrv_return().

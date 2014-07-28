@@ -137,11 +137,13 @@ disconnect( #neocon{ rcon = RConn } ) ->
     ok.
 
 reset( #neocon{} = Conn) ->
-    case rollback(Conn) of
-        #erbdrv{ data = {transaction_error,no_transaction} } ->
-            #erbdrv{ status = ok };
-        Ret -> Ret
-    end.
+    C1 =
+        case catch(rollback(Conn)) of
+            #erbdrv{ conn = #neocon{} = C } -> C;
+            _ -> Conn
+        end,
+    #erbdrv{ status = ok, conn = C1#neocon{trans=undefined} }.
+
 
 begin_work( #neocon{type=cypher} ) ->
     declined;
