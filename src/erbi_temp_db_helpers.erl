@@ -18,6 +18,7 @@
          getenv/2,
          filter_scanner/2, filter_scanner/3,
          filter_logger/2, filter_logger/3,
+         exec_start/4, exec_start/5, exec_start/6,
          exec_cmd/2, exec_cmd/3, exec_cmd/4
 	]).
 
@@ -266,16 +267,62 @@ pop([Last],Front) ->
 pop([A|As],Front) ->
     pop(As,[A|Front]).
 
-%%@doc execute command, returning OS PID
-%%
-%% Arguments:
-%%
-%%@end
 -type exec_cmd_return() :: {ok,{os_pid,integer()},any()} |
                            {ok,{exit_status,integer()},any()} |
                            {error,any()}.
 -type exec_cmd_scanfn() :: fun( (string(),any()) -> any() ).
 
+%%@doc execute command as temp db start
+%%
+%% The start script of the temp database should be run using this,
+%% allowing timeouts or other settings to be applied.
+%%
+%%@end
+exec_start( DS, Signals, Command, Args ) ->
+    {C,A} = start_cmd(DS,Signals,Command,Args),
+    exec_cmd(C,A).
+exec_start( DS, Signals, Command, Args, LogScan ) ->
+    {C,A} = start_cmd(DS,Signals,Command,Args),
+    exec_cmd(C,A,LogScan).
+exec_start( DS, Signals, Command, Args, Scanner, Logger ) ->
+    {C,A} = start_cmd(DS,Signals,Command,Args),
+    exec_cmd(C,A,Scanner,Logger).
+start_cmd(DS, Sig, C, A ) when is_atom(Sig) ->
+    start_cmd(DS, string:to_upper(atom_to_list(Sig)), C, A );
+start_cmd(#erbi{ driver=Driver, properties=Props }=Datasource,Sig,Cmd,Args) ->
+    TimeoutStr = case getenv(Datasource,timeout) of
+                     false ->
+                         proplists:get_value(temp_timeout,Props);
+                     T -> T
+                 end,
+    Timeout =
+        case TimeoutStr of
+            "" -> undefined;
+            <<"">> -> undefined;
+            S when is_list(S) -> list_to_integer(S);
+            B when is_binary(B) -> list_to_integer(binary_to_list(B));
+            I when is_integer(I) -> I;
+            undefined -> undefined
+        end,
+    case Timeout of
+        undefined ->
+            {Cmd,Args};
+        _ ->
+            case search_dirs([],"timeout") of
+                {ok,TOutDir} ->
+                    io:format(standard_error,"Setting ~p second timeout on temp ~p~n",[Timeout,Driver]),
+                    {TOutDir++"/timeout",["-k",integer_to_list(min(Timeout div 10,30)),
+                                         "-s",Sig, integer_to_list(Timeout), Cmd | Args ]};
+                _ ->
+                    io:format(standard_error,"Unable to apply ~p second timeout to ~p~n",[Timeout,Driver])
+            end
+    end.
+
+%%@doc execute command, returning OS PID
+%%
+%% Arguments:
+%%
+%%@end
 -spec exec_cmd( Command :: unicode:chardata(),
                 Args :: [unicode:chardata()] ) -> exec_cmd_return().
 

@@ -251,7 +251,7 @@ start_temp(#erbi{properties=PropList}=DataSource,DataDir)->
     ok = copy_binaries(BinDir,DataDir),
     ok = configure_db_instance(DataDir,Port,ShellPort),
     ok = initialize_db(PropList,DataDir), %starts a local neo4j-shell that populates data
-    ok = start_db_instance(DataDir),
+    ok = start_db_instance(DataSource,DataDir),
     ok = wait_for_db_started(Port),
     ok = erbi_temp_db_helpers:save_in_db_data_file(Port,DataDir,?PORT_FILE),
     ok = erbi_temp_db_helpers:save_in_db_data_file(ShellPort,DataDir,?SHELL_PORT_FILE),
@@ -524,20 +524,17 @@ enable_remote_shell_cmd(PathData,ShellPort)->
     os:cmd("echo 'enable_remote_shell=port=" ++ integer_to_list(ShellPort) ++ "' >> "++
                PathData++"/conf/neo4j.properties").
 
-start_db_instance(DataDir)->
-    {ok,_,_} = exec_neo4j_server_cmd(DataDir,"start"),
+start_db_instance(DataSource,DataDir)->
+    {ok,_,_} =  erbi_temp_db_helpers:exec_start(DataSource,term,DataDir++"/bin/neo4j",["start"]),
     ok.
 
 stop_db_instance(DataDir)->
-    case exec_neo4j_server_cmd(DataDir,"stop") of
+    case erbi_temp_db_helpers:exec_cmd(DataDir++"/bin/neo4j",["stop"],quiet) of
       {ok,_,_} ->
         ok;
       {error,_} ->
         erbi_temp_db_helpers:kill_db_pid(DataDir, ?PID_FILE)
     end.
-
-exec_neo4j_server_cmd(DataDir,NeoCmd) ->
-    erbi_temp_db_helpers:exec_cmd(DataDir++"/bin/neo4j",[NeoCmd],quiet).
 
 wait_for_db_started(Port)->
     wait_for_db_state(Port,started,{error,db_not_started}).

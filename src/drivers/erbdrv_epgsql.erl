@@ -223,7 +223,7 @@ start_temp(#erbi{properties=PropList}=DataSource,DataDir)->
     {ok,PathBin}= erbi_temp_db_helpers:find_bin_dir(DataSource,?POSSIBLE_BIN_DIRS,"postgres"),
     {ok, Port}=erbi_temp_db_helpers:get_free_db_port(DataSource),
     ok = configure_datadir(PathBin,DataDir),
-    DBPid = start_db_instance(PathBin,DataDir,Port),
+    DBPid = start_db_instance(DataSource,PathBin,DataDir,Port),
     ok = initialize_db(PropList,PathBin,Port),
     ok = erbi_temp_db_helpers:save_in_db_data_file(DBPid,DataDir,?PID_FILE),
     ok = erbi_temp_db_helpers:save_in_db_data_file(Port,DataDir,?PORT_FILE),
@@ -451,16 +451,15 @@ configure_datadir(PathBin,PathData)->
     {ok,{exit_status,0},_} = erbi_temp_db_helpers:exec_cmd(PathBin++"/initdb",["-D",PathData],quiet),
     ok.
 
-start_db_instance(PathBin,PathData,Port)->
-    
+start_db_instance(DataSource,PathBin,PathData,Port)->
     Postgres = filename:join([PathBin, "postgres"]),
     Ver = get_postgress_version(Postgres),
     io:format(user,"Starting temp postgres ~p from ~p on port ~p~n",[Ver,PathData,Port]),
     %io:format(user,"Detected postgres version: ~p~n", [Ver]),
     Args = db_instance_args(Ver,PathData,Port),
-    {ok,{os_pid,Pid},_} = 
-        erbi_temp_db_helpers:exec_cmd
-          (Postgres,Args,nowait,
+    {ok,{os_pid,Pid},_} =
+        erbi_temp_db_helpers:exec_start
+          (DataSource,quit,Postgres,Args,nowait,
            erbi_temp_db_helpers:filter_logger(nomatch,["^LOG:"])
           ),
     ok=wait_for_db_started(PathBin,Port),
