@@ -8,7 +8,8 @@
 -export([create_dir/1,
          del_dir/1,
          kill_db_pid/2,kill_db_pid/3,kill_os_pid/1,kill_os_pid/2,check_os_pid/1,
-         get_free_db_port/2,
+         get_free_db_port/1, get_free_db_port/2,
+         get_free_port/0,
          save_in_db_data_file/3,
          read_integer/2,
          find_bin_dir/3,
@@ -135,22 +136,19 @@ check_os_pid(Pid) ->
     {ok,{exit_status,0},{Found,_}} = exec_cmd("/bin/ps",["ax"],{Scan,{dead,""}},none),
     Found.
 
-get_free_db_port(MinPort,MaxPort)->
-    StartingPort=trunc(random:uniform()*(MaxPort-MinPort))+MinPort,
-    get_free_db_port(StartingPort+1,StartingPort,MinPort,MaxPort).
+get_free_db_port(#erbi{}=Drv) ->
+    get_free_db_port(Drv,port).
+get_free_db_port(Drv,EnvKey) ->
+    case getenv(Drv,EnvKey) of
+        false -> get_free_port();
+        ValStr -> {ok,list_to_integer(ValStr)}
+    end.
 
-get_free_db_port(Port,StartingPort,MinPort,MaxPort) when Port > MaxPort->
-    get_free_db_port(MinPort,StartingPort,MinPort,MaxPort);
-get_free_db_port(Port,StartingPort,_MinPort,_MaxPort) when Port == StartingPort ->
-    {error,no_free_port};
-get_free_db_port(Port,StartingPort,MinPort,MaxPort) ->
-    case gen_tcp:listen(Port,[]) of
-       {ok,TmpSock}->
-            gen_tcp:close(TmpSock),
-            {ok,Port};
-        _ ->
-            get_free_db_port(Port+1,StartingPort,MinPort,MaxPort)
-      end.
+get_free_port() ->
+    {ok,Sock} = gen_tcp:listen(0,[]),
+    {ok,Port} = inet:port(Sock),
+    gen_tcp:close(Sock),
+    {ok,Port}.
 
 save_in_db_data_file(Term,Path,File)->
                                                 %file:write_file(Path++"/"++File,term_to_binary(Term)).

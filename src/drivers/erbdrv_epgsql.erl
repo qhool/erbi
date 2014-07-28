@@ -52,9 +52,6 @@
          get_temp_connect_data/4,
          temp_run_script/3]).
 
--define(MIN_PORT,5433).
--define(MAX_PORT,5533).
-
 -spec driver_info() -> erbi_driver_info().
 driver_info()->
     #erbi_driver_info
@@ -224,7 +221,7 @@ finish(Connection,_) ->
     ok.
 start_temp(#erbi{properties=PropList}=DataSource,DataDir)->
     {ok,PathBin}= erbi_temp_db_helpers:find_bin_dir(DataSource,?POSSIBLE_BIN_DIRS,"postgres"),
-    {ok, Port}=get_free_db_port(),
+    {ok, Port}=erbi_temp_db_helpers:get_free_db_port(DataSource),
     ok = configure_datadir(PathBin,DataDir),
     DBPid = start_db_instance(PathBin,DataDir,Port),
     ok = initialize_db(PropList,PathBin,Port),
@@ -531,9 +528,6 @@ get_db_user()->
 
 get_db_name()->
     "postgres".
-
-get_free_db_port()->
-    erbi_temp_db_helpers:get_free_db_port(?MIN_PORT,?MAX_PORT).
 
 %% -----------------------------------------------
 %% Postgres Error Code Mapping

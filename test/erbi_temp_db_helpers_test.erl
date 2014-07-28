@@ -11,9 +11,13 @@ del_data_dir_test()->
     erbi_temp_db_helpers:del_dir(BaseDir),
     false = filelib:is_dir(BaseDir).
 
-get_free_db_port_test()->
-    {ok,Port}=erbi_temp_db_helpers:get_free_db_port(7777,8777),
+get_free_port_test()->
+    {ok,Port}=erbi_temp_db_helpers:get_free_port(),
     {ok,_}=gen_tcp:listen(Port,[]).
+
+get_free_db_port_test() ->
+    true = os:putenv("ERBI_TEMPDB_PORT_FOO","17173"),
+    {ok,17173} = erbi_temp_db_helpers:get_free_db_port(#erbi{ driver = foo }).
 
 save_read_integer_test_()->
     {setup,

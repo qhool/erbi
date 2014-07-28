@@ -234,10 +234,6 @@ finish(_,_) ->
 -define(PORT_FILE,"tmp_db.port").
 -define(PID_FILE,"/data/neo4j-service.pid").
 -define(SHELL_PORT_FILE,"tmp_shell.port").
--define(MIN_PORT, 7475).
--define(MAX_PORT, 8475).
--define(MIN_SHELL_PORT, 8476).
--define(MAX_SHELL_PORT, 9475).
 -define(POSSIBLE_BIN_DIRS,["/usr/share/neo4j/",
                           "/var/lib/neo4j/bin",
                           "/opt/neo4j/bin",
@@ -249,8 +245,8 @@ finish(_,_) ->
 
 start_temp(#erbi{properties=PropList}=DataSource,DataDir)->
     {ok,BinDir}= erbi_temp_db_helpers:find_bin_dir(DataSource,?POSSIBLE_BIN_DIRS,"neo4j"),
-    {ok, Port}=erbi_temp_db_helpers:get_free_db_port(?MIN_PORT,?MAX_PORT),
-    {ok, ShellPort}=erbi_temp_db_helpers:get_free_db_port(?MIN_SHELL_PORT,?MAX_SHELL_PORT),
+    {ok, Port}=erbi_temp_db_helpers:get_free_db_port(DataSource),
+    {ok, ShellPort}=erbi_temp_db_helpers:get_free_db_port(DataSource,shell_port),
     io:format(user,"Creating temp Neo4j DB in ~p on port ~p~n",[DataDir,Port]),
     ok = copy_binaries(BinDir,DataDir),
     ok = configure_db_instance(DataDir,Port,ShellPort),
