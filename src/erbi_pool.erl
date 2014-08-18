@@ -25,13 +25,14 @@
 -include("erbi.hrl").
 -include("erbi_private.hrl").
 
--define(POOL_PROPS,[pool_name,pool_size,pool_max_overflow]).
+-define(POOL_PROPS,[pool_name,pool_size,pool_max_overflow,pool_queue]).
 -define(DEFAULT_CHECKOUT_TIMEOUT, 5000).
 
 %% API
 -export([
     start_pool/3,
     checkout/1,
+    checkout/2,
     checkin/1,
     status/1,
     list_pool_names/0,
@@ -57,8 +58,14 @@ start_pool(PoolName, PoolArgs, WorkerArgs) ->
 
 -spec checkout(PoolName :: atom() | string()) ->
     {ok, PooledConn :: erbi_connection()} | {error, Reason :: term()}.
-checkout(PoolName) when is_atom(PoolName) orelse is_list(PoolName) ->
-    case poolboy:checkout(ext_to_internal_name(PoolName), false, ?DEFAULT_CHECKOUT_TIMEOUT) of
+checkout(PoolName) ->
+    checkout(PoolName,false).
+
+-spec checkout(PoolName :: atom() | string(),
+               PoolQueue :: boolean() ) ->
+    {ok, PooledConn :: erbi_connection()} | {error, Reason :: term()}.
+checkout(PoolName,Queue) when is_atom(PoolName) orelse is_list(PoolName) ->
+    case poolboy:checkout(ext_to_internal_name(PoolName), Queue, ?DEFAULT_CHECKOUT_TIMEOUT) of
         full -> {error, no_available_connections};
         Worker ->
             catch(erbi_driver:reset(Worker)),
@@ -107,6 +114,10 @@ validate_property(name, V) when is_list(V) ->
     {ok, [{name, ext_to_internal_name(V)}]};
 validate_property( max_overflow, V) when is_list(V) ->
     {ok, [{max_overflow, list_to_integer(V)}]};
+validate_property( queue, V) when is_list(V) ->
+    validate_property( queue, list_to_existing_atom(V) );
+validate_property( queue, enabled ) ->
+    {ok, [{queue, true}]};
 validate_property( _,_ ) ->
     ok.
 
@@ -115,8 +126,9 @@ property_info()->
     [{aliases, [
         {pool_name,name},
         {pool_size,size},
-        {pool_max_overflow,max_overflow}]},
-     {defaults,[{size,5},{max_overflow,5}]},
+        {pool_max_overflow,max_overflow},
+        {pool_queue,queue}]},
+     {defaults,[{size,5},{max_overflow,5},{queue,false}]},
      {required,[name]}
     ].
 
