@@ -35,6 +35,7 @@
 -type erbdrv_statement_error() :: syntax_error |
                                   missing_parameter |
                                   execution_error |
+                                  type_error |
                                   unknown_table |
                                   unknown_column |
                                   unknown_object.
