@@ -332,6 +332,14 @@ rest_response(C,Func,{_,Stat,Headers,Body}) when (Stat >= 200) and (Stat < 300) 
                     %% error format changed with 2.0.0
                     <<"Neo.ClientError.Statement.InvalidSyntax">> ->
                         syntax_error;
+                    <<"Neo.ClientError.Statement.InvalidType">> ->
+                        type_error;
+                    <<"Neo.DatabaseError.Statement.ExecutionFailure">> ->
+                        execution_error;
+                    econnrefused ->
+                        connection_refused;
+                    closed ->
+                        connection_closed;
                     _ -> unmapped_error
                 end,
             case Status of
