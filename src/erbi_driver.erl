@@ -288,7 +288,7 @@ call({erbi_connection,#conn{ pid = Pid}},Message,Handler) ->
 call({erbi_statement,#conn{pid=Pid},_},Message,Handler) ->
     call(Pid,Message,Handler);
 call(Pid,Message,Handler) ->
-    case gen_server:call(Pid,Message) of
+    case gen_server:call(Pid,Message,infinity) of
         {error,Reason} ->
             {error,Reason};
         Return ->
