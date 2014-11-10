@@ -311,8 +311,7 @@ start_cmd(#erbi{ driver=Driver, properties=Props }=Datasource,Sig,Cmd,Args) ->
             case search_dirs([],"timeout") of
                 {ok,TOutDir} ->
                     io:format(standard_error,"Setting ~p second timeout on temp ~p~n",[Timeout,Driver]),
-                    {TOutDir++"/timeout",["-k",integer_to_list(min(Timeout div 10,30)),
-                                         "-s",Sig, integer_to_list(Timeout), Cmd | Args ]};
+                    {TOutDir++"/timeout", ["-s", Sig, integer_to_list(Timeout), Cmd | Args]};
                 _ ->
                     io:format(standard_error,"Unable to apply ~p second timeout to ~p~n",[Timeout,Driver])
             end
