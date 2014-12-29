@@ -131,14 +131,17 @@ savepoint(Connection,Savepoint,{ok,[],[]})->
 -spec rollback( Connection :: erbdrv_connection() ) ->
     erbdrv_return().
 rollback(Connection)->
-   erbdrv_response(pgsql:squery(Connection, "ROLLBACK")).
+    pgsql:sync(Connection),
+    erbdrv_response(pgsql:squery(Connection, "ROLLBACK")).
 
 -spec rollback( Connection :: erbdrv_connection(),
                     Savepoint :: atom | string() ) ->
     erbdrv_return().
 rollback(Connection,Savepoint) when is_list(Savepoint)->
+    pgsql:sync(Connection),
     erbdrv_response(pgsql:squery(Connection,[$R,$O,$L,$L,$B,$A,$C,$K,$ ,$T,$O, $ | Savepoint]));
 rollback(Connection,Savepoint) when is_atom(Savepoint) ->
+    pgsql:sync(Connection),
     rollback(Connection, atom_to_list(Savepoint)).
 
 -spec commit( Connection :: erbdrv_connection() ) ->
@@ -567,7 +570,9 @@ translate_error(#error{ severity = _Severity,
             E -> {E,undefined}
         end,
     {coalesce([ErbiErr1,ErbiErr0,unmapped_error]),
-     {ErrGroup,coalesce([Err,ErrGroup]),Message}}.
+     {ErrGroup,coalesce([Err,ErrGroup]),Message}};
+translate_error(sync_required) ->
+    {execution_error,sync_required}.
 
 coalesce([undefined|Rest]) ->
     coalesce(Rest);
@@ -619,7 +624,8 @@ translate_error_group(Code) ->
         "F0" -> config_file_error;
         "HV" -> fdw_error;
         "P0" -> plpgsql_error;
-        "XX" -> internal_error
+        "XX" -> internal_error;
+        _ -> list_to_atom(Code)
     end.
 
 translate_error_code(Code) ->
@@ -839,5 +845,6 @@ translate_error_code(Code) ->
         "P0003" -> too_many_rows;
         "XX000" -> internal_error;
         "XX001" -> data_corrupted;
-        "XX002" -> index_corrupted
+        "XX002" -> index_corrupted;
+        _ -> list_to_atom(Code)
     end.
