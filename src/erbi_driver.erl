@@ -267,7 +267,7 @@
 
 -spec reset(Pid :: pid()) -> ok.
 reset(Pid) ->
-    gen_server:call(Pid, reset).
+    gen_server:call(Pid, reset, infinity).
 
 %% convenience wrapper for gen_server
 -spec call( ConnOrStmt :: erbi_connection() | erbi_statement(),
@@ -288,7 +288,7 @@ call({erbi_connection,#conn{ pid = Pid}},Message,Handler) ->
 call({erbi_statement,#conn{pid=Pid},_},Message,Handler) ->
     call(Pid,Message,Handler);
 call(Pid,Message,Handler) ->
-    case gen_server:call(Pid,Message) of
+    case gen_server:call(Pid,Message,infinity) of
         {error,Reason} ->
             {error,Reason};
         Return ->
