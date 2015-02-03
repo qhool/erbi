@@ -101,13 +101,14 @@ disconnect(_) ->
     {error,{erbdrv_general_error,invalid_argument}}.
 
 reset(Connection) ->
-    case catch(pgsql:squery(Connection, "ROLLBACK")) of
-        {error,timeout} ->
-            %% forces erbi_driver to reconnect on next operation
-            erbdrv_connection_response(undefined);
-        _ ->
-            erbdrv_response(pgsql:sync(Connection))
-    end.
+    erbdrv_response(pgsql:sync(Connection)).
+    %% case catch(pgsql:squery(Connection, "ROLLBACK")) of
+    %%     {error,timeout} ->
+    %%         %% forces erbi_driver to reconnect on next operation
+    %%         erbdrv_connection_response(undefined);
+    %%     _ ->
+    %%         erbdrv_response(pgsql:sync(Connection))
+    %% end.
 
 -spec begin_work( Connection :: erbdrv_connection() ) ->
     erbdrv_return().

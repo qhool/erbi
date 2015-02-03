@@ -68,7 +68,7 @@ checkout(PoolName,Queue) when is_atom(PoolName) orelse is_list(PoolName) ->
     case poolboy:checkout(ext_to_internal_name(PoolName), Queue, ?DEFAULT_CHECKOUT_TIMEOUT) of
         full -> {error, no_available_connections};
         Worker ->
-            catch(erbi_driver:reset(Worker)),
+            %%catch(erbi_driver:reset(Worker)),
             {ok, {erbi_connection, #conn{
                     pid = Worker,
                     pooled = true,
