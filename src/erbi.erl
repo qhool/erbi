@@ -18,7 +18,7 @@
 %% Main erbi module.
 %% @end
 -module(erbi).
--export([connect/3,connect/1,
+-export([connect/4,connect/3,connect/2,connect/1,
          driver_call/3,
          normalize_data_source/1,
          normalize_data_source/2,
@@ -58,15 +58,24 @@ start() ->
                Username :: undefined | unicode:chardata() ,
                Password :: undefined | unicode:chardata() ) ->
                      { ok, erbi_connection() } | { error, any() }.
-connect( DataSource, Username, Password ) when is_list(DataSource) ->
-    connect( parse_data_source( DataSource ), Username, Password );
-connect( {erbi,Driver}, Username, Password ) ->
-    connect( #erbi{ driver = Driver }, Username, Password );
-connect( {erbi,Driver,Props}, Username, Password ) ->
-    connect( #erbi{ driver = Driver, properties = Props }, Username, Password );
-connect( #erbi{} = DataSource, Username, Password ) ->
-    connect( erbi_pool:scrape_pool_properties(DataSource), Username, Password );
-connect( {[], DataSource}, Username, Password ) -> % requesting non-pooled connection
+connect( DataSource, Username, Password ) ->
+    connect( DataSource, Username, Password, default ).
+
+
+-spec connect( DataSource :: unicode:chardata() | erbi_data_source() | erbi_connect_tuple(),
+               Username :: undefined | unicode:chardata() ,
+               Password :: undefined | unicode:chardata() ,
+               Timeout :: pos_integer() | default ) ->
+                     { ok, erbi_connection() } | { error, any() }.
+connect( DataSource, Username, Password, Timeout ) when is_list(DataSource) ->
+    connect( parse_data_source( DataSource ), Username, Password, Timeout );
+connect( {erbi,Driver}, Username, Password, Timeout ) ->
+    connect( #erbi{ driver = Driver }, Username, Password, Timeout );
+connect( {erbi,Driver,Props}, Username, Password, Timeout ) ->
+    connect( #erbi{ driver = Driver, properties = Props }, Username, Password, Timeout );
+connect( #erbi{} = DataSource, Username, Password, Timeout ) ->
+    connect( erbi_pool:scrape_pool_properties(DataSource), Username, Password, Timeout );
+connect( {[], DataSource}, Username, Password, _Timeout ) -> % requesting non-pooled connection
     Module = get_driver_module(DataSource),
     case normalize_data_source(Module,DataSource) of
         {error,_}=E ->
@@ -83,7 +92,7 @@ connect( {[], DataSource}, Username, Password ) -> % requesting non-pooled conne
                 {error,Reason} -> {error,Reason}
             end
     end;
-connect( {PoolProps, DataSource}, Username, Password ) when is_list(PoolProps) -> % requesting pooled connection
+connect( {PoolProps, DataSource}, Username, Password, Timeout ) when is_list(PoolProps) -> % requesting pooled connection
     Module = get_driver_module(DataSource),
     case normalize_data_source(Module,DataSource) of
         {error,_}=E ->
@@ -93,14 +102,16 @@ connect( {PoolProps, DataSource}, Username, Password ) when is_list(PoolProps) -
                 % pools are pre-created. So a call like this erbi:connect("erbi:epgsql:pool_name=test")
                 % should not fail unless we have no pool.
                 PoolName -> erbi_pool:checkout(PoolName,
-                                               proplists:get_value(queue, PoolProps, false))
+                                               proplists:get_value(queue, PoolProps, false),
+                                               Timeout
+                                              )
             end;
         DataSource1 ->
             ConnectReq = {Module,Module:driver_info(),DataSource1,Username,Password},
             PoolName = proplists:get_value(name, PoolProps),
             PoolQueue = proplists:get_value(queue, PoolProps),
             {ok, _Pool} = erbi_pool:start_pool(PoolName, PoolProps, ConnectReq),
-            erbi_pool:checkout(PoolName, PoolQueue)
+            erbi_pool:checkout(PoolName, PoolQueue, Timeout)
     end.
 
 
@@ -114,6 +125,13 @@ connect( {PoolProps, DataSource}, Username, Password ) when is_list(PoolProps) -
                      { ok, erbi_connection() } | { error, any() }.
 connect( DataSource ) ->
     connect( DataSource, undefined, undefined ).
+
+-spec connect( DataSource :: unicode:chardata() | erbi_data_source(),
+               Timeout :: pos_integer()) ->
+                     { ok, erbi_connection() } | { error, any() }.
+connect( DataSource, Timeout ) ->
+    connect( DataSource, undefined, undefined, Timeout ).
+
 
 %% --------------------------------------
 %% @doc normalize data source.

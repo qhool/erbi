@@ -32,7 +32,7 @@
 -export([
     start_pool/3,
     checkout/1,
-    checkout/2,
+    checkout/3,
     checkin/1,
     status/1,
     list_pool_names/0,
@@ -59,13 +59,18 @@ start_pool(PoolName, PoolArgs, WorkerArgs) ->
 -spec checkout(PoolName :: atom() | string()) ->
     {ok, PooledConn :: erbi_connection()} | {error, Reason :: term()}.
 checkout(PoolName) ->
-    checkout(PoolName,false).
+    checkout(PoolName,false,?DEFAULT_CHECKOUT_TIMEOUT).
 
 -spec checkout(PoolName :: atom() | string(),
-               PoolQueue :: boolean() ) ->
+               PoolQueue :: boolean(),
+               Timeout :: pos_integer() | default ) ->
     {ok, PooledConn :: erbi_connection()} | {error, Reason :: term()}.
-checkout(PoolName,Queue) when is_atom(PoolName) orelse is_list(PoolName) ->
-    case poolboy:checkout(ext_to_internal_name(PoolName), Queue, ?DEFAULT_CHECKOUT_TIMEOUT) of
+checkout(PoolName,Queue,Timeout) when is_atom(PoolName) orelse is_list(PoolName) ->
+    Timeout1 = case Timeout of
+                   default -> ?DEFAULT_CHECKOUT_TIMEOUT;
+                   _ -> Timeout
+               end,
+    case poolboy:checkout(ext_to_internal_name(PoolName), Queue, Timeout1) of
         full -> {error, no_available_connections};
         Worker ->
             %%catch(erbi_driver:reset(Worker)),
