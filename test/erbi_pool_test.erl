@@ -52,9 +52,9 @@ check_no_overflow_pool_state() ->
     S2 = erbi_pool:status(erbi_pool_test0),
     [
      ?_assertMatch({error, no_available_connections}, E),
-     ?_assertMatch({ready,2,0,0},S0),
-     ?_assertMatch({full,0,0,2},S1),
-     ?_assertMatch({ready,2,0,0},S2)
+     ?_assertMatch({ready,2,0,0,_},S0),
+     ?_assertMatch({full,0,0,2,_},S1),
+     ?_assertMatch({ready,2,0,0,_},S2)
     ].
 
 check_overflow_pool_state() ->
@@ -67,9 +67,9 @@ check_overflow_pool_state() ->
     erbi_pool:checkin(C1),
     S2 = erbi_pool:status(erbi_pool_test1),
     [
-     ?_assertMatch({ready,1,0,0},S0),
-     ?_assertMatch({full,0,1,2},S1),
+     ?_assertMatch({ready,1,0,0,_},S0),
+     ?_assertMatch({full,0,1,2,_},S1),
      ?_assertMatch({error, no_available_connections}, E),
-     ?_assertMatch({ready,1,0,0},S2)
+     ?_assertMatch({ready,1,0,0,_},S2)
     ].
 

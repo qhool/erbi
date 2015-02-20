@@ -94,9 +94,10 @@ list_pool_names() ->
 -spec status(PoolName :: atom) -> {State :: ready | full | overflow,
                                    NumberOfConnections :: integer(),
                                    NumberOfOverflowConnections :: integer(),
-                                   NumberOfLeasedConnections :: integer()}.
+                                   NumberOfLeasedConnections :: integer(),
+                                   NumberOfWaitingClients :: integer()}.
 status(PoolName) when is_atom(PoolName) ->
-    poolboy:status(ext_to_internal_name(PoolName)).
+    poolboy:qstatus(ext_to_internal_name(PoolName)).
 
 -spec scrape_pool_properties(DataSource :: erbi_data_source()) ->
     {list(), erbi_data_source()}.
