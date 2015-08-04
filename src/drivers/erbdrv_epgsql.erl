@@ -68,6 +68,10 @@ driver_info()->
     ok | {ok,[property()]} | {error,any()}.
 validate_property(port,Port) when is_list(Port)->
      {ok,[{port,list_to_integer(Port)}]};
+validate_property(timeout,"infinity") ->
+    {ok,[{timeout,infinity}]};
+validate_property(timeout,Timeout) when is_list(Timeout) ->
+    {ok,[{timeout,list_to_integer(Timeout)}]};
 validate_property( _,_ ) ->
     ok.
 
