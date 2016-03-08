@@ -95,23 +95,23 @@ connect(#erbi{driver = epgsql, properties=PropList}, Username, Password)->
     connect(Host, Username, Password, PropList).
 
 connect(Host,Username,Password,PropList)->
-    erbdrv_response(pgsql:connect(Host, Username, Password, PropList)).
+    erbdrv_response(epgsql:connect(Host, Username, Password, PropList)).
 
 -spec disconnect( Connection :: erbdrv_connection() ) ->
     ok | {error, erbdrv_error()}.
 disconnect(Connection) when is_pid(Connection)->
-    pgsql:close(Connection);
+    epgsql:close(Connection);
 disconnect(_) ->
     {error,{erbdrv_general_error,invalid_argument}}.
 
 reset(Connection) ->
-    erbdrv_response(pgsql:sync(Connection)).
-    %% case catch(pgsql:squery(Connection, "ROLLBACK")) of
+    erbdrv_response(epgsql:sync(Connection)).
+    %% case catch(epgsql:squery(Connection, "ROLLBACK")) of
     %%     {error,timeout} ->
     %%         %% forces erbi_driver to reconnect on next operation
     %%         erbdrv_connection_response(undefined);
     %%     _ ->
-    %%         erbdrv_response(pgsql:sync(Connection))
+    %%         erbdrv_response(epgsql:sync(Connection))
     %% end.
 
 -spec begin_work( Connection :: erbdrv_connection() ) ->
@@ -120,7 +120,7 @@ begin_work(Connection)->
     erbdrv_response(begin_work_query(Connection)).
 
 begin_work_query(Connection)->
-     pgsql:squery(Connection,"BEGIN").
+     epgsql:squery(Connection,"BEGIN").
 
 -spec begin_work( Connection :: erbdrv_connection(),
                       Savepoint :: atom | string() ) ->
@@ -131,39 +131,39 @@ begin_work(Connection,Savepoint) when is_atom(Savepoint)->
     begin_work(Connection,atom_to_list(Savepoint)).
 
 savepoint(Connection,Savepoint,{ok,[],[]})->
-    erbdrv_response(pgsql:squery(Connection, [$S,$A,$V,$E,$P,$O,$I,$N,$T,$  |Savepoint])).
+    erbdrv_response(epgsql:squery(Connection, [$S,$A,$V,$E,$P,$O,$I,$N,$T,$  |Savepoint])).
 
 -spec rollback( Connection :: erbdrv_connection() ) ->
     erbdrv_return().
 rollback(Connection)->
-    pgsql:sync(Connection),
-    erbdrv_response(pgsql:squery(Connection, "ROLLBACK")).
+    epgsql:sync(Connection),
+    erbdrv_response(epgsql:squery(Connection, "ROLLBACK")).
 
 -spec rollback( Connection :: erbdrv_connection(),
                     Savepoint :: atom | string() ) ->
     erbdrv_return().
 rollback(Connection,Savepoint) when is_list(Savepoint)->
-    pgsql:sync(Connection),
-    erbdrv_response(pgsql:squery(Connection,[$R,$O,$L,$L,$B,$A,$C,$K,$ ,$T,$O, $ | Savepoint]));
+    epgsql:sync(Connection),
+    erbdrv_response(epgsql:squery(Connection,[$R,$O,$L,$L,$B,$A,$C,$K,$ ,$T,$O, $ | Savepoint]));
 rollback(Connection,Savepoint) when is_atom(Savepoint) ->
-    pgsql:sync(Connection),
+    epgsql:sync(Connection),
     rollback(Connection, atom_to_list(Savepoint)).
 
 -spec commit( Connection :: erbdrv_connection() ) ->
     erbdrv_return().
 commit(Connection)->
-    erbdrv_response(pgsql:squery(Connection,"END")).
+    erbdrv_response(epgsql:squery(Connection,"END")).
 
 -spec do( Connection :: erbdrv_connection(),
               Query :: string(),
               Params ::  erbi_bind_values() ) ->
     erbdrv_return().
 do(Connection,Query,Params)->
-    erbdrv_squery_response(pgsql:equery(Connection,Query,erbi_bind_values_to_epgsql(Params))).
+    erbdrv_squery_response(epgsql:equery(Connection,Query,erbi_bind_values_to_epgsql(Params))).
 
 -spec prepare( Connection :: erbdrv_connection(), Query :: string() ) -> erbdrv_return().
 prepare(Connection,Query) when is_list(Query)->
-    erbdrv_response(pgsql:parse(Connection,[],Query,[])).
+    erbdrv_response(epgsql:parse(Connection,[],Query,[])).
 
 -spec bind_params( Connection :: erbdrv_connection(),
                        Statement :: erbdrv_statement(),
@@ -179,14 +179,14 @@ check_bindable_statement(Connection,Statement,Params)->
     bind_params_query(Connection,Statement,Params).
 
 bind_params_query(Connection,Statement,Params)->
-   pgsql:bind(Connection,Statement,"",erbi_bind_values_to_epgsql(Params)).
+   epgsql:bind(Connection,Statement,"",erbi_bind_values_to_epgsql(Params)).
 
 -spec execute( Connection :: erbdrv_connection(),
                    Statement :: erbdrv_statement() | string(),
                    Params :: erbi_bind_values() ) ->
     erbdrv_return().
 execute(Connection,Statement,_Params)  when is_record(Statement,statement)->
-    erbdrv_cols_rows_response(pgsql:execute(Connection,Statement,"", ?MIN_FETCH),Statement).
+    erbdrv_cols_rows_response(epgsql:execute(Connection,Statement,"", ?MIN_FETCH),Statement).
 
 -spec fetch_rows( Connection :: erbdrv_connection(),
                       Statement :: erbdrv_statement(),
@@ -198,16 +198,16 @@ fetch_rows(Connection,Statement,all) ->
     fetch_rows_number(Connection,Statement,?MAX_FETCH).
 
 fetch_rows_number(Connection,Statement, Amount) when is_integer(Amount), is_record(Statement,statement) ->
-    erbdrv_only_rows_response(pgsql:execute(Connection,Statement,"",Amount),Statement#statement.columns).
+    erbdrv_only_rows_response(epgsql:execute(Connection,Statement,"",Amount),Statement#statement.columns).
 
 -spec finish( Connection :: erbdrv_connection(),
                  Statement :: erbdrv_statement() ) ->
     erbdrv_return().
 finish(Connection,Statement) when is_record(Statement,statement)->
-    pgsql:sync(Connection),
-    erbdrv_response(pgsql:close(Connection,Statement));
+    epgsql:sync(Connection),
+    erbdrv_response(epgsql:close(Connection,Statement));
 finish(Connection,_) ->
-    erbdrv_response(pgsql:sync(Connection)).
+    erbdrv_response(epgsql:sync(Connection)).
 
 %----------------------------------------------------
 % erbi_temp_db API
