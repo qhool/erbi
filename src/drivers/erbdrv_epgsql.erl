@@ -20,7 +20,7 @@
 
 -include("erbi.hrl").
 -include("erbi_driver.hrl").
--include_lib("epgsql/include/pgsql.hrl").
+-include_lib("epgsql/include/epgsql.hrl").
 
 % erbi_driver API
 -export([driver_info/0,
