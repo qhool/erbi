@@ -221,6 +221,7 @@ finish(Connection,_) ->
                           "/usr/lib/postgresql/9.1/bin/",
                           "/usr/local/pgsql/bin/",
                           "/usr/local/bin/pgsql/bin/",
+                          "/usr/pgsql-9.5/bin",
                           "/usr/pgsql-9.3/bin",
                           "/usr/pgsql-9.2/bin",
                           "/usr/pgsql-9.1/bin",
