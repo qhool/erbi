@@ -216,6 +216,7 @@ finish(Connection,_) ->
 -define(PORT_FILE,"tmp_db.port").
 -define(POSSIBLE_BIN_DIRS,["/usr/bin/pgsql/bin/",
                           "/usr/sbin/pgsql/bin/",
+                          "/usr/lib/postgresql/9.5/bin/",
                           "/usr/lib/postgresql/9.3/bin/",
                           "/usr/lib/postgresql/9.2/bin/",
                           "/usr/lib/postgresql/9.1/bin/",
