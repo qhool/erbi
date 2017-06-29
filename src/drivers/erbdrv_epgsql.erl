@@ -105,14 +105,7 @@ disconnect(_) ->
     {error,{erbdrv_general_error,invalid_argument}}.
 
 reset(Connection) ->
-    erbdrv_response(epgsql:sync(Connection)).
-    %% case catch(epgsql:squery(Connection, "ROLLBACK")) of
-    %%     {error,timeout} ->
-    %%         %% forces erbi_driver to reconnect on next operation
-    %%         erbdrv_connection_response(undefined);
-    %%     _ ->
-    %%         erbdrv_response(epgsql:sync(Connection))
-    %% end.
+    rollback(Connection).
 
 -spec begin_work( Connection :: erbdrv_connection() ) ->
     erbdrv_return().
