@@ -503,7 +503,7 @@ do_prepare(State,Query) ->
                 end
                ).
 
-do_exec( #connect_state{statements=Tbl}=State, StmtID, Params ) when is_integer(StmtID) ->
+do_exec( #connect_state{statements=Tbl}=State, StmtID, Params ) when is_integer(StmtID); is_reference(StmtID) ->
     case get_stmt_handle(State,StmtID) of
         undefined -> % no handle; execute stored query text
             Query = erbi_stmt_store:get(Tbl,StmtID,raw_query),
