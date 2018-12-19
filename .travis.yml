@@ -15,6 +15,6 @@ before_script:
   - kerl list installations
 install:
   - rebar get-deps
-  - wget --directory-prefix=deps http://dist.neo4j.org/neo4j-community-2.0.0-unix.tar.gz
-  - tar xzf deps/neo4j-community-2.0.0-unix.tar.gz -C deps
-  - export ERBI_TEMPDB_BIN_NEO4J="$(pwd)/deps/neo4j-community-2.0.0/bin"
+#  - wget --directory-prefix=deps http://dist.neo4j.org/neo4j-community-3.5.0-unix.tar.gz
+#  - tar xzf deps/neo4j-community-3.5.0-unix.tar.gz -C deps
+#  - export ERBI_TEMPDB_BIN_NEO4J="$(pwd)/deps/neo4j-community-3.5.0/bin"
