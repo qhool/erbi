@@ -2,12 +2,12 @@
 APPLICATION=erbi
 
 # rebar compile needs to occur twice to get the proper app file
-all: rebar
-	@./rebar get-deps
-	@./rebar compile
+all: rebar3
+	@./rebar3 get-deps
+	@./rebar3 compile
 
 test: all
-	@./rebar eunit skip_deps=true
+	@./rebar3 eunit skip_deps=true
 
 dialyze: all ./.dialyzer.plt
 	dialyzer \
@@ -29,13 +29,14 @@ dialyze: all ./.dialyzer.plt
 rebuild:
 
 clean:
-	@(test -f rebar && ./rebar clean) || exit 0
+	@(test -f rebar3 && ./rebar3 clean) || exit 0
 	@rm -rf deps || exit 0
-	@rm -f rebar || exit 0
+	@rm -f rebar3 || exit 0
 	@rm -rf .eunit || exit 0
+	@rm -rf _build || exit 0
 
-rebar:
+rebar3:
 	@mkdir deps || exit 0
-	@git clone git@github.com:basho/rebar.git deps/rebar
-	@(cd deps/rebar; escript bootstrap; mv rebar ../..)
+	@git clone https://github.com/erlang/rebar3.git deps/rebar3
+	@(cd deps/rebar3; escript bootstrap; mv rebar3 ../..)
 

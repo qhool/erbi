@@ -132,7 +132,7 @@ get_base_dir() ->
     filename:join(
       lists:reverse(
         lists:nthtail(
-          2,  lists:reverse(
+          6,  lists:reverse(
                 filename:split(ThisFile)
                )))).
 

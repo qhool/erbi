@@ -79,7 +79,7 @@ fetchrow_proplist(Statement) ->
     get_row_as(proplist,Statement).
 
 -spec fetchrow_dict( Statement :: erbi_statement() ) ->
-                           { ok, dict() } | exhausted | { error, any() }.
+                           { ok, dict:dict() } | exhausted | { error, any() }.
 fetchrow_dict(Statement) ->
     get_row_as(dict,Statement).
 
@@ -110,7 +110,7 @@ fetchall_proplist(Statement) ->
     get_rows_as(proplist,Statement,all).
 
 -spec fetchall_dict( Statement :: erbi_statement() ) ->
-                           { ok, [dict()] } | { error, any() }.
+                           { ok, [dict:dict()] } | { error, any() }.
 fetchall_dict(Statement) ->
     get_rows_as(dict,Statement,all).
 

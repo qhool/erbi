@@ -143,7 +143,7 @@ selectall_proplist( Connection, Query, BindValues ) ->
 %% See selectall_dict/3.
 -spec selectall_dict( Connection :: erbi_connection(),
                       Query :: any() ) ->
-                            { ok, [dict()] } | { error, any() }.
+                            { ok, [dict:dict()] } | { error, any() }.
 selectall_dict( Connection, Query ) ->
     selectall_dict(Connection,Query,[]).
 
@@ -154,7 +154,7 @@ selectall_dict( Connection, Query ) ->
 -spec selectall_dict( Connection :: erbi_connection(),
                       Query :: any(),
                       BindValues :: erbi_bind_values() ) ->
-                            { ok, [dict()] } | { error, any() }.
+                            { ok, [dict:dict()] } | { error, any() }.
 selectall_dict( Connection, Query, BindValues ) ->
     prep_exec_and(fetchall_dict,Connection,Query,BindValues).
 
@@ -195,14 +195,14 @@ selectrow_proplist( Connection, Query, BindValues  ) ->
 
 -spec selectrow_dict( Connection :: erbi_connection(),
                       Query :: any() ) ->
-                            { ok, dict() } | { error, any() }.
+                            { ok, dict:dict() } | { error, any() }.
 selectrow_dict( Connection, Query ) ->
     selectrow_dict( Connection, Query, [] ).
 
 -spec selectrow_dict( Connection :: erbi_connection(),
                       Query :: any(),
                       BindValues :: erbi_bind_values() ) ->
-                            { ok, dict() } | { error, any() }.
+                            { ok, dict:dict() } | { error, any() }.
 selectrow_dict( Connection, Query, BindValues  ) ->
     prep_exec_and(fetchrow_dict,Connection,Query,BindValues).
 
