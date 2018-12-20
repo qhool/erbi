@@ -12,7 +12,7 @@ bind_params_test() ->
 
 finish_test() ->
     Stmt = get_stmt(test,[]),
-    ok = Stmt:finish().
+    ok = erbi_statement:finish(Stmt).
 
 fetchall_test_() ->
     [ ?_assert( erbi_test_util:equal_rows_list(test,exec_on_stmt(test,fetchall_list)) ),
